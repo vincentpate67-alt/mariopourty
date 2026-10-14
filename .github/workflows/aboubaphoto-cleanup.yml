@@ -1,7 +1,6 @@
 name: Nettoyage des photos Aboubaphoto
 on:
-  schedule:
-    - cron: '23 3 * * *'
+  # Automatic cleanup now runs hourly on Cloudflare. Keep manual recovery here.
   workflow_dispatch:
     inputs:
       dry_run:
