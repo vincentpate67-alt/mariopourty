@@ -1,0 +1,38 @@
+name: Nettoyage des photos Aboubaphoto
+on:
+  schedule:
+    - cron: '23 3 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Simulation : vérifier sans supprimer'
+        type: boolean
+        default: true
+      configure_preset:
+        description: 'Activer la suppression des photos récentes (première installation)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+concurrency:
+  group: aboubaphoto-cleanup
+  cancel-in-progress: false
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Nettoyer uniquement les photos Aboubaphoto expirées
+        env:
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+          CLEANUP_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+          CONFIGURE_PRESET: ${{ github.event_name == 'workflow_dispatch' && inputs.configure_preset && 'true' || 'false' }}
+        run: node scripts/cleanup-aboubaphoto.mjs

@@ -4,7 +4,7 @@
   const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
   const action=(text,fn,cls)=>{const n=el('button',text,cls);n.type='button';n.addEventListener('click',fn);return n;};
   const notice=(text,error=false)=>{$('notice').textContent=text;$('notice').classList.toggle('error',error);};
-  let sdk,db,auth,roomId,roomData,unsubscribe=()=>{},stopPresence=()=>{},expiryTimer;
+  let sdk,db,auth,roomId,roomData,unsubscribe=()=>{},stopPresence=()=>{},stopHostConnection=()=>{},expiryTimer,hostRoom=false,closed=false;
   const cards=new Map();
   const firebaseReady=()=>['apiKey','projectId','databaseURL','appId'].every(k=>cfg.firebase[k]);
   const uploadReady=()=>/^[a-z0-9_-]+$/i.test(cfg.cloudinary.cloudName)&&!!cfg.cloudinary.uploadPreset;
@@ -22,7 +22,7 @@
   async function closePhoto(){const d=$('lightbox');if(!d.open)return;await d.animate([{opacity:1,transform:'scale(1)'},{opacity:0,transform:'scale(.95)'}],{duration:220,easing:'ease-in'}).finished;d.close();}
   $('close-photo').addEventListener('click',closePhoto);$('lightbox').addEventListener('cancel',e=>{e.preventDefault();closePhoto();});
   function renderRoom(data){
-    if(!data){notice('Cette partie est fermée.');return;}roomData=data;
+    if(!data){closed=true;sessionStorage.removeItem('aboubaphoto-host');clearTimeout(expiryTimer);stopHostConnection();$('players').replaceChildren();cards.clear();$('actions').replaceChildren(action('Nouvelle salle',()=>location.reload()));$('connection').textContent='Salle fermée';notice('Cette partie est fermée.');return;}roomData=data;
     for(const [key,p] of Object.entries(data.players||{}).sort((a,b)=>a[1].index-b[1].index)){
       let c=cards.get(key);if(!c){c=card(p,key);const url=C.link(location.href,roomId,key),qr=qrcode(0,'M');qr.addData(url);qr.make();c.qr.classList.remove('pending');c.qr.innerHTML=qr.createSvgTag({cellSize:4,margin:4,scalable:true});c.qr.setAttribute('aria-label','QR code pour '+p.name);const copy=action('Copier le lien',async()=>{try{await navigator.clipboard.writeText(url);copy.textContent='Copié !';setTimeout(()=>copy.textContent='Copier le lien',1500);}catch{notice('Copie du lien indisponible : utilise le QR code.');}},'small');c.qr.after(copy);}
       c.status.textContent=p.online?'Connecté':p.uid?'Déconnecté':'Scanne ton QR code';c.status.classList.toggle('ready',!!p.online);
@@ -30,11 +30,25 @@
       if(url&&url!==c.url){c.url=url;const img=el('img');img.alt='Photo de '+p.name;img.referrerPolicy='no-referrer';img.onload=()=>{const b=action('',()=>showPhoto(url,p.name));b.setAttribute('aria-label','Agrandir la photo de '+p.name);b.append(img);c.slot.replaceChildren(b);};img.onerror=()=>{c.slot.replaceChildren(el('p','Photo indisponible.'));};img.src=url;}
     }
   }
-  function attachRoom(data){
+  async function closeRoom(){
+    if(!hostRoom||!roomId)return;
+    await sdk.remove(sdk.ref(db,'photoRooms/'+roomId));
+    closed=true;sessionStorage.removeItem('aboubaphoto-host');
+    unsubscribe();stopHostConnection();clearTimeout(expiryTimer);
+  }
+  async function attachRoom(data){
+    hostRoom=true;closed=false;
+    const roomRef=sdk.ref(db,'photoRooms/'+roomId);
+    // Stored on Firebase: still executes if the host loses power or closes the browser.
+    await sdk.onDisconnect(roomRef).remove();
+    stopHostConnection();
+    stopHostConnection=sdk.onValue(sdk.ref(db,'.info/connected'),snap=>{
+      if(snap.val()===true&&!closed)sdk.onDisconnect(roomRef).remove().catch(fail);
+    });
     unsubscribe();clearTimeout(expiryTimer);$('players').replaceChildren();cards.clear();renderRoom(data);
-    $('actions').replaceChildren(action('Fermer la salle',async()=>{try{await sdk.remove(sdk.ref(db,'photoRooms/'+roomId));unsubscribe();clearTimeout(expiryTimer);sessionStorage.removeItem('aboubaphoto-host');location.reload();}catch(e){fail(e);}}));
+    $('actions').replaceChildren(action('Fermer la salle',async()=>{try{await closeRoom();location.reload();}catch(e){fail(e);}}));
     unsubscribe=sdk.onValue(sdk.ref(db,'photoRooms/'+roomId),snap=>renderRoom(snap.val()),fail);
-    expiryTimer=setTimeout(()=>{unsubscribe();notice('Cette salle a expiré. Ferme-la pour en ouvrir une nouvelle.');$('connection').textContent='Salle expirée';},Math.max(0,data.expiresAt-Date.now()));
+    expiryTimer=setTimeout(()=>{closeRoom().then(()=>{renderRoom(null);notice('Cette salle a expiré et a été supprimée.');}).catch(fail);},Math.max(0,data.expiresAt-Date.now()));
     notice(uploadReady()?'Chaque joueur scanne son QR code.':'Les téléphones peuvent rejoindre. L’envoi des photos attend la configuration de l’hébergeur.');$('connection').textContent='Salle ouverte';
   }
   async function host(){
@@ -46,7 +60,7 @@
     const saved=sessionStorage.getItem('aboubaphoto-host');
     if(C.validToken(saved)){
       notice('Reconnexion à ta salle…');
-      try{await connect();const snap=await sdk.get(sdk.ref(db,'photoRooms/'+saved)),data=snap.val();if(data&&data.host===auth.currentUser.uid&&data.expiresAt>Date.now()){roomId=saved;attachRoom(data);return;}}
+      try{await connect();const snap=await sdk.get(sdk.ref(db,'photoRooms/'+saved)),data=snap.val();if(data&&data.host===auth.currentUser.uid&&data.expiresAt>Date.now()){roomId=saved;await attachRoom(data);return;}}
       catch(e){fail(e);}
       sessionStorage.removeItem('aboubaphoto-host');
     }
@@ -54,7 +68,7 @@
       create.disabled=true;notice('Connexion…');
       try{
         if(!db)await connect();roomId=C.token();const data=C.room(players,auth.currentUser.uid);await sdk.set(sdk.ref(db,'photoRooms/'+roomId),data);
-        sessionStorage.setItem('aboubaphoto-host',roomId);attachRoom(data);
+        sessionStorage.setItem('aboubaphoto-host',roomId);await attachRoom(data);
       }catch(e){fail(e);create.disabled=false;}
     });$('actions').append(create);
   }
@@ -62,7 +76,7 @@
     if(!file.type.startsWith('image/')||file.size>20*1024*1024)throw Error('Choisis une image de moins de 20 Mo.');
     const local=URL.createObjectURL(file);try{const img=new Image();img.src=local;await img.decode();let ratio=Math.min(1,1280/Math.max(img.naturalWidth,img.naturalHeight));const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(img.naturalWidth*ratio));canvas.height=Math.max(1,Math.round(img.naturalHeight*ratio));const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height);let result;for(const quality of [.82,.65,.48]){result=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',quality));if(result&&result.size<700000)break;}if(!result||result.size>1000000)throw Error('Cette image reste trop lourde. Choisis une photo plus petite.');return result;}catch(e){if(e.message?.startsWith('Cette'))throw e;throw Error('Image illisible. Essaie une photo JPEG ou PNG.');}finally{URL.revokeObjectURL(local);}
   }
-  function upload(blob,progress){return new Promise((resolve,reject)=>{const x=new XMLHttpRequest(),body=new FormData();body.append('file',blob,'photo.jpg');body.append('upload_preset',cfg.cloudinary.uploadPreset);x.open('POST','https://api.cloudinary.com/v1_1/'+encodeURIComponent(cfg.cloudinary.cloudName)+'/image/upload');x.timeout=60000;x.upload.onprogress=e=>{if(e.lengthComputable)progress(e.loaded/e.total);};x.onerror=()=>reject(Error('Envoi interrompu. Vérifie ta connexion.'));x.ontimeout=()=>reject(Error('L’envoi a pris trop de temps. Réessaie.'));x.onload=()=>{try{const value=JSON.parse(x.responseText);const url=C.imageURL(value.secure_url,cfg.cloudinary.cloudName);if(x.status<200||x.status>=300||!url)throw Error();resolve({url,publicId:value.public_id});}catch{reject(Error('L’hébergeur a refusé la photo. Vérifie sa configuration ou son quota.'));}};x.send(body);});}
+  function upload(blob,progress){return new Promise((resolve,reject)=>{const x=new XMLHttpRequest(),body=new FormData();body.append('file',blob,'photo.jpg');body.append('upload_preset',cfg.cloudinary.uploadPreset);x.open('POST','https://api.cloudinary.com/v1_1/'+encodeURIComponent(cfg.cloudinary.cloudName)+'/image/upload');x.timeout=60000;x.upload.onprogress=e=>{if(e.lengthComputable)progress(e.loaded/e.total);};x.onerror=()=>reject(Error('Envoi interrompu. Vérifie ta connexion.'));x.ontimeout=()=>reject(Error('L’envoi a pris trop de temps. Réessaie.'));x.onload=()=>{try{const value=JSON.parse(x.responseText);const url=C.imageURL(value.secure_url,cfg.cloudinary.cloudName);if(x.status<200||x.status>=300||!url)throw Error();resolve({url,publicId:value.public_id,deleteToken:typeof value.delete_token==='string'?value.delete_token:null});}catch{reject(Error('L’hébergeur a refusé la photo. Vérifie sa configuration ou son quota.'));}};x.send(body);});}
   async function player(){
     $('connection').textContent='Joueur';$('players').hidden=true;const token=params.get('player');roomId=params.get('room');
     if(!C.validToken(token)||!C.validToken(roomId)){notice('Lien de joueur invalide. Scanne à nouveau le QR code.',true);return;}
@@ -78,14 +92,21 @@
       const input=document.createElement('input');input.type='file';input.accept='image/*';input.capture='environment';const label=el('label','Prendre une photo','file-label');label.append(input);
       const preview=el('img',undefined,'preview');preview.alt='Aperçu de ta photo';preview.hidden=true;
       const progress=el('progress');progress.max=1;progress.value=0;progress.hidden=true;
-      let blob=null,previewURL=null,pendingUpload=null,busy=false;
-      const send=action('Envoyer la photo',async()=>{if(!blob||busy)return;busy=true;send.disabled=true;input.disabled=true;progress.hidden=false;notice('Envoi de la photo…');try{pendingUpload||=await upload(blob,v=>progress.value=v);await sdk.set(sdk.ref(db,path+'/photo'),{...pendingUpload,sentAt:sdk.serverTimestamp()});notice('Photo affichée sur l’écran principal !');blob=null;pendingUpload=null;send.textContent='Photo envoyée';}catch(e){fail(e);send.disabled=false;send.textContent='Réessayer';}finally{busy=false;input.disabled=false;progress.hidden=true;}});send.disabled=true;
-      input.addEventListener('change',async()=>{const f=input.files[0];if(!f||busy)return;send.disabled=true;notice('Préparation de la photo…');blob=null;pendingUpload=null;try{blob=await compress(f);if(previewURL)URL.revokeObjectURL(previewURL);previewURL=URL.createObjectURL(blob);preview.src=previewURL;preview.hidden=false;send.textContent='Envoyer la photo';send.disabled=!uploadReady();notice(uploadReady()?'Ta photo est prête.':'L’envoi attend la configuration de l’hébergeur.');}catch(e){fail(e);}});
+      let blob=null,previewURL=null,pendingUpload=null,currentUpload=null,busy=false,roomClosed=false;
+      const discard=photo=>{if(photo?.deleteToken)window.AboubaPhotoCleanup.remove(photo.deleteToken).catch(()=>{});};
+      const roomEnded=()=>{roomClosed=true;input.disabled=true;send.disabled=true;discard(currentUpload);discard(pendingUpload);notice('Cette salle est fermée.');stopPresence();};
+      const send=action('Envoyer la photo',async()=>{if(!blob||busy)return;busy=true;send.disabled=true;input.disabled=true;progress.hidden=false;notice('Envoi de la photo…');try{pendingUpload||=await upload(blob,v=>progress.value=v);if(roomClosed){discard(pendingUpload);return;}await sdk.set(sdk.ref(db,path+'/photo'),{url:pendingUpload.url,publicId:pendingUpload.publicId,sentAt:sdk.serverTimestamp()});if(roomClosed){discard(pendingUpload);return;}discard(currentUpload);currentUpload=pendingUpload;notice('Photo affichée sur l’écran principal !');blob=null;pendingUpload=null;send.textContent='Photo envoyée';}catch(e){fail(e);send.disabled=roomClosed;send.textContent='Réessayer';}finally{busy=false;input.disabled=roomClosed;progress.hidden=true;}});send.disabled=true;
+      input.addEventListener('change',async()=>{const f=input.files[0];if(!f||busy)return;send.disabled=true;notice('Préparation de la photo…');blob=null;discard(pendingUpload);pendingUpload=null;try{blob=await compress(f);if(previewURL)URL.revokeObjectURL(previewURL);previewURL=URL.createObjectURL(blob);preview.src=previewURL;preview.hidden=false;send.textContent='Envoyer la photo';send.disabled=roomClosed||!uploadReady();notice(uploadReady()?'Ta photo est prête.':'L’envoi attend la configuration de l’hébergeur.');}catch(e){fail(e);}});
       const actions=el('div',undefined,'actions');actions.append(label,send);panel.append(preview,actions,progress,el('p','En envoyant, tu partages cette photo avec la salle. Elle sera hébergée sur Cloudinary et accessible aux personnes disposant de son lien.','upload-note'));
       notice(uploadReady()?'Prends une photo pour l’afficher sur l’écran principal.':'Tu es connecté. L’envoi des photos n’est pas encore activé.');
-      unsubscribe=sdk.onValue(r,snap=>{if(!snap.exists()){input.disabled=true;send.disabled=true;notice('Cette salle est fermée.');stopPresence();}},()=>{input.disabled=true;send.disabled=true;notice('Cette salle a expiré ou a été fermée.');stopPresence();});
+      unsubscribe=sdk.onValue(r,snap=>{if(!snap.exists())roomEnded();},()=>roomEnded());
     }catch(e){fail(e);}
   }
-  window.addEventListener('pagehide',()=>{unsubscribe();stopPresence();});
+  document.querySelector('header a').addEventListener('click',async e=>{
+    if(!hostRoom||closed)return;e.preventDefault();const destination=e.currentTarget.href;
+    try{await closeRoom();location.href=destination;}catch(err){fail(err);}
+  });
+  window.addEventListener('pagehide',()=>{unsubscribe();stopPresence();stopHostConnection();if(hostRoom&&db){sdk.goOffline(db);}});
+  window.addEventListener('pageshow',e=>{if(e.persisted)location.reload();});
   (params.has('room')?player():host()).catch(fail);
 })();
