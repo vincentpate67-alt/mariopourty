@@ -56,7 +56,7 @@
     players.forEach((p,index)=>card({...p,index},'preview-'+index));
     if(!players.length){notice('Crée d’abord les joueurs dans le menu principal.');return;}
     if(!firebaseReady()){notice('Les joueurs sont prêts. La connexion aux téléphones sera disponible après la configuration Firebase et la publication du site.');return;}
-    if(location.protocol!=='https:'){notice('Ouvre la version publiée en HTTPS pour connecter les téléphones.');return;}
+    if(location.protocol!=='https:'&&!(location.protocol==='http:'&&C.localHost(location.hostname))){notice('Ouvre la version publiée en HTTPS ou lance le serveur de test local pour connecter les téléphones.');return;}
     const saved=sessionStorage.getItem('aboubaphoto-host');
     if(C.validToken(saved)){
       notice('Reconnexion à ta salle…');
