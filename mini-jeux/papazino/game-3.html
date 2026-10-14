@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <script src="../../party-payout.js"></script>
+<script src="../../board/board-minigame-bridge.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Papazino</title>
+  <link rel="stylesheet" href="../../style.css" />
+  <style>
+    body{background:#0a0f24;min-height:100vh;color:#fff;font-family:Segoe UI,Roboto,Ubuntu,sans-serif;margin:0;padding:0;}
+    main{width:100%;max-width:960px;margin:40px auto 100px;padding:20px;text-align:center;}
+    h1{font-size:2.2rem;margin-bottom:12px;color:#f4f8ff;}
+    #status{font-size:1.2rem;margin:10px 0;min-height:42px;}
+    #timer{font-size:1.5rem;font-weight:800;color:#a3e0ff;margin:6px 0;}
+    .player-order{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:14px 0;}
+    .player-chip{padding:8px 12px;border-radius:12px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);font-weight:700;cursor:pointer;}
+    .player-chip.active{box-shadow:0 0 0 2px rgba(255,220,90,0.35);border-color:#ffd76d;}
+    #card-grid{display:grid;gap:10px;grid-template-columns:repeat(5,minmax(110px,1fr));margin:18px 0;}
+    .card-btn{padding:16px;min-height:100px;border-radius:8px;background:rgba(16,30,64,0.92);border:2px solid rgba(255,255,255,0.20);color:#fff;font-weight:900;cursor:pointer;transition:transform .25s ease, background .25s ease;}
+    .card-btn:hover{transform:translateY(-4px);}
+    .card-btn.revealed{background:rgba(81,122,190,0.95);}
+    .card-btn.disabled{opacity:0.45;cursor:not-allowed;}
+    #final-state{margin-top:20px;font-size:1.1rem;color:#dbe9ff;display:none;}
+    #return-btn{margin-top:16px;padding:10px 16px;font-size:1rem;font-weight:700;border:none;border-radius:10px;background:#ff776d;color:#fff;cursor:pointer;display:none;}
+    .hidden{display:none;}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Papazino</h1>
+    <div id="status">Chargement des joueurs...</div>
+    <div id="timer"></div>
+    <div id="order" class="player-order"></div>
+    <div id="card-grid"></div>
+    <div id="round-info"></div>
+    <div id="final-state"></div>
+    <button id="return-btn">Retour au menu</button>
+  </main>
+  <script src="../commun/game-players.js"></script>
+  <script>
+(function(){
+  const savedPlayers = JSON.parse(localStorage.getItem('mini-Jeux-host-players') || '[]');
+  const statusEl = document.getElementById('status');
+  const timerEl = document.getElementById('timer');
+  const orderEl = document.getElementById('order');
+  const cardGrid = document.getElementById('card-grid');
+  const roundInfoEl = document.getElementById('round-info');
+  const finalEl = document.getElementById('final-state');
+  const returnBtn = document.getElementById('return-btn');
+
+  if (savedPlayers.length < 2) {
+    statusEl.textContent = 'Il faut au moins 2 joueurs (et max 6).';
+    return;
+  }
+
+  const players = savedPlayers.slice(0,6).map((p, idx) => ({
+    name: p.name,
+    color: p.color || '#fff',
+    score: 0,
+    eliminated: false,
+    eliminationRound: 0,
+    eliminationOrder: 0,
+    id: idx
+  }));
+
+  let round = 1;
+  let activePlayers = shuffle(players.filter(p => !p.eliminated));
+  let deck = [];
+  let currentTurnIdx = 0;
+  let countdownId = null;
+  let timeLeft = 0;
+  let cardSelectedInTurn = false;
+  let eliminationCounter = 0;
+  let awaitingSwap = false;
+  let swapActor = null;
+
+  function shuffle(arr) {
+    return arr.slice().sort(() => Math.random() - 0.5);
+  }
+
+  function setStatus(msg, color) {
+    statusEl.textContent = msg;
+    statusEl.style.color = color || '#e0f4ff';
+  }
+
+  function setTimer(n) {
+    timerEl.textContent = n > 0 ? `Temps: ${n}s` : '';
+  }
+
+  function clearCountdown() {
+    if (countdownId) {
+      clearInterval(countdownId);
+      countdownId = null;
+    }
+  }
+
+  function getDeckForRound(r) {
+    let cards = [];
+    if (r === 1) {
+      cards = [
+        ...Array(3).fill({type:'mod',value:1,label:'+1'}),
+        ...Array(2).fill({type:'mod',value:3,label:'+3'}),
+        ...Array(2).fill({type:'mod',value:-1,label:'-1'}),
+        {type:'mod',value:-3,label:'-3'},
+        {type:'mod',value:5,label:'+5'},
+        {type:'mod',value:-5,label:'-5'}
+      ];
+    } else if (r === 2) {
+      cards = [
+        ...Array(2).fill({type:'mod',value:1,label:'+1'}),
+        ...Array(2).fill({type:'mod',value:3,label:'+3'}),
+        {type:'mod',value:-1,label:'-1'},
+        {type:'mod',value:-3,label:'-3'},
+        ...Array(2).fill({type:'mod',value:5,label:'+5'}),
+        {type:'mod',value:-5,label:'-5'},
+        {type:'swap',label:'Échange'},
+        {type:'elim',label:'Élimination'}
+      ];
+    } else {
+      cards = [
+        {type:'mod',value:1,label:'+1'},
+        {type:'mod',value:3,label:'+3'},
+        {type:'mod',value:-1,label:'-1'},
+        {type:'mod',value:-3,label:'-3'},
+        ...Array(2).fill({type:'mod',value:5,label:'+5'}),
+        ...Array(2).fill({type:'mod',value:-5,label:'-5'}),
+        ...Array(2).fill({type:'swap',label:'Échange'}),
+        ...Array(2).fill({type:'elim',label:'Élimination'}),
+      ];
+    }
+    return shuffle(cards);
+  }
+
+  function renderOrder() {
+    orderEl.innerHTML = '';
+    activePlayers.forEach((p, idx) => {
+      const chip = document.createElement('div');
+      chip.className = 'player-chip' + (idx === currentTurnIdx ? ' active' : '');
+      chip.style.borderColor = p.color;
+      chip.textContent = `${p.name} (${p.score})`;
+      if (awaitingSwap && p.id !== swapActor.id) {
+        chip.style.cursor = 'pointer';
+        chip.addEventListener('click', () => pickSwapTarget(p));
+      }
+      orderEl.appendChild(chip);
+    });
+  }
+
+  function renderCards() {
+    cardGrid.innerHTML = '';
+    deck.forEach((card, i) => {
+      const button = document.createElement('button');
+      button.className = 'card-btn' + (card.revealed ? ' revealed' : '');
+      button.disabled = card.revealed || cardSelectedInTurn || awaitingSwap;
+      if (button.disabled) button.classList.add('disabled');
+      if (!card.revealed) {
+        button.textContent = card.cardId;
+      } else if (card.type === 'swap') {
+        button.innerHTML = '<img src="assets/echange.png" alt="Échange" style="width:28px;height:28px;vertical-align:middle;">';
+      } else if (card.type === 'elim') {
+        button.innerHTML = '<img src="assets/elim.png" alt="Élimination" style="width:28px;height:28px;vertical-align:middle;">';
+      } else {
+        button.textContent = card.label;
+      }
+      button.addEventListener('click', () => chooseCard(i));
+      cardGrid.appendChild(button);
+    });
+  }
+
+  function startTurnTimer() {
+    clearCountdown();
+    timeLeft = 10;
+    setTimer(timeLeft);
+    countdownId = setInterval(() => {
+      timeLeft -= 1;
+      if (timeLeft <= 0) {
+        clearCountdown();
+        setTimer(0);
+        setStatus('Temps écoulé : carte aléatoire appliquée.', '#ff9d5a');
+        autoPick();
+      } else {
+        setTimer(timeLeft);
+      }
+    }, 1000);
+  }
+
+  function autoPick() {
+    if (cardSelectedInTurn || awaitingSwap) return;
+    const availableIndexes = deck.map((c, idx) => c.revealed ? -1 : idx).filter(i => i >= 0);
+    if (!availableIndexes.length) return;
+    const idx = availableIndexes[Math.floor(Math.random() * availableIndexes.length)];
+    chooseCard(idx);
+  }
+
+  function chooseCard(idx) {
+    if (cardSelectedInTurn || awaitingSwap) return;
+    cardSelectedInTurn = true;
+    clearCountdown();
+
+    const card = deck[idx];
+    card.revealed = true;
+    renderCards();
+
+    const actor = activePlayers[currentTurnIdx];
+
+    if (card.type === 'mod') {
+      actor.score += card.value;
+      setStatus(`${actor.name} pioche ${card.label} => score ${actor.score}.`, actor.color);
+      console.log(`${actor.name} ${card.label}`);
+      finishCardChoice(actor);
+    } else if (card.type === 'swap') {
+      setStatus(`${actor.name} pioche Échange : choisis un joueur pour swap.`, actor.color);
+      awaitingSwap = true;
+      swapActor = actor;
+      renderOrder();
+    } else if (card.type === 'elim') {
+      actor.eliminated = true;
+      actor.eliminationRound = round;
+      actor.eliminationOrder = ++eliminationCounter;
+      setStatus(`${actor.name} est éliminé !`, actor.color);
+      console.log(`${actor.name} éliminé round ${round}`);
+      finishCardChoice(actor,true);
+    }
+  }
+
+  function pickSwapTarget(target) {
+    if (!awaitingSwap || !swapActor || target.id === swapActor.id) return;
+    const scoreA = swapActor.score;
+    swapActor.score = target.score;
+    target.score = scoreA;
+    setStatus(`${swapActor.name} échange avec ${target.name}.`, '#ffd56f');
+    console.log(`${swapActor.name} échange avec ${target.name}`);
+    awaitingSwap = false;
+    swapActor = null;
+    renderOrder();
+    finishCardChoice(activePlayers[currentTurnIdx]);
+  }
+
+  function finishCardChoice(player, eliminatedNow = false) {
+    cardSelectedInTurn = false;
+    awaitingSwap = false;
+    swapActor = null;
+    if (eliminatedNow) {
+      activePlayers = activePlayers.filter(p => !p.eliminated);
+      if (currentTurnIdx >= activePlayers.length) {
+        currentTurnIdx = 0;
+      }
+    } else {
+      currentTurnIdx += 1;
+    }
+
+    renderOrder();
+    renderCards();
+
+    setTimeout(() => {
+      if (activePlayers.length <= 1) {
+        endGame();
+      } else if (currentTurnIdx >= activePlayers.length) {
+        startNextRound();
+      } else {
+        nextPlayer();
+      }
+    }, 900);
+  }
+
+  function nextPlayer() {
+    const current = activePlayers[currentTurnIdx];
+    if (!current) return;
+    setStatus(`Tour de ${current.name} (${round}/3).`, current.color);
+    renderOrder();
+    renderCards();
+    startTurnTimer();
+  }
+
+  function announceOrder(callback) {
+    let step = 0;
+    const preview = setInterval(() => {
+      const randomName = activePlayers[Math.floor(Math.random() * activePlayers.length)].name;
+      statusEl.textContent = `Ordre aléatoire ... ${randomName}`;
+      step += 1;
+      if (step >= 20) {
+        clearInterval(preview);
+        activePlayers = shuffle(activePlayers);
+        statusEl.textContent = `Ordre fixé : ${activePlayers.map(p => p.name).join(' → ')}`;
+        renderOrder();
+        setTimeout(() => { callback(); }, 900);
+      }
+    }, 80);
+  }
+
+  function startNextRound() {
+    round += 1;
+    if (round > 3 || activePlayers.length <= 1) {
+      endGame();
+      return;
+    }
+    setStatus(`Fin du tour, préparation du tour ${round}...`, '#dcd6ff');
+    setTimer('');
+    currentTurnIdx = 0;
+    activePlayers = shuffle(activePlayers);
+    setTimeout(() => announceOrder(beginRound), 800);
+  }
+
+  function shuffleCardsAnimation(duration, callback) {
+    const interval = 120;
+    const iterations = Math.max(30, Math.ceil(duration / interval));
+    let count = 0;
+    const shuffleId = setInterval(() => {
+      // Riffle-like et échanges proches pour que le suivi soit possible
+      let i = Math.floor(Math.random() * deck.length);
+      let j;
+      if (Math.random() < 0.8) {
+        j = (i + (Math.random() < 0.5 ? 1 : -1) + deck.length) % deck.length;
+      } else {
+        do { j = Math.floor(Math.random() * deck.length); } while (j === i);
+      }
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+      renderCards();
+      statusEl.textContent = `Mélange ... ${count + 1}/${iterations}`;
+
+      cardGrid.querySelectorAll('.card-btn').forEach(btn => {
+        const rx = (Math.random() - 0.5) * 16;
+        const ry = (Math.random() - 0.5) * 16;
+        const rz = (Math.random() - 0.5) * 10;
+        btn.style.transform = `translate(${rx}px, ${ry}px) rotate(${rz}deg)`;
+      });
+      setTimeout(() => {
+        cardGrid.querySelectorAll('.card-btn').forEach(btn => { btn.style.transform = ''; });
+      }, interval - 30);
+
+      count += 1;
+      if (count >= iterations) {
+        clearInterval(shuffleId);
+        // final state : ordre fixe et cartes alignées
+        renderCards();
+        statusEl.textContent = `Mélange terminé.`;
+        callback();
+      }
+    }, interval);
+  }
+
+  function beginRound() {
+    setStatus(`Tour ${round} - cartes révélées (4s)`, '#ffd76d');
+    cardGrid.innerHTML = '';
+    roundInfoEl.textContent = `Tour ${round} / 3`;
+    deck = getDeckForRound(round).map((card, index) => ({...card, revealed: true, cardId: index + 1}));
+    renderCards();
+
+    setTimeout(() => {
+      deck.forEach(c => c.revealed = false);
+      renderCards();
+      setStatus(`Mélange en cours...`, '#a0d9ff');
+      const shuffleTime = 4000;
+      shuffleCardsAnimation(shuffleTime, () => {
+        setStatus(`Prêt. ${activePlayers[currentTurnIdx].name} commence.`, activePlayers[currentTurnIdx].color);
+        renderOrder();
+        renderCards();
+        nextPlayer();
+      });
+    }, 4000);
+  }
+
+  function endGame() {
+      window.PourtyMiniGame?.finish();
+    clearCountdown();
+    setTimer('');
+
+    cardGrid.innerHTML = '';
+    orderEl.innerHTML = '';
+    roundInfoEl.textContent = '';
+
+    const eliminated = players.filter(p => p.eliminated).sort((a,b) => {
+      if (a.eliminationRound !== b.eliminationRound) return b.eliminationRound - a.eliminationRound;
+      return b.eliminationOrder - a.eliminationOrder;
+    });
+    const survivors = players.filter(p => !p.eliminated).sort((a,b) => b.score - a.score);
+    const ranking = [...survivors, ...eliminated];
+
+    if (survivors.length > 0) {
+      setStatus(`Fin de Papazino ! Vainqueur : ${survivors[0].name}`, survivors[0].color);
+    } else {
+      setStatus('Fin de Papazino ! Aucun survivant.', '#ff6b6b');
+    }
+
+    finalEl.style.display = 'block';
+    finalEl.innerHTML = '<h2>Classement final</h2>' + ranking.map((p,i) => {
+      const status = p.eliminated ? `éliminé (tour ${p.eliminationRound})` : `${p.score} pts`;
+      return `<div style="color:${p.color}">${i+1}. ${p.name} - ${status}</div>`;
+    }).join('');
+
+    updatePlayerBarRanking(ranking);
+    returnBtn.style.display = 'inline-block';
+  }
+
+  function updatePlayerBarRanking(sorted) {
+    const bar = document.querySelector('.player-bar');
+    if (!bar) return;
+    const pills = Array.from(bar.querySelectorAll('.player-pill'));
+    pills.forEach(pill => {
+      const name = pill.querySelector('span:nth-child(2)')?.textContent?.trim();
+      const res = sorted.find(r => r.name === name);
+      let badge = pill.querySelector('.rank-badge');
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'rank-badge';
+        badge.style.marginLeft = 'auto';
+        badge.style.fontWeight = '900';
+        badge.style.fontSize = '0.85rem';
+        badge.style.padding = '2px 6px';
+        badge.style.borderRadius = '99px';
+        badge.style.background = 'rgba(255,255,255,0.8)';
+        badge.style.color = '#000';
+        pill.appendChild(badge);
+      }
+      if (!res) {
+        badge.textContent = '';
+        pill.style.boxShadow = 'none';
+        pill.style.border = '1px solid rgba(255,255,255,0.28)';
+        pill.style.background = 'rgba(15,24,46,0.95)';
+      } else {
+        const rank = sorted.findIndex(r => r.name === name) + 1;
+        const rankColor = rank === 1 ? '#ffd700' : rank === 2 ? '#c0c0c0' : rank === 3 ? '#cd7f32' : '#8a2be2';
+        badge.textContent = `#${rank}`;
+        pill.style.border = `1px solid ${rankColor}`;
+        pill.style.boxShadow = `0 0 0 2px ${rankColor}`;
+        pill.style.background = 'rgba(255,255,255,0.13)';
+        setACText(pill, rank, sorted.length);
+      }
+    });
+  }
+
+  returnBtn.addEventListener('click', () => { window.location.href = '../../index.html'; });
+
+  setStatus('Animation de sélection de l’ordre...', '#ddd');
+  announceOrder(beginRound);
+})();
+  </script>
+</body>
+</html>

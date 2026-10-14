@@ -1,0 +1,1427 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <script src="../../party-payout.js"></script>
+<script src="../../board/board-minigame-bridge.js"></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Aboublindtest</title>
+  <style>
+    :root {
+      --bg: #07101f;
+      --panel: rgba(255,255,255,0.07);
+      --text: #f8fbff;
+      --muted: #9fb5cf;
+      --accent: #2dd36f;
+      --accent-2: #1aa856;
+      --border: rgba(255,255,255,0.16);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      font-family: "Segoe UI", Roboto, Arial, sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at top, #12304f 0%, var(--bg) 60%);
+      padding: 24px 20px 110px;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0;
+      background: transparent;
+      z-index: 9998;
+    }
+
+    body.flash-green::before {
+      animation: flash-bg 0.5s ease-in-out both;
+      background: rgba(74, 237, 142, 0.24);
+    }
+
+    body.flash-red::before {
+      animation: flash-bg 0.5s ease-in-out both;
+      background: rgba(255, 95, 95, 0.24);
+    }
+
+    @keyframes flash-bg {
+      0% { opacity: 0; }
+      20% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+
+    main {
+      max-width: 980px;
+      margin: 0 auto;
+      text-align: center;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: flex-start;
+    }
+
+    .start-screen {
+      min-height: calc(100vh - 110px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 16px;
+      padding-top: 24px;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: transparent;
+    }
+
+    h1 {
+      margin: 8px 0 8px;
+      font-size: clamp(2.2rem, 4.8vw, 3.2rem);
+      letter-spacing: .04em;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      margin: 0 0 24px;
+      font-size: 1.1rem;
+    }
+
+    .start-btn {
+      border: none;
+      border-radius: 999px;
+      padding: 16px 34px;
+      font-size: 1.2rem;
+      font-weight: 900;
+      letter-spacing: .04em;
+      color: white;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 16px 30px rgba(45, 211, 111, 0.35);
+      cursor: pointer;
+      transition: transform .2s ease, box-shadow .2s ease;
+    }
+
+    .start-btn:hover {
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: 0 20px 36px rgba(45, 211, 111, 0.45);
+    }
+
+    .game-screen {
+      display: none;
+    }
+
+    .status {
+      min-height: 48px;
+      font-size: 1.4rem;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .question-card {
+      background: linear-gradient(145deg, rgba(255,255,255,0.12), rgba(255,255,255,0.06));
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: 0 18px 40px rgba(0,0,0,0.25);
+      margin: 14px auto 24px;
+      max-width: 720px;
+    }
+
+    .question-card h2 {
+      margin: 0 0 10px;
+      font-size: 1.2rem;
+      color: #8bd8ff;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+    }
+
+    .clue {
+      font-size: clamp(1.2rem, 2.2vw, 1.7rem);
+      font-weight: 800;
+      margin: 12px 0 16px;
+    }
+
+    .answer-box {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 10px 18px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.12);
+      color: #ffe27a;
+      font-weight: 800;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 999px;
+      padding: 11px 18px;
+      font-weight: 800;
+      cursor: pointer;
+      color: white;
+      background: rgba(255,255,255,0.12);
+    }
+
+    .btn.primary {
+      background: linear-gradient(135deg, #ff8f2d, #ff5f4f);
+    }
+
+    .video-stage {
+      position: fixed;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 20px 110px;
+      background: rgba(2, 6, 14, 0.45);
+      z-index: 20;
+    }
+
+    .video-frame {
+      width: min(92vw, 760px);
+      aspect-ratio: 16 / 9;
+      border: 0;
+      border-radius: 24px;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
+      background: #000;
+      position: relative;
+    }
+
+    .transition-overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      font-size: clamp(1.8rem, 4vw, 3rem);
+      font-weight: 900;
+      pointer-events: none;
+      opacity: 0;
+      transform: scale(0.96);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      z-index: 2147483647;
+      text-shadow: 0 6px 20px rgba(0,0,0,0.6);
+      background: rgba(0,0,0,0.20);
+    }
+
+    .transition-overlay.show {
+      opacity: 1;
+      transform: scale(1);
+      animation: transition-text 2s ease forwards;
+    }
+
+    @keyframes transition-text {
+      0% { opacity: 0; transform: scale(0.96); }
+      12% { opacity: 1; transform: scale(1.05); }
+      88% { opacity: 1; transform: scale(1); }
+      100% { opacity: 0; transform: scale(0.98); }
+    }
+
+    .video-controls {
+      margin: 16px auto 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      width: min(22vw, 190px);
+    }
+
+    /* Lower the iframe stacking to ensure overlays appear above it */
+    #videoFrameInner iframe {
+      position: relative !important;
+      z-index: 1 !important;
+    }
+
+    .transition-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      font-size: clamp(1.8rem, 4vw, 3rem);
+      font-weight: 900;
+      pointer-events: none;
+      opacity: 0;
+      transform: scale(0.96);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      z-index: 21;
+    }
+
+    .transition-overlay.show {
+      opacity: 1;
+      transform: scale(1);
+      animation: transition-text 2s ease forwards;
+    }
+
+    @keyframes transition-text {
+      0% { opacity: 0; transform: scale(0.96); }
+      12% { opacity: 1; transform: scale(1.05); }
+      88% { opacity: 1; transform: scale(1); }
+      100% { opacity: 0; transform: scale(0.98); }
+    }
+
+    .buzzer-section {
+      margin-top: 18px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      width: min(92vw, 760px);
+    }
+
+    .buzzer-btn {
+      width: 86px;
+      height: 86px;
+      border: none;
+      border-radius: 50%;
+      padding: 0;
+      background: rgba(255,255,255,0.08);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.25);
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+    }
+
+    .buzzer-btn img {
+      max-width: 72px;
+      max-height: 72px;
+      display: block;
+    }
+
+    .guess-panel {
+      display: none;
+      width: 100%;
+      gap: 10px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .buzz-timer {
+      width: 100%;
+      max-width: 760px;
+      margin-top: 10px;
+      display: none;
+      gap: 10px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .buzz-timer-bar {
+      position: relative;
+      width: min(70vw, 520px);
+      height: 14px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.12);
+      overflow: hidden;
+    }
+
+    .buzz-timer-fill {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      background: linear-gradient(90deg, #ff6b8a, #ffb86b);
+      transform-origin: right center;
+      transform: scaleX(1);
+      transition: transform 0.1s linear;
+    }
+
+    .buzz-timer-label {
+      min-width: 52px;
+      text-align: center;
+      color: #ffcc7f;
+      font-weight: 800;
+      font-size: 0.95rem;
+    }
+
+    .guess-input {
+      min-width: 220px;
+      max-width: 480px;
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+      font-size: 1rem;
+    }
+
+    .guess-input::placeholder {
+      color: rgba(255,255,255,0.6);
+    }
+
+    .guess-submit {
+      border-radius: 999px;
+      padding: 12px 18px;
+    }
+
+    .guess-message {
+      width: 100%;
+      max-width: 560px;
+      color: #c9f4ff;
+      font-size: 0.96rem;
+      font-weight: 700;
+      min-height: 22px;
+      text-align: center;
+    }
+
+    .volume-btn {
+      width: 46px;
+      height: 46px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.12);
+      color: #fff;
+      font-size: 1.4rem;
+      font-weight: 800;
+      cursor: pointer;
+      transition: background .2s ease, transform .2s ease;
+    }
+
+    .volume-btn:hover {
+      background: rgba(255,255,255,0.18);
+      transform: translateY(-1px);
+    }
+
+    .volume-label {
+      min-width: 64px;
+      text-align: center;
+      font-size: 1rem;
+      font-weight: 800;
+      color: #c9f4ff;
+    }
+
+    .player-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      padding: 16px 18px;
+      background: rgba(4, 10, 24, 0.96);
+      border-top: 1px solid rgba(255,255,255,0.1);
+      z-index: 9999;
+      min-height: 74px;
+      align-items: center;
+    }
+
+    .player-pill {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.14);
+      font-weight: 700;
+      font-size: 1rem;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: border-color .2s ease, box-shadow .2s ease, opacity .2s ease;
+    }
+
+    .rank-badge {
+      margin-left: auto;
+      font-weight: 900;
+      font-size: 0.85rem;
+      padding: 2px 6px;
+      border-radius: 99px;
+      background: rgba(255,255,255,0.8);
+      color: #000;
+    }
+
+    .ac-badge {
+      display: inline-block;
+      margin-left: 8px;
+      font-weight: 900;
+      font-size: 0.78rem;
+      padding: 2px 6px;
+      border-radius: 99px;
+      background: rgba(255,255,255,0.18);
+      color: #fff;
+    }
+
+    .return-btn {
+      display: none;
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      z-index: 10010;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: #111827;
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.12);
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.25);
+    }
+
+    .return-btn:hover {
+      transform: translateY(-1px);
+      background: rgba(255,255,255,0.08);
+    }
+
+    .skip-btn {
+      display: none;
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 10010;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #ff8f2d, #ff5f4f);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.12);
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.25);
+    }
+
+    .skip-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 28px rgba(0,0,0,0.3);
+    }
+
+    .end-leaderboard {
+      max-width: 920px;
+      margin: 16px auto 84px;
+      padding: 16px;
+      border-radius: 22px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: #fff;
+      display: none;
+      text-align: left;
+    }
+
+    .end-leaderboard h3 {
+      margin: 0 0 12px;
+      font-size: 1.2rem;
+      letter-spacing: 0.08em;
+    }
+
+    .end-leaderboard .rank-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .end-leaderboard .rank-row:last-child {
+      border-bottom: none;
+    }
+
+    .end-leaderboard .rank-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+    }
+
+    .end-leaderboard .rank-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .player-pill.selected {
+      border-color: #ff4f5f;
+      box-shadow: 0 0 0 4px rgba(255,79,95,0.16);
+      animation: pulse-border 1.2s ease-in-out infinite;
+    }
+
+    .player-pill.wrong {
+      opacity: 0.7;
+      border-color: rgba(255, 95, 95, 0.55);
+    }
+
+    .player-pill.wrong span {
+      text-decoration: line-through;
+    }
+
+    .player-pill.winner {
+      border-color: #4aed8e;
+      box-shadow: 0 0 0 4px rgba(74, 237, 142, 0.14);
+      animation: pulse-green 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse-border {
+      0%, 100% { box-shadow: 0 0 0 4px rgba(255,79,95,0.16); }
+      50% { box-shadow: 0 0 0 8px rgba(255,79,95,0.08); }
+    }
+
+    @keyframes pulse-green {
+      0%, 100% { box-shadow: 0 0 0 4px rgba(74,237,142,0.14); }
+      50% { box-shadow: 0 0 0 8px rgba(74,237,142,0.08); }
+    }
+
+    .player-circle {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .video-iframe-container { width:100%; height:100%; }
+
+    .blur-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      background: rgba(255,255,255,0.0001);
+      -webkit-backdrop-filter: blur(60px);
+      backdrop-filter: blur(60px);
+    }
+  </style>
+</head>
+<body>
+  <button id="returnBtn" class="return-btn">Retour</button>
+  <button id="skipBtn" class="skip-btn" title="Passer à une autre musique">Skip</button>
+  <div class="transition-overlay" id="transitionOverlay">Nouvelle musique</div>
+  <main>
+    <section class="start-screen" id="startScreen">
+      <div>
+        <h1>Aboublindtest</h1>
+        <p class="subtitle">Trouve le titre ou l’artiste de la musique jouée.</p>
+      </div>
+      <button class="start-btn" id="startBtn">Commencer</button>
+    </section>
+
+    <div class="video-stage" id="videoStage">
+      <div class="video-frame">
+        <div id="videoFrameInner" class="video-iframe-container"></div>
+        <div class="blur-overlay" id="blurOverlay" aria-hidden="true"></div>
+      </div>
+      <div class="video-controls">
+        <button class="volume-btn" id="volumeDown">-</button>
+        <div class="volume-label" id="volumeLabel">100%</div>
+        <button class="volume-btn" id="volumeUp">+</button>
+      </div>
+      <div class="buzzer-section">
+        <button class="buzzer-btn" id="buzzerBtn" title="Buzzer">
+          <img src="assets/buzzer.png" alt="Buzzer" />
+        </button>
+        <div class="guess-panel" id="guessPanel">
+          <input id="guessInput" class="guess-input" type="text" placeholder="Écris un titre ou un artiste" autocomplete="off" />
+          <button class="guess-submit btn primary" id="guessSubmit">Valider</button>
+        </div>
+        <div class="buzz-timer" id="buzzTimer">
+          <div class="buzz-timer-bar"><div class="buzz-timer-fill" id="buzzTimerFill"></div></div>
+          <div class="buzz-timer-label" id="buzzTimerLabel">10s</div>
+        </div>
+        <div class="guess-message" id="guessMessage"></div>
+      </div>
+    </div>
+  </main>
+
+  <div class="player-bar" id="playerBar"></div>
+
+  <script>
+    (function () {
+      const stored = JSON.parse(localStorage.getItem('mini-Jeux-host-players') || 'null');
+      const players = (stored && stored.length)
+        ? stored.map(p => ({ name: p.name, color: p.color || '#8ac6ff', score: 0, status: 'active', winOrder: null }))
+        : [
+            { name: 'Alice', color: '#8ac6ff', score: 0, status: 'active', winOrder: null },
+            { name: 'Bob', color: '#ff8f2d', score: 0, status: 'active', winOrder: null },
+            { name: 'Cara', color: '#2dd36f', score: 0, status: 'active', winOrder: null }
+          ];
+
+      const startScreen = document.getElementById('startScreen');
+      const startBtn = document.getElementById('startBtn');
+      const playerBar = document.getElementById('playerBar');
+      const videoStage = document.getElementById('videoStage');
+      const videoFrame = document.getElementById('videoFrameInner');
+      const blurOverlay = document.getElementById('blurOverlay');
+      const volumeDown = document.getElementById('volumeDown');
+      const volumeUp = document.getElementById('volumeUp');
+      const volumeLabel = document.getElementById('volumeLabel');
+      const buzzerBtn = document.getElementById('buzzerBtn');
+      const guessPanel = document.getElementById('guessPanel');
+      const guessInput = document.getElementById('guessInput');
+      const guessSubmit = document.getElementById('guessSubmit');
+      const guessMessage = document.getElementById('guessMessage');
+      const buzzTimer = document.getElementById('buzzTimer');
+      const buzzTimerFill = document.getElementById('buzzTimerFill');
+      const buzzTimerLabel = document.getElementById('buzzTimerLabel');
+      const transitionOverlay = document.getElementById('transitionOverlay');
+      const returnBtn = document.getElementById('returnBtn');
+      const skipBtn = document.getElementById('skipBtn');
+
+      // Liste facile à compléter avec des liens YouTube.
+      const videoLinks = [
+        'https://www.youtube.com/watch?v=Ct6BUPvE2sM',
+        'https://www.youtube.com/watch?v=-tJYN-eG1zk',
+        'https://www.youtube.com/watch?v=HALQqM_3zsg',
+        'https://www.youtube.com/watch?v=oiKj0Z_Xnjc',
+        'https://www.youtube.com/watch?v=unfzfe8f9NI',
+        'https://www.youtube.com/watch?v=lDK9QqIzhwk',
+        'https://www.youtube.com/watch?v=btPJPFnesV4',
+        'https://www.youtube.com/watch?v=9jK-NcRmVcw',
+        'https://www.youtube.com/watch?v=l482T0yNkeo',
+        'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        'https://www.youtube.com/watch?v=CS9OO0S5w2k',
+        'https://www.youtube.com/watch?v=9bZkp7q19f0',
+        'https://www.youtube.com/watch?v=kJQP7kiw5Fk',
+        'https://www.youtube.com/watch?v=ZbZSe6N_BXs',
+        'https://www.youtube.com/watch?v=CCHdMIEGaaM',
+        'https://www.youtube.com/watch?v=Ct6BUPvE2sM',
+        'https://www.youtube.com/watch?v=CwdrtwZiQ9E',
+        'https://www.youtube.com/watch?v=JGwWNGJdvx8',
+        'https://www.youtube.com/watch?v=7wtfhZwyrcc',
+        'https://www.youtube.com/watch?v=Rif-RTvmmss',
+        'https://www.youtube.com/watch?v=mWRsgZuwf_8',
+        'https://www.youtube.com/watch?v=pXRviuL6vMY',
+        'https://www.youtube.com/watch?v=dvgZkm1xWPE',
+        'https://www.youtube.com/watch?v=BNORkjGS_W0',
+        'https://www.youtube.com/watch?v=fHI8X4OXluQ',
+        'https://www.youtube.com/watch?v=60ItHLz5WEA',
+        'https://www.youtube.com/watch?v=zIh5AHxh-Ok',
+        'https://www.youtube.com/watch?v=VHoT4N43jK8',
+        'https://www.youtube.com/watch?v=4bPGxLxogvw',
+        'https://www.youtube.com/watch?v=fWMc_90TXmc',
+        'https://www.youtube.com/watch?v=bQcAsSHgN14',
+        'https://www.youtube.com/watch?v=2p_AxoaHeRw',
+        'https://www.youtube.com/watch?v=HVQSbgG69Sc',
+        'https://www.youtube.com/watch?v=Nk5XLCvGi9E',
+        'https://www.youtube.com/watch?v=fNFzfwLM72c',
+        'https://www.youtube.com/watch?v=Gs069dndIYk',
+        'https://www.youtube.com/watch?v=pRpeEdMmmQ0',
+        'https://www.youtube.com/watch?v=hZPXL9TB68Q',
+        'https://www.youtube.com/watch?v=FTQbiNvZqaY',
+        'https://www.youtube.com/watch?v=htgr3pvBr-I',
+        'https://www.youtube.com/watch?v=CvBfHwUxHIk',
+        'https://www.youtube.com/watch?v=9ZrAYxWPN6c',
+        'https://www.youtube.com/watch?v=Jy1D6caG8nU',
+        'https://www.youtube.com/watch?v=PobrSpMwKk4',
+        'https://www.youtube.com/watch?v=5qm8PH4xAss',
+        'https://www.youtube.com/watch?v=xFYQQPAOz7Y',
+        'https://www.youtube.com/watch?v=qtLXOKC1SHE',
+        'https://www.youtube.com/watch?v=S-smUALTlFM',
+        'https://www.youtube.com/watch?v=EEhZAHZQyf4',
+        'https://www.youtube.com/watch?v=REEiE3B9GG8',
+        'https://www.youtube.com/watch?v=ZAmInDMrwWA',
+        'https://www.youtube.com/watch?v=fPO76Jlnz6c',
+        'https://www.youtube.com/watch?v=HYsz1hP0BFo',
+        'https://www.youtube.com/watch?v=h4UqMyldS7Q',
+        'https://www.youtube.com/watch?v=pDcukvocrC0',
+        'https://www.youtube.com/watch?v=nBI0bDH8W28',
+        'https://www.youtube.com/watch?v=RJMpeYwifEU',
+        'https://www.youtube.com/watch?v=1Js0Zq276xU',
+        'https://www.youtube.com/watch?v=7l7eXx_8DHY',
+        'https://www.youtube.com/watch?v=QPtrghsEE2A',
+        'https://www.youtube.com/watch?v=RHb5LKnnxLg',
+        'https://www.youtube.com/watch?v=7C1g028A0DA',
+        'https://www.youtube.com/watch?v=pLC-cuLp4bM',
+        'https://www.youtube.com/watch?v=CtwJvgPJ9xw',
+        'https://www.youtube.com/watch?v=fbFnF-86eYs',
+        'https://www.youtube.com/watch?v=PsO6ZnUZI0g',
+        'https://www.youtube.com/watch?v=ApXoWvfEYVU',
+        'https://www.youtube.com/watch?v=eXvBjCO19QY',
+        'https://www.youtube.com/watch?v=H1HdZFgR-aA',
+        'https://www.youtube.com/watch?v=3AtDnEC4zak',
+        'https://www.youtube.com/watch?v=qWMNO8gq_cg',
+        'https://www.youtube.com/watch?v=yWHrYNP6j4k',
+        'https://www.youtube.com/watch?v=vTEKeUrEDjw',
+        'https://www.youtube.com/watch?v=SPlQpGeTbIE',
+        'https://www.youtube.com/watch?v=hAx6mYeC6pY',
+        'https://www.youtube.com/watch?v=j4jtIDaeaWI',
+        'https://www.youtube.com/watch?v=QYoOLO5lvgc',
+        'https://www.youtube.com/watch?v=pX594TK_VIc',
+        'https://www.youtube.com/watch?v=QJJYpsA5tv8',
+        'https://www.youtube.com/watch?v=xFrGuyw1V8s',
+        'https://www.youtube.com/watch?v=qrO4YZeyl0I',
+        'https://www.youtube.com/watch?v=TUVcZfQe-Kw',
+        'https://www.youtube.com/watch?v=djV11Xbc914',
+        'https://www.youtube.com/watch?v=79fzeNUqQbQ',
+        'https://www.youtube.com/watch?v=FGBhQbmPwH8',
+        'https://www.youtube.com/watch?v=XXYlFuWEuKI',
+        'https://www.youtube.com/watch?v=uPBvq7yewIk',
+        'https://www.youtube.com/watch?v=bwEwh7sm26w',
+        'https://www.youtube.com/watch?v=GzU8KqOY8YA',
+        'https://www.youtube.com/watch?v=znDgBy2mHbc',
+        'https://www.youtube.com/watch?v=16y1AkoZkmQ',
+        'https://www.youtube.com/watch?v=me19SUmWu2s',
+        
+      ];
+      const videoIds = videoLinks
+        .map(extractVideoId)
+        .filter(Boolean);
+      let remainingVideoIds = [...new Set(videoIds)];
+      const playedVideoIds = new Set();
+
+      let player = null;
+      let currentVideoId = null;
+      let currentVideoTitle = '';
+      let currentVolume = 100;
+      let pendingVideoId = null;
+      let activeVideoMeta = null;
+      let buzzerTimer = null;
+      let buzzerStart = 0;
+      let flashTimeout = null;
+      let transitionTimeout = null;
+      // Blur / deblur state for the video
+      const BLUR_MAX_PX = 60; // very strong initial blur
+      const BLUR_DURATION_MS = 30000; // 30s to fully deblur
+      let blurElapsed = 0;
+      let blurRaf = null;
+      let blurStartTime = 0;
+      let blurRunning = false;
+      let selectedPlayerIndex = null;
+      let winCounter = 1;
+      let gameEnded = false;
+      const BUZZER_DURATION = 15;
+      let gameStarted = false;
+      const VINYL_SOUNDS = [
+        'assets/vinyl1.wav',
+        'assets/vinyl2.wav'
+      ];
+
+      function playVinylSound() {
+        const src = VINYL_SOUNDS[Math.floor(Math.random() * VINYL_SOUNDS.length)];
+        const audio = new Audio(src);
+        audio.volume = Math.min(1, (currentVolume / 100) * 0.75);
+        audio.play().catch(() => {
+          // ignore autoplay restrictions on first click
+        });
+      }
+
+      function extractVideoId(url) {
+        try {
+          const parsed = new URL(url);
+          const host = parsed.hostname.replace('www.', '');
+
+          if (host === 'youtube.com' || host === 'm.youtube.com') {
+            return parsed.searchParams.get('v');
+          }
+
+          if (host === 'youtu.be') {
+            return parsed.pathname.replace('/', '');
+          }
+        } catch (e) {}
+
+        return null;
+      }
+
+      function loadYouTubeApi() {
+        const script = document.createElement('script');
+        script.src = 'https://www.youtube.com/iframe_api';
+        script.async = true;
+        document.head.appendChild(script);
+      }
+
+      window.onYouTubeIframeAPIReady = function () {
+        player = new YT.Player('videoFrameInner', {
+          height: '360',
+          width: '640',
+          playerVars: {
+            autoplay: 1,
+            controls: 1,
+            rel: 0,
+            modestbranding: 1,
+            playsinline: 1
+          },
+          events: {
+            onReady: event => {
+              if (pendingVideoId) {
+                player.loadVideoById(pendingVideoId);
+                player.setVolume(currentVolume);
+                player.playVideo();
+                pendingVideoId = null;
+              }
+            },
+            onStateChange: event => {
+              if (event.data === YT.PlayerState.PLAYING) {
+                refreshVideoTitle();
+              }
+            }
+          }
+        });
+      };
+
+      function normalizeText(text) {
+        return String(text || '')
+          .toLowerCase()
+          .replace(/[^a-z0-9 ]+/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+      }
+
+      function setVolume(value) {
+        currentVolume = Math.max(0, Math.min(100, value));
+        volumeLabel.textContent = `${currentVolume}%`;
+        if (player && typeof player.setVolume === 'function') {
+          player.setVolume(currentVolume);
+        }
+      }
+
+      function refreshVideoTitle() {
+        if (player && typeof player.getVideoData === 'function') {
+          const data = player.getVideoData();
+          if (data && data.title) {
+            currentVideoTitle = data.title;
+            activeVideoMeta = data;
+            console.log('Titre récupéré via l’API YouTube :', currentVideoTitle);
+            return true;
+          }
+        }
+        return false;
+      }
+
+      function filterTitleCandidates(title) {
+        const normalized = normalizeText(title);
+        const parts = normalized.split(/\s*-\s*|\s*\|\s*|\s*:\s*/).filter(Boolean);
+        return parts.length >= 2 ? parts : [normalized];
+      }
+
+      function guessMatchesTitle(guess, title) {
+        const normalizedGuess = normalizeText(guess);
+        if (!normalizedGuess) return false;
+
+        const candidates = filterTitleCandidates(title);
+        const guessWords = normalizedGuess.split(' ');
+
+        return candidates.some(candidate => {
+          if (!candidate) return false;
+          const candidateWords = candidate.split(' ');
+          const commonWords = candidateWords.filter(word => guessWords.includes(word));
+          const ratio = commonWords.length / Math.max(candidateWords.length, guessWords.length);
+          return ratio >= 0.5 || candidate.includes(normalizedGuess) || normalizedGuess.includes(candidate);
+        });
+      }
+
+      function stopBuzzerTimer() {
+        if (buzzerTimer) {
+          clearInterval(buzzerTimer);
+          buzzerTimer = null;
+        }
+        buzzTimer.style.display = 'none';
+      }
+
+      function flashScreen(type) {
+        document.body.classList.remove('flash-green', 'flash-red');
+        if (flashTimeout) {
+          clearTimeout(flashTimeout);
+          flashTimeout = null;
+        }
+        const flashClass = type === 'green' ? 'flash-green' : 'flash-red';
+        document.body.classList.add(flashClass);
+          flashTimeout = setTimeout(() => {
+            document.body.classList.remove(flashClass);
+            flashTimeout = null;
+          }, 520);
+      }
+
+      function playVideoById(videoId) {
+        if (player && typeof player.loadVideoById === 'function') {
+          player.loadVideoById(videoId);
+          player.setVolume(currentVolume);
+          if (typeof player.playVideo === 'function') {
+            player.playVideo();
+          }
+        } else {
+          pendingVideoId = videoId;
+        }
+      }
+
+      function allPlayersInactive() {
+        return players.length > 0 && players.every(p => p.status !== 'active');
+      }
+
+      function showTransitionMessage(text, callback) {
+        if (transitionTimeout) {
+          clearTimeout(transitionTimeout);
+          transitionTimeout = null;
+        }
+          console.log('showTransitionMessage:', text);
+          transitionOverlay.textContent = text;
+          // If this is the 'Nouvelle musique' transition, reveal the video by clearing blur
+          try {
+            if (text && String(text).toLowerCase().includes('nouvelle')) {
+              if (typeof completeDeblur === 'function') {
+                completeDeblur();
+              }
+            }
+          } catch (e) {}
+          transitionOverlay.classList.add('show');
+          transitionTimeout = setTimeout(() => {
+            console.log('hideTransitionMessage');
+            transitionOverlay.classList.remove('show');
+            transitionTimeout = null;
+            if (typeof callback === 'function') {
+              callback();
+            }
+          }, 2000);
+      }
+
+      // Blur / deblur helpers
+      function setBlurPx(px) {
+        const v = Math.max(0, px);
+        if (blurOverlay) {
+          blurOverlay.style.backdropFilter = `blur(${v}px)`;
+          blurOverlay.style.webkitBackdropFilter = `blur(${v}px)`;
+        }
+      }
+
+      function _blurStep() {
+        if (!blurRunning) return;
+        const now = Date.now();
+        blurElapsed = Math.min(BLUR_DURATION_MS, now - blurStartTime);
+        const progress = Math.max(0, Math.min(1, blurElapsed / BLUR_DURATION_MS));
+        const cur = BLUR_MAX_PX * (1 - progress);
+        setBlurPx(cur);
+        if (progress >= 1) {
+          blurRunning = false;
+          blurRaf = null;
+          return;
+        }
+        blurRaf = requestAnimationFrame(_blurStep);
+      }
+
+      function startDeblur() {
+        if (!blurOverlay) return;
+        if (blurElapsed >= BLUR_DURATION_MS) return;
+        blurStartTime = Date.now() - blurElapsed;
+        blurRunning = true;
+        if (blurRaf) cancelAnimationFrame(blurRaf);
+        blurRaf = requestAnimationFrame(_blurStep);
+      }
+
+      function pauseDeblur() {
+        if (!blurRunning) return;
+        blurRunning = false;
+        if (blurRaf) {
+          cancelAnimationFrame(blurRaf);
+          blurRaf = null;
+        }
+        // blurElapsed already updated in steps
+      }
+
+      function resumeDeblur() {
+        if (blurElapsed >= BLUR_DURATION_MS) return;
+        if (blurRunning) return;
+        blurStartTime = Date.now() - blurElapsed;
+        blurRunning = true;
+        blurRaf = requestAnimationFrame(_blurStep);
+      }
+
+      function resetBlurFull() {
+        if (blurRaf) {
+          cancelAnimationFrame(blurRaf);
+          blurRaf = null;
+        }
+        blurElapsed = 0;
+        blurRunning = false;
+        setBlurPx(BLUR_MAX_PX);
+      }
+
+      function completeDeblur() {
+        // Immediately remove blur and mark deblur as complete
+        if (blurRaf) {
+          cancelAnimationFrame(blurRaf);
+          blurRaf = null;
+        }
+        blurRunning = false;
+        blurElapsed = BLUR_DURATION_MS;
+        setBlurPx(0);
+      }
+
+      function maybeAdvanceMusic() {
+        console.log('maybeAdvanceMusic: checking players states', players.map(p=>p.status));
+        if (allPlayersInactive()) {
+          console.log('maybeAdvanceMusic: all inactive, showing transition');
+          showTransitionMessage('Nouvelle musique', showRandomVideo);
+          return true;
+        }
+        return false;
+      }
+
+      function skipCurrentMusic() {
+        if (!gameStarted) {
+          return;
+        }
+        stopBuzzerTimer();
+        if (guessPanel) {
+          guessPanel.style.display = 'none';
+        }
+        if (guessInput) {
+          guessInput.value = '';
+        }
+        if (guessMessage) {
+          guessMessage.textContent = '';
+        }
+        if (player && typeof player.pauseVideo === 'function') {
+          player.pauseVideo();
+        }
+        clearPlayerSelection();
+        showTransitionMessage('Nouvelle musique', showRandomVideo);
+      }
+
+      function getNextVideoId() {
+        if (!remainingVideoIds.length) {
+          return null;
+        }
+        const randomIndex = Math.floor(Math.random() * remainingVideoIds.length);
+        const [nextId] = remainingVideoIds.splice(randomIndex, 1);
+        playedVideoIds.add(nextId);
+        return nextId;
+      }
+
+      function updateBuzzerTimer() {
+        const elapsed = (Date.now() - buzzerStart) / 1000;
+        const remaining = Math.max(0, BUZZER_DURATION - elapsed);
+        const ratio = remaining / BUZZER_DURATION;
+        buzzTimerLabel.textContent = `${Math.ceil(remaining)}s`;
+        buzzTimerFill.style.transform = `scaleX(${ratio})`;
+        if (remaining <= 0) {
+          clearInterval(buzzerTimer);
+          buzzerTimer = null;
+          buzzTimer.style.display = 'none';
+          guessMessage.textContent = 'Temps écoulé ! La vidéo reprend.';
+          if (selectedPlayerIndex !== null && players[selectedPlayerIndex]) {
+            console.log('updateBuzzerTimer: marking player wrong', selectedPlayerIndex, players[selectedPlayerIndex].name);
+            players[selectedPlayerIndex].status = 'wrong';
+            renderPlayers();
+          }
+          if (player && typeof player.playVideo === 'function') {
+            player.playVideo();
+          }
+          guessPanel.style.display = 'none';
+          clearPlayerSelection();
+          if (allPlayersInactive()) {
+            showTransitionMessage('Nouvelle musique', showRandomVideo);
+          } else {
+            // resume deblurring after the auto-fail
+            resumeDeblur();
+          }
+        }
+      }
+
+      function startBuzzerTimer() {
+        stopBuzzerTimer();
+        buzzTimer.style.display = 'flex';
+        buzzerStart = Date.now();
+        buzzTimerFill.style.transform = 'scaleX(1)';
+        buzzTimerLabel.textContent = `${BUZZER_DURATION}s`;
+        buzzerTimer = setInterval(updateBuzzerTimer, 100);
+      }
+
+      function clearPlayerSelection() {
+        selectedPlayerIndex = null;
+        renderPlayers();
+      }
+
+      function showRandomVideo() {
+        const nextVideoId = getNextVideoId();
+        currentVideoId = nextVideoId;
+        currentVideoTitle = '';
+        activeVideoMeta = null;
+        guessMessage.textContent = '';
+        guessInput.value = '';
+        guessPanel.style.display = 'none';
+        players.forEach(p => {
+          if (p.status === 'wrong') {
+            p.status = 'active';
+          }
+        });
+        clearPlayerSelection();
+        renderPlayers();
+        if (!currentVideoId) {
+          guessMessage.textContent = 'Plus de nouvelles musiques disponibles.';
+          return;
+        }
+        // hide end screen and return button when a new music starts
+        if (returnBtn) {
+          returnBtn.style.display = 'none';
+        }
+        // reset blur to full at the start of a new music, then begin deblurring
+        resetBlurFull();
+        playVideoById(currentVideoId);
+        videoStage.style.display = 'flex';
+        // start the deblur animation
+        startDeblur();
+      }
+
+      function getPlayerRanking() {
+        return players.slice().sort((a, b) => {
+          const aWin = a.status === 'winner';
+          const bWin = b.status === 'winner';
+          if (aWin !== bWin) {
+            return aWin ? -1 : 1;
+          }
+          if (aWin && bWin) {
+            return (a.winOrder || Infinity) - (b.winOrder || Infinity);
+          }
+          return 0;
+        });
+      }
+
+      function getPlayerRank(player) {
+        const ranking = getPlayerRanking();
+        return ranking.findIndex(p => p === player) + 1;
+      }
+
+      function marioPourtyEnabled() {
+        return localStorage.getItem('marioPourty') === 'true';
+      }
+
+      function getMarioPourtyBonus(rank, total) {
+        let bonuses = [];
+        if (total >= 2 && total <= 4) bonuses = [10,5,3,0];
+        else if (total === 5) bonuses = [10,6,3,1,0];
+        else if (total === 6) bonuses = [11,8,5,2,1,0];
+        const value = bonuses[rank - 1] ?? 0;
+        return `${value >= 0 ? '+' : ''}${value}ac`;
+      }
+
+      function setACText(pill, rank, total) {
+        let acBadge = pill.querySelector('.ac-badge');
+        if (!acBadge) {
+          acBadge = document.createElement('span');
+          acBadge.className = 'ac-badge';
+          pill.appendChild(acBadge);
+        }
+        if (marioPourtyEnabled()) {
+          acBadge.textContent = getMarioPourtyBonus(rank, total);
+          acBadge.style.display = 'inline-block';
+        } else {
+          acBadge.style.display = 'none';
+        }
+      }
+
+      function renderPlayers() {
+        playerBar.innerHTML = '';
+        const totalPlayers = players.length;
+        players.forEach((p, index) => {
+          const rank = getPlayerRank(p);
+          const pill = document.createElement('div');
+          pill.className = 'player-pill';
+          if (p.status === 'wrong') {
+            pill.classList.add('wrong');
+          }
+          if (p.status === 'winner') {
+            pill.classList.add('winner');
+          }
+          if (selectedPlayerIndex === index) {
+            pill.classList.add('selected');
+          }
+
+          const dot = document.createElement('span');
+          dot.className = 'player-circle';
+          dot.style.background = p.color;
+
+          const name = document.createElement('span');
+          name.textContent = p.name;
+
+          pill.append(dot, name);
+
+          if (gameEnded) {
+            const rankBadge = document.createElement('span');
+            rankBadge.className = 'rank-badge';
+            rankBadge.textContent = `#${rank}`;
+            pill.appendChild(rankBadge);
+
+            if (marioPourtyEnabled()) {
+              setACText(pill, rank, totalPlayers);
+            }
+
+            if (rank === 1) {
+              pill.style.borderColor = '#ffd700';
+              pill.style.boxShadow = '0 0 0 2px rgba(255,215,0,0.24)';
+            } else if (rank === 2) {
+              pill.style.borderColor = '#c0c0c0';
+              pill.style.boxShadow = '0 0 0 2px rgba(192,192,192,0.24)';
+            } else if (rank === 3) {
+              pill.style.borderColor = '#cd7f32';
+              pill.style.boxShadow = '0 0 0 2px rgba(205,127,50,0.24)';
+            }
+          }
+
+          pill.addEventListener('click', () => {
+            if (p.status !== 'active') {
+              return;
+            }
+            selectedPlayerIndex = index;
+            renderPlayers();
+          });
+
+          playerBar.appendChild(pill);
+        });
+      }
+
+      function startGame() {
+        gameStarted = true;
+        const title = startScreen.querySelector('h1');
+        const subtitle = startScreen.querySelector('.subtitle');
+        if (title) title.style.display = 'block';
+        if (subtitle) subtitle.style.display = 'none';
+        startBtn.style.display = 'none';
+        if (skipBtn) {
+          skipBtn.style.display = 'inline-flex';
+        }
+        showRandomVideo();
+      }
+
+      function showFinalResults() {
+      window.PourtyMiniGame?.finish();
+        gameEnded = true;
+        if (player && typeof player.pauseVideo === 'function') {
+          player.pauseVideo();
+        }
+        stopBuzzerTimer();
+        if (videoStage) videoStage.style.display = 'none';
+        if (guessPanel) guessPanel.style.display = 'none';
+        if (buzzTimer) buzzTimer.style.display = 'none';
+        if (skipBtn) {
+          skipBtn.style.display = 'none';
+        }
+        clearPlayerSelection();
+        renderPlayers();
+        if (returnBtn) {
+          returnBtn.style.display = 'block';
+        }
+      }
+
+      function stopVideoAndShowGuess() {
+        if (player && typeof player.pauseVideo === 'function') {
+          player.pauseVideo();
+        }
+        guessPanel.style.display = 'flex';
+        guessInput.value = '';
+        guessMessage.textContent = '';
+        guessInput.focus();
+        startBuzzerTimer();
+        // pause the deblur while someone is guessing
+        pauseDeblur();
+      }
+
+      function submitGuess() {
+        if (selectedPlayerIndex === null) {
+          guessMessage.textContent = 'Sélectionne d’abord un joueur dans la barre en bas.';
+          return;
+        }
+        const guess = guessInput.value.trim();
+        if (!guess) {
+          guessMessage.textContent = 'Écris quelque chose avant de valider.';
+          return;
+        }
+        stopBuzzerTimer();
+        const playerName = players[selectedPlayerIndex].name;
+        if (guessMatchesTitle(guess, currentVideoTitle)) {
+            console.log('submitGuess: correct, marking winner', selectedPlayerIndex, playerName);
+            players[selectedPlayerIndex].status = 'winner';
+            players[selectedPlayerIndex].winOrder = winCounter++;
+          renderPlayers();
+          flashScreen('green');
+          guessMessage.textContent = `Correct ! ${playerName} marque.`;
+          clearPlayerSelection();
+          if (checkForLastUnansweredPlayer()) {
+            showTransitionMessage('Fin de la partie', showFinalResults);
+            return;
+          }
+          showTransitionMessage('Nouvelle musique', showRandomVideo);
+          return;
+        } else {
+              console.log('submitGuess: incorrect, marking wrong', selectedPlayerIndex, playerName);
+              players[selectedPlayerIndex].status = 'wrong';
+            renderPlayers();
+            flashScreen('red');
+            guessMessage.textContent = `Incorrect, ${playerName} a raté, la vidéo reprend.`;
+            clearPlayerSelection();
+            if (checkForLastUnansweredPlayer()) {
+              showTransitionMessage('Fin de la partie', showFinalResults);
+              return;
+            }
+            if (allPlayersInactive()) {
+              showTransitionMessage('Nouvelle musique', showRandomVideo);
+              return;
+            }
+            // resume deblurring when the player made a mistake
+            resumeDeblur();
+            if (player && typeof player.playVideo === 'function') {
+              player.playVideo();
+            }
+            guessPanel.style.display = 'none';
+        }
+      }
+
+      function checkForLastUnansweredPlayer() {
+        const winnerCount = players.filter(p => p.status === 'winner').length;
+        return winnerCount === players.length - 1;
+      }
+
+      if (buzzerBtn) {
+        buzzerBtn.addEventListener('click', event => {
+          playVinylSound();
+          stopVideoAndShowGuess(event);
+        });
+      }
+
+      if (guessSubmit) {
+        guessSubmit.addEventListener('click', submitGuess);
+      }
+
+      if (guessInput) {
+        guessInput.addEventListener('keydown', event => {
+          if (event.key === 'Enter') {
+            submitGuess();
+          }
+        });
+      }
+
+      if (volumeDown) {
+        volumeDown.addEventListener('click', () => setVolume(currentVolume - 10));
+      }
+
+      if (volumeUp) {
+        volumeUp.addEventListener('click', () => setVolume(currentVolume + 10));
+      }
+
+      if (returnBtn) {
+        returnBtn.addEventListener('click', () => {
+          window.location.href = '../../index.html';
+        });
+      }
+
+      if (skipBtn) {
+        skipBtn.addEventListener('click', skipCurrentMusic);
+      }
+
+      if (returnBtn) {
+        returnBtn.style.display = 'none';
+      }
+
+      startBtn.addEventListener('click', startGame);
+      renderPlayers();
+      loadYouTubeApi();
+    })();
+  </script>
+</body>
+</html>

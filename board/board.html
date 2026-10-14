@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#0a0f22">
+  <title>Jeu de plateau — Mario Pourty</title>
+  <link rel="stylesheet" href="../menu.css"><link rel="stylesheet" href="board.css?v=difficulty-2">
+  <script src="../games.js?v=flipper-1" defer></script><script src="../assets/plateaux/plateaux.js?v=difficulty-2" defer></script><script src="board-model.js?v=difficulty-2" defer></script><script src="board-library.js?v=teams-layout-2" defer></script><script src="board-maps.js?v=difficulty-2" defer></script><script src="board-teams.js?v=teams-layout-2" defer></script><script src="../party-session.js?v=bonus-two-1" defer></script><script src="../lobby.js" defer></script><script src="board-team-setup.js?v=teams-layout-2" defer></script><script src="board-defaults.js?v=bonus-two-1" defer></script><script src="board-raster.js?v=decor-restored-1" defer></script><script src="board.js?v=bonus-two-1" defer></script>
+<script src="../menu-motion.js?v=1" defer></script><link rel="stylesheet" href="board-difficulty.css?v=1"></head>
+<body class="lobby-page" data-page="board">
+  <div class="ambient" aria-hidden="true"><i></i><i></i><i></i></div>
+  <header class="site-header"><a class="wordmark" href="../index.html"><span class="brand-mark">m<span>p</span></span> Mario Pourty</a><a class="back-link" href="../index.html">← Accueil</a></header>
+  <main class="setup-main">
+    <h1>Jeu de plateau</h1>
+    <nav aria-label="Étapes de préparation"><ol class="stepper" id="stepper">
+      <li><button type="button" data-step="0" aria-current="step"><span>1</span>Map</button></li>
+      <li><button type="button" data-step="1" disabled><span>2</span>Mode de jeu</button></li>
+      <li><button type="button" data-step="2" disabled><span>3</span>Tours</button></li>
+      <li><button type="button" data-step="3" disabled><span>4</span>Mini-jeux</button></li>
+      <li><button type="button" data-step="4" disabled><span>5</span>Divers</button></li>
+      <li><button type="button" data-step="5" disabled><span>6</span>Récapitulatif</button></li>
+    </ol></nav>
+    <section class="setup-panel" data-panel="0" aria-labelledby="map-heading">
+      <h2 id="map-heading" tabindex="-1">Sélection de la map</h2>
+      <div class="map-grid" id="map-grid"></div>
+      <div class="map-preview" id="map-preview" hidden><img id="map-image" alt=""><div><span class="placeholder-label" id="map-kind">Map provisoire</span><h3 id="map-name"></h3><div id="map-difficulty" class="map-difficulty-detail"></div><p id="map-description"></p></div></div>
+    </section>
+    <section class="setup-panel" data-panel="1" aria-labelledby="mode-heading" hidden><h2 id="mode-heading" tabindex="-1">Mode de jeu</h2><div id="team-setup" hidden></div><div class="game-mode-grid"><button id="mode-normal" class="game-mode-card" type="button" aria-pressed="true"><img src="../assets/plateaux/mode-normal.svg" alt="Étoile et pièces avec une flèche montante"><strong>NORMAL</strong><span>Le plus d’étoiles gagne. Les AC départagent les égalités.</span></button><button id="mode-inverted" class="game-mode-card" type="button" aria-pressed="false"><img src="../assets/plateaux/mode-inverted.svg" alt="Étoile et pièces avec une flèche descendante"><strong>INVERSÉ</strong><span>Le moins d’étoiles gagne. En cas d’égalité, le moins d’AC. Les étoiles sont achetées automatiquement si tu peux les payer.</span></button><button id="mode-teams" class="game-mode-card" type="button" aria-pressed="false"><img src="../assets/plateaux/mode-teams.svg" alt="Deux équipes réunies autour de leurs étoiles"><strong>ÉQUIPES</strong><span>Partagez vos AC, vos étoiles et vos objets.</span></button></div></section>
+    <section class="setup-panel" data-panel="2" aria-labelledby="turns-heading" hidden>
+      <h2 id="turns-heading" tabindex="-1">Nombre de tours</h2>
+      <div class="turns-picker"><label for="turns">Tours</label><div class="turns-controls"><button type="button" id="turns-less" aria-label="Retirer un tour">−</button><input id="turns" type="number" min="5" max="30" step="1" value="10" inputmode="numeric"><button type="button" id="turns-more" aria-label="Ajouter un tour">+</button></div><input id="turns-range" type="range" min="5" max="30" step="1" value="10" aria-label="Nombre de tours"><div class="range-labels"><span>5 tours</span><span>30 tours</span></div><p class="duration">≈ <strong id="duration">30</strong> min</p><span class="placeholder-label">Estimation provisoire</span></div>
+    </section>
+    <section class="setup-panel" data-panel="3" aria-labelledby="games-heading" hidden>
+      <div class="section-toolbar"><h2 id="games-heading" tabindex="-1">Mini-jeux</h2><span id="games-count" aria-live="polite"></span></div>
+      <div class="selection-actions"><button type="button" id="select-all">Tout sélectionner</button><button type="button" id="select-none">Tout désélectionner</button></div><div class="game-checklist" id="game-checklist"></div>
+    </section>
+    <section class="setup-panel" data-panel="4" aria-labelledby="bonus-heading" hidden>
+      <h2 id="bonus-heading" tabindex="-1">Divers</h2>
+      <div id="misc-default-choice" class="misc-default-choice"><img src="../assets/setup/dice.svg" alt=""><h3>Utiliser les paramètres de base ?</h3><div id="misc-default-summary" class="misc-default-summary"></div><div><button type="button" id="misc-default-yes" class="primary-button">Oui</button><button type="button" id="misc-default-no" class="secondary-button">Non</button></div></div>
+      <div id="misc-custom" hidden>
+      <label class="bonus-option"><span>Activer les étoiles bonus</span><input id="bonus-stars" type="checkbox" checked role="switch"><span class="switch-track" aria-hidden="true"></span></label>
+      <div id="bonus-settings" class="misc-bonus"><fieldset><legend>Quelles catégories ?</legend><div id="bonus-categories" class="bonus-categories"></div></fieldset><label class="misc-field" for="bonus-count"><span>Combien d’étoiles bonus ?</span><input id="bonus-count" type="number" min="1" max="7" step="1" value="3"></label></div>
+      <label class="bonus-option"><span><img class="setting-icon" src="../assets/plateaux/hidden-block.svg" alt="">Block caché</span><input id="hidden-blocks" type="checkbox" checked role="switch"><span class="switch-track" aria-hidden="true"></span></label><div id="hidden-block-settings" class="misc-bonus"><label class="misc-field" for="hidden-block-count"><span>Nombre de blocks cachés</span><input id="hidden-block-count" type="number" min="1" max="999" step="1" value="1"></label></div><label class="bonus-option"><span>Mini-jeux pièces ×2</span><input id="double-coins-minigames" type="checkbox" checked role="switch"><span class="switch-track" aria-hidden="true"></span></label>
+      <label class="bonus-option"><span>Autoriser la vente au shop</span><input id="shop-selling" type="checkbox" checked role="switch"><span class="switch-track" aria-hidden="true"></span></label>
+      <div class="misc-economy"><label class="misc-field" for="shop-multiplier"><span>Multiplicateur du shop</span><div class="multiplier-input"><span aria-hidden="true">×</span><input id="shop-multiplier" type="number" min="0" step="0.1" value="1"></div></label><label class="misc-field" for="movement-die-max"><span>Dés de déplacement</span><input id="movement-die-max" type="number" min="5" max="20" step="1" value="10"></label><label class="misc-field" for="inventory-slots"><span>Places d’inventaire</span><input id="inventory-slots" type="number" min="1" max="4" step="1" value="3"></label><label class="misc-field" for="starting-ac"><span>Monnaie de départ (AC)</span><input id="starting-ac" type="number" min="0" step="1" value="10"></label><label class="misc-field" for="starting-stars"><span>Étoiles de départ</span><input id="starting-stars" type="number" min="0" step="1" value="0"></label><label class="misc-field" for="star-price"><span>Prix de l’étoile (AC)</span><input id="star-price" type="number" min="0" step="1" value="20"></label></div>
+        <div class="misc-save"><button type="button" id="misc-save-defaults" class="secondary-button">Sauvegarder les paramètres de base de la map</button><p id="misc-save-status" role="status"></p></div>
+      </div>
+    </section>
+    <section class="setup-panel" data-panel="5" aria-labelledby="recap-heading" hidden>
+      <h2 id="recap-heading" tabindex="-1">Récapitulatif</h2><div id="recap"></div>
+    </section>
+    <p id="setup-error" role="alert"></p>
+    <div class="setup-actions"><button type="button" id="previous" class="secondary-button" hidden>← Retour</button><span id="step-count">1 / 6</span><button type="button" id="next" class="primary-button" disabled>Confirmer la map →</button></div>
+    <noscript>Active JavaScript pour configurer la partie.</noscript>
+  </main>
+</body></html>

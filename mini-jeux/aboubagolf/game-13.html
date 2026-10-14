@@ -1,0 +1,1375 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <script src="../../party-payout.js"></script>
+<script src="../../board/board-minigame-bridge.js"></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Aboubagolf</title>
+  <link rel="stylesheet" href="../../style.css" />
+  <style>
+    body{background:#081028;color:#fff;font-family:Segoe UI,Roboto,Arial;margin:0;padding:18px}
+    main{max-width:980px;margin:8px auto;text-align:center}
+    h1{margin:8px 0 12px;font-size:2.4rem}
+    #status{min-height:36px;margin-bottom:12px;font-weight:900;font-size:1.2rem}
+    .player-order{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:8px 0}
+    .player-chip{padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);font-weight:800}
+    .player-bar{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);width:min(96vw,920px);display:flex;justify-content:space-between;align-items:center;gap:10px;z-index:999}
+    .player-pill{position:relative;flex:1 1 auto;min-width:120px;background:rgba(15,24,46,0.95);border:1px solid rgba(255,255,255,0.28);border-radius:10px;padding:12px;display:flex;align-items:center;gap:10px;color:#f7fbff;font-weight:700}
+    .player-circle{width:16px;height:16px;border-radius:50%;border:1px solid rgba(255,255,255,0.45)}
+
+    /* Map selection overlay (startup) */
+    #map-select-overlay { position: fixed; inset: 0; display:flex; align-items:center; justify-content:center; z-index: 9999; background: rgba(8,12,24,0.9); }
+    #map-select-overlay.hidden { display: none; }
+    /* background label centered and subtle */
+    #select-bg-label { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); font-size: clamp(1.6rem, 6vw, 4.8rem); color: rgba(255,255,255,0.08); font-weight:900; letter-spacing:0.12em; text-transform:uppercase; z-index:1; pointer-events:none; white-space:nowrap; }
+    #map-select-box { text-align: center; color: #fff; max-width: 92vw; position: relative; z-index: 3; }
+    #select-viewport { width: min(90vw, 720px); height: 260px; margin: 0 auto 12px; overflow: hidden; position: relative; z-index: 4; }
+    #select-track { display:flex; align-items:center; gap:12px; will-change: transform; transform: translateX(0); }
+    .select-item { flex: 0 0 auto; border-radius: 8px; overflow: hidden; background: #07102b; border: 1px solid rgba(255,255,255,0.06); box-shadow: 0 8px 20px rgba(2,6,20,0.35); display:flex; align-items:center; justify-content:center; }
+    .select-item canvas, .select-item img { width:100%; height:100%; display:block; object-fit:cover; }
+    #select-title { font-size: clamp(2rem, 6vw, 4rem); font-weight: 900; color:#ffd7a6; margin-top:8px; text-shadow: 0 8px 24px rgba(0,0,0,0.6); }
+    .map-select-buttons{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
+    .map-select-buttons button,#map-list-back{padding:12px 18px;border-radius:12px;border:none;background:#ffd764;color:#081028;font-weight:800;cursor:pointer;transition:transform .16s ease,opacity .2s ease;box-shadow:0 16px 40px rgba(0,0,0,0.22);}
+    .map-select-buttons button:hover,#map-list-back:hover{transform:translateY(-1px);}
+    #map-select-list{max-height:min(72vh,480px);overflow:auto}
+    #map-list-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+    .map-list-item{padding:10px;border-radius:14px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.06);cursor:pointer;transition:transform .16s ease,background .2s ease;display:flex;flex-direction:column;align-items:center;text-align:center;min-height:160px;gap:10px}
+    .map-list-item:hover{background:rgba(255,255,255,0.14);transform:translateY(-1px);}
+    .map-list-item.selected{border-color:#ffd764;background:rgba(255,215,150,0.16);}
+    .map-list-preview{width:100%;aspect-ratio:1.4/1;min-height:96px;border-radius:12px;overflow:hidden;background:#07102b;display:flex;align-items:center;justify-content:center}
+    .map-list-preview canvas{width:100%;height:100%;display:block;object-fit:cover;}
+    .map-list-label{padding:0 6px;font-weight:800;line-height:1.2;color:#ffffff;}
+    .map-list-item div, .map-list-item button{color:#ffffff;}
+    /* gameplay UI */
+    #map-wrap{display:flex;gap:12px;align-items:flex-start}
+    #map-canvas{display:block;max-width:960px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:#e9f6ea}
+    #ball-canvas{position:absolute;left:0;top:0;pointer-events:none;border-radius:6px}
+    #controls-panel{width:160px;display:none;flex-direction:column;gap:8px}
+    #power-gauge{display:flex;flex-direction:column-reverse;align-items:center;width:48px;padding:6px;border-radius:8px;background:linear-gradient(#062133,#081028);border:1px solid rgba(255,255,255,0.04)}
+    .power-level{width:40px;height:28px;margin:6px 0;border-radius:6px;cursor:pointer;opacity:0.6;border:1px solid rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center;font-weight:800}
+    .power-level.selected{outline:2px solid #fff;opacity:1}
+    #direction-pad{position:absolute;z-index:6;display:none;pointer-events:auto}
+    .dir-btn{width:48px;height:48px;border-radius:8px;background:rgba(255,255,255,0.14);display:flex;align-items:center;justify-content:center;margin:4px;cursor:pointer;opacity:0.95;color:#000;font-weight:800}
+    .dir-btn.active{background:rgba(255,215,150,0.95);opacity:1}
+    #timer-wrap{position:relative;height:8px;background:rgba(255,255,255,0.06);border-radius:6px;overflow:hidden}
+    #timer-bar{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#7ee787,#ffd764);width:100%}
+    #shoot-btn{padding:8px 12px;border-radius:8px;border:none;background:#ffb34d;color:#000;font-weight:700;cursor:pointer}
+    #shoot-btn[disabled]{opacity:0.4;cursor:default}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Aboubagolf</h1>
+    <div id="status">Chargement des joueurs...</div>
+    <div id="order" class="player-order"></div>
+  </main>
+
+  <div id="map-area" style="max-width:980px;margin:14px auto;text-align:left;">
+    <div id="map-title" style="font-weight:900;margin-bottom:8px;color:#ffd7a6"></div>
+    <div id="map-wrap">
+      <div style="position:relative;">
+        <canvas id="map-canvas" style="display:none;width:100%;max-width:960px;"></canvas>
+        <canvas id="ball-canvas" style="display:none;"></canvas>
+        <div id="direction-pad" aria-hidden="true"></div>
+        <div id="timer-overlay" style="position:absolute;left:8px;right:8px;top:8px;display:none;z-index:7">
+          <div id="timer-wrap"><div id="timer-bar"></div></div>
+        </div>
+      </div>
+      <div id="controls-panel">
+        <div style="font-weight:800;margin-bottom:6px">Puissance</div>
+        <div id="power-gauge" aria-hidden="true"></div>
+        <div id="shot-controls" style="display:flex;gap:8px;align-items:center">
+          <button id="shoot-btn" disabled>Tirer</button>
+        </div>
+        <div id="turn-info" style="font-weight:700;margin-top:8px"></div>
+      </div>
+    </div>
+    <pre id="map-viewer" style="display:none;background:#021724;color:#cfe9d6;padding:12px;border-radius:8px;overflow:auto;max-height:360px;white-space:pre-wrap;font-size:0.85rem"></pre>
+  </div>
+  <!-- Startup map selection overlay (shows previews and chosen title) -->
+  <div id="map-select-overlay" class="hidden" aria-hidden="true">
+    <div id="select-bg-label">Sélection de la map</div>
+    <div id="map-select-box">
+      <div id="map-select-choice">
+        <div id="select-message" style="font-size:1.4rem;font-weight:900;margin-bottom:18px">Choix de la map</div>
+        <div class="map-select-buttons">
+          <button id="map-random-btn" type="button">Aléatoire</button>
+          <button id="map-list-btn" type="button">Liste</button>
+        </div>
+      </div>
+      <div id="map-select-list" class="hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px">
+          <div id="select-list-title" style="font-size:1.4rem;font-weight:900">Choisis une map</div>
+          <button id="map-list-back" type="button">Retour</button>
+        </div>
+        <div id="map-list-grid"></div>
+      </div>
+      <div id="select-viewport" class="hidden"><div id="select-track"></div></div>
+      <div id="select-title"></div>
+    </div>
+  </div>
+
+    <!-- player-bar is provided by game-players.js; static copy removed to avoid duplicates -->
+
+  <script src="maps-index.js"></script>
+  <script>
+    (function(){
+      const stored = JSON.parse(localStorage.getItem('mini-Jeux-host-players') || '[]');
+      const statusEl = document.getElementById('status');
+      const orderEl = document.getElementById('order');
+      const statusDefaultColor = (function(){ try{ return getComputedStyle(statusEl).color || '#f7fbff'; }catch(e){ return '#f7fbff'; } })();
+
+      if (!stored.length){ statusEl.textContent = 'Aucun joueur enregistré.'; return; }
+
+      // build players
+      const players = stored.map(p => ({ name: p.name, color: p.color || '#8ac6ff', score: 0 }));
+      function shuffle(a){ return a.slice().sort(()=>Math.random()-0.5); }
+      let order = shuffle(players.slice());
+
+      function renderOrder(){
+        orderEl.innerHTML = '';
+        orderEl.style.display = 'flex';
+        order.forEach(p=>{
+          const chip = document.createElement('div');
+          chip.className='player-chip';
+          chip.dataset.player = p.name;
+          chip.style.borderColor = p.color;
+          chip.textContent = p.name;
+          orderEl.appendChild(chip);
+        });
+        renderPlayerBar();
+      }
+
+      function renderPlayerBar(){
+        if (GAME && GAME.ended) return;
+        const bar = document.querySelector('.player-bar');
+        if (!bar){
+          // Defer to the injected bar from game-players.js if not yet present
+          window.addEventListener('load', renderPlayerBar, { once: true });
+          return;
+        }
+        bar.innerHTML = '';
+        order.forEach((p, idx)=>{
+          const pill = document.createElement('div'); pill.className = 'player-pill';
+          pill.style.flex = '1 1 auto'; pill.style.minWidth = '120px';
+          pill.innerHTML = '<div style="display:flex;align-items:center;gap:10px;width:100%"><div class="player-circle" style="background:' + p.color + '"></div><div style="flex:1 1 auto;font-weight:700">' + p.name + '</div></div>';
+          bar.appendChild(pill);
+        });
+      }
+
+      // preview cache used to store small canvases for map previews
+      const PREVIEW_CACHE = Object.create(null);
+
+      // Prebuild previews for embedded maps in idle time to avoid blocking the startup animation
+      function schedulePrebuildPreviews(pw = 220, ph = 132){
+        const entries = mapsList.slice();
+        let i = 0;
+        const useIdle = typeof requestIdleCallback === 'function';
+        function chunk(deadline){
+          const start = performance.now();
+          while (i < entries.length && (useIdle ? (deadline && deadline.timeRemaining() > 0) : (performance.now() - start < 25))){
+            const entry = entries[i++];
+            if (PREVIEW_CACHE[entry.file] !== undefined) continue;
+            if (window.MAPS_INDEX && window.MAPS_INDEX[entry.file]){
+              try{ PREVIEW_CACHE[entry.file] = buildPreviewCanvas(window.MAPS_INDEX[entry.file], pw, ph); }catch(e){ PREVIEW_CACHE[entry.file] = null; }
+            } else {
+              PREVIEW_CACHE[entry.file] = null;
+            }
+          }
+          if (i < entries.length){
+            if (useIdle) requestIdleCallback(chunk, { timeout: 200 });
+            else setTimeout(chunk, 30);
+          }
+        }
+        if (useIdle) requestIdleCallback(chunk, { timeout: 200 }); else setTimeout(chunk, 0);
+      }
+
+      function announceOrder(){
+        // start prebuilding previews in background while the order is being announced
+        try{ schedulePrebuildPreviews(); }catch(e){}
+        return new Promise((resolve)=>{
+          let step=0;
+          const preview = setInterval(()=>{
+            statusEl.textContent = 'Ordre aléatoire... ' + stored[Math.floor(Math.random()*stored.length)].name;
+            step++;
+            if (step>18){
+              clearInterval(preview);
+              renderOrder();
+              statusEl.textContent = 'Ordre déterminé';
+              resolve();
+            }
+          }, 80);
+        });
+      }
+
+      // helper to set players programmatically (dev)
+      window.setGamePlayers = function(arr){
+        if (!Array.isArray(arr) || !arr.length) return;
+        localStorage.setItem('mini-Jeux-host-players', JSON.stringify(arr));
+        location.reload();
+      };
+
+      // maps list (maintain this list when adding new maps)
+      let mapsList = [
+        { name: 'Le cercle', file: 'Le cercle' },
+        { name: 'Oeil', file: 'Oeil' },
+        { name: 'Citron', file: 'Citron'},
+        { name: 'Tache', file: 'Tache'},
+        { name: 'même moi je sais pas', file: 'même moi je sais pas'},
+        { name: 'Rectangle', file: 'Rectangle'},
+        { name: 'Shards', file: 'Shards'},
+        { name: 'Line', file: 'Line'},
+        { name: 'Voiture', file: 'Voiture'},
+        { name: 'Clown', file: 'Clown'},
+        { name: 'Flaque', file: 'Flaque'},
+        { name: 'Triangle', file: 'Triangle'},
+      ];
+
+      // --- map rendering helpers (use with MAPS_INDEX or file input) ---
+      const COLORS = { herbe:'#4caf50', mur:'#222222', glace:'#a2d5f2', sable:'#f4d3a1', start:'#ff8500', hole:'#ffd600', bumper:'#ff4d4f', empty:'#e9f6ea' };
+
+      function hexToRgbaArr(h){
+        if (!h) return [0,0,0,255];
+        if (typeof h !== 'string') return [0,0,0,255];
+        if (h[0] === '#'){
+          if (h.length === 4){
+            const r = parseInt(h[1]+h[1],16); const g = parseInt(h[2]+h[2],16); const b = parseInt(h[3]+h[3],16);
+            return [r,g,b,255];
+          }
+          const r = parseInt(h.slice(1,3),16); const g = parseInt(h.slice(3,5),16); const b = parseInt(h.slice(5,7),16);
+          return [r,g,b,255];
+        }
+        if (COLORS[h]) return hexToRgbaArr(COLORS[h]);
+        return [0,0,0,255];
+      }
+
+      function renderMapToCanvas(map, canvas, titleEl){
+        const viewer = document.getElementById('map-viewer');
+        if (titleEl) viewer.style.display = 'none';
+        if (!map || !map.width || !map.height){ if (titleEl) titleEl.textContent = 'Map invalide'; return; }
+        const w = map.width|0; const h = map.height|0;
+        const ctx = canvas.getContext('2d');
+        canvas.width = w; canvas.height = h;
+        canvas.style.display = 'block';
+        canvas.style.width = Math.min(960, w) + 'px';
+
+        const pal = map.palette || {};
+        const colorCache = {};
+        Object.keys(pal).forEach(k=>{ const pname = pal[k]; const hex = COLORS[pname] || (typeof pname === 'string' && pname[0]==='#' ? pname : null); colorCache[String(k)] = hexToRgbaArr(hex || '#000000'); });
+        if (!colorCache['0']) colorCache['0'] = hexToRgbaArr(COLORS.empty || '#e9f6ea');
+
+        const img = ctx.createImageData(w,h);
+        const data = img.data;
+
+        if (map.encoding === 'raw' && Array.isArray(map.pixels)){
+          const pixels = map.pixels; for (let i=0;i<w*h;i++){ const id = String(pixels[i] !== undefined ? pixels[i] : 0); const rgba = colorCache[id] || colorCache['0']; const off = i*4; data[off]=rgba[0]; data[off+1]=rgba[1]; data[off+2]=rgba[2]; data[off+3]=255; }
+          ctx.putImageData(img,0,0);
+        } else if (map.encoding === 'rle' && Array.isArray(map.rle)){
+          let idx = 0; for (let i=0;i<map.rle.length;i++){ const entry = map.rle[i]; let val, cnt; if (Array.isArray(entry) && entry.length>=2){ val = entry[0]; cnt = entry[1]; } else if (typeof entry === 'number'){ val = entry; cnt = 1; } else { continue; } const id = String(val); const rgba = colorCache[id] || colorCache['0']; for (let c=0;c<cnt;c++){ if (idx >= w*h) break; const off = idx*4; data[off]=rgba[0]; data[off+1]=rgba[1]; data[off+2]=rgba[2]; data[off+3]=255; idx++; } }
+          ctx.putImageData(img,0,0);
+        } else if (map.encoding === 'png' && map.image){
+          const im = new Image(); im.onload = ()=>{ canvas.width = im.width; canvas.height = im.height; ctx.drawImage(im,0,0); }; im.src = map.image;
+        } else {
+          if (titleEl) titleEl.textContent = 'Format non supporté: ' + (map.encoding || 'unknown');
+          viewer.style.display = 'block'; viewer.textContent = JSON.stringify(map, null, 2);
+        }
+
+        try{
+          if (Array.isArray(map.starts)){
+              ctx.fillStyle = '#007bff'; map.starts.forEach(s=>{ ctx.beginPath(); ctx.arc(s.x||0, s.y||0, (s.r||12), 0, Math.PI*2); ctx.fill(); });
+          }
+          // Build palette name mapping and decompressed _cells for physics
+          try{
+            const w = map.width|0, h = map.height|0;
+            // palette name map: key -> semantic name (herbe, mur, sable, glace, start, hole, bumper)
+            const pal = map.palette || {};
+            const palNames = {};
+            Object.keys(pal).forEach(k=>{
+              const v = pal[k];
+              if (typeof v === 'string'){
+                if (COLORS[v]) palNames[k] = v;
+                else if (v[0] === '#'){
+                  const match = Object.keys(COLORS).find(n=>COLORS[n] === v);
+                  palNames[k] = match || 'unknown';
+                } else palNames[k] = v;
+              } else palNames[k] = 'unknown';
+            });
+
+            if (!map._cells){
+              const cells = new Uint16Array(w*h);
+              if (map.encoding === 'raw' && Array.isArray(map.pixels)){
+                for (let i=0;i<w*h;i++) cells[i] = map.pixels[i] || 0;
+              } else if (map.encoding === 'rle' && Array.isArray(map.rle)){
+                let idx = 0; for (let i=0;i<map.rle.length;i++){ const entry = map.rle[i]; let val,cnt; if (Array.isArray(entry) && entry.length>=2){ val = entry[0]; cnt = entry[1]; } else if (typeof entry === 'number'){ val = entry; cnt = 1; } else { continue; } for (let c=0;c<cnt;c++){ if (idx >= w*h) break; cells[idx++] = val; } }
+                if (idx < w*h) for (;idx<w*h;idx++) cells[idx]=0;
+              } else {
+                for (let i=0;i<w*h;i++) cells[i] = 0;
+              }
+              map._cells = cells;
+            }
+            map._palNames = map._palNames || palNames;
+          }catch(e){}
+
+          // ensure a top overlay canvas exists for balls and UI and matches size
+          try{
+            const ballCanvas = document.getElementById('ball-canvas');
+            if (ballCanvas){
+              ballCanvas.width = canvas.width; ballCanvas.height = canvas.height;
+              ballCanvas.style.width = canvas.style.width || canvas.clientWidth + 'px';
+              ballCanvas.style.height = canvas.style.height || canvas.clientHeight + 'px';
+              ballCanvas.style.display = 'block';
+              // position parent relative so absolute overlay sits correctly
+              const parent = canvas.parentElement; if (parent) parent.style.position = 'relative';
+            }
+          }catch(e){}
+          if (Array.isArray(map.holes)){
+            ctx.fillStyle = '#000'; map.holes.forEach(h=>{ ctx.beginPath(); ctx.arc(h.x||0, h.y||0, (h.r||12), 0, Math.PI*2); ctx.fill(); });
+          }
+          if (Array.isArray(map.bumpers)){
+            ctx.strokeStyle = '#ff4d4f'; ctx.lineWidth = 2; map.bumpers.forEach(b=>{ ctx.beginPath(); ctx.arc(b.x||0, b.y||0, (b.r||10), 0, Math.PI*2); ctx.stroke(); });
+          }
+        }catch(e){}
+
+        if (titleEl) titleEl.textContent = `${map.name || ''} — ${w}x${h}`;
+      }
+
+      function renderMap(map){
+        const canvas = document.getElementById('map-canvas');
+        const viewer = document.getElementById('map-viewer');
+        const title = document.getElementById('map-title');
+        viewer.style.display = 'none';
+        renderMapToCanvas(map, canvas, title);
+      }
+
+      function loadRandomMap(){
+        if (!mapsList.length){ document.getElementById('map-title').textContent = 'Aucune map disponible'; return; }
+        const pick = mapsList[Math.floor(Math.random()*mapsList.length)];
+        loadMapFile(pick.file);
+      }
+
+      function loadMapFile(filename){
+        const viewer = document.getElementById('map-viewer');
+        const title = document.getElementById('map-title');
+        title.textContent = `Chargement de: ${filename}`;
+        // If embedded in MAPS_INDEX, render directly
+        if (window.MAPS_INDEX && window.MAPS_INDEX[filename]){
+          const json = window.MAPS_INDEX[filename];
+          title.textContent = `${filename} — ${json.name || ''} (embeddé)`;
+          try{ renderMap(json); try{ initGame(json); }catch(e){} }catch(err){ viewer.style.display='block'; viewer.textContent = JSON.stringify(json, null, 2); }
+          return;
+        }
+        // Not embedded: instruct the user to use file input or a local server
+        viewer.style.display = 'block';
+        viewer.textContent = `La map "${filename}" n'est pas embarquée.\n\nOptions:\n- Démarre un serveur local (ex: python -m http.server) et recharge la page.\n- Ou utilise le bouton 'Choisir un fichier' pour sélectionner manuellement le .json.`;
+        title.textContent = 'Map non embarquée';
+      }
+
+      // Console helper: set the current map by filename, URL, or map object
+      // Usage examples:
+      //   window.setMap('Oeil')                        // use embedded map by file/name
+      //   window.setMap('Citron-rle-1779126135895.json') // attempt to load by filename
+      //   window.setMap('http://example.com/map.json') // fetch JSON from URL
+      //   window.setMap(window.MAPS_INDEX['Oeil'])     // pass a map object directly
+      window.setMap = function(src){
+        try{
+          if (typeof src === 'string'){
+            const s = src.trim();
+            // remote JSON URL or absolute/local path ending with .json
+            if (/^(https?:|\/)/i.test(s) || s.toLowerCase().endsWith('.json')){
+              fetch(s).then(r=>r.json()).then(json=>{ renderMap(json); try{ initGame(json); }catch(e){ console.warn('initGame failed', e); } }).catch(err=>{ console.error('Failed to fetch map JSON', err); });
+              return;
+            }
+            // embedded maps index
+            if (window.MAPS_INDEX && window.MAPS_INDEX[s]){ const json = window.MAPS_INDEX[s]; renderMap(json); try{ initGame(json); }catch(e){}; return; }
+            // try mapsList entries
+            const found = (mapsList || []).find(m => m.file === s || m.name === s);
+            if (found){ loadMapFile(found.file); return; }
+            // fallback: attempt to load by filename
+            loadMapFile(s); return;
+          } else if (typeof src === 'object' && src !== null){
+            renderMap(src); try{ initGame(src); }catch(e){ console.warn('initGame failed', e); }
+            return;
+          } else {
+            console.warn('setMap: unsupported src', src);
+          }
+        }catch(err){ console.error('setMap error', err); }
+      };
+
+      function buildPreviewCanvas(map, pw, ph){
+        const w = map.width|0 || 64; const h = map.height|0 || 64;
+        const tmp = document.createElement('canvas'); tmp.width = w; tmp.height = h; const ctx = tmp.getContext('2d');
+        const pal = map.palette || {};
+        const colorCache = {};
+        Object.keys(pal).forEach(k=>{ const pname = pal[k]; const hex = COLORS[pname] || (typeof pname === 'string' && pname[0]==='#' ? pname : null); colorCache[String(k)] = hexToRgbaArr(hex || '#000000'); });
+        if (!colorCache['0']) colorCache['0'] = hexToRgbaArr(COLORS.empty || '#e9f6ea');
+        const img = ctx.createImageData(w,h); const data = img.data;
+        if (map.encoding === 'raw' && Array.isArray(map.pixels)){
+          const pixels = map.pixels; for (let i=0;i<w*h;i++){ const id = String(pixels[i] !== undefined ? pixels[i] : 0); const rgba = colorCache[id] || colorCache['0']; const off = i*4; data[off]=rgba[0]; data[off+1]=rgba[1]; data[off+2]=rgba[2]; data[off+3]=255; }
+          ctx.putImageData(img,0,0);
+        } else if (map.encoding === 'rle' && Array.isArray(map.rle)){
+          let idx = 0; for (let i=0;i<map.rle.length;i++){ const entry = map.rle[i]; let val,cnt; if (Array.isArray(entry) && entry.length>=2){ val = entry[0]; cnt = entry[1]; } else if (typeof entry === 'number'){ val = entry; cnt = 1; } else { continue; } const id = String(val); const rgba = colorCache[id] || colorCache['0']; for (let c=0;c<cnt;c++){ if (idx >= w*h) break; const off = idx*4; data[off]=rgba[0]; data[off+1]=rgba[1]; data[off+2]=rgba[2]; data[off+3]=255; idx++; } }
+          ctx.putImageData(img,0,0);
+        } else if (map.encoding === 'png' && map.image){
+          // PNG preview: fallback to simple placeholder (sync). Async image loading would update later.
+          ctx.fillStyle = '#e9f6ea'; ctx.fillRect(0,0,w,h); ctx.fillStyle='#072035'; ctx.font='16px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(map.name || 'PNG', w/2, h/2);
+        } else {
+          ctx.fillStyle = '#e9f6ea'; ctx.fillRect(0,0,w,h); ctx.fillStyle='#072035'; ctx.font='16px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(map.name || 'map', w/2, h/2);
+        }
+        const preview = document.createElement('canvas'); preview.width = pw; preview.height = ph; const pctx = preview.getContext('2d'); pctx.imageSmoothingEnabled = true; pctx.drawImage(tmp,0,0,w,h,0,0,pw,ph); return preview;
+      }
+
+      function startSelectionAnimation(){
+        const overlay = document.getElementById('map-select-overlay');
+        const viewport = document.getElementById('select-viewport');
+        const track = document.getElementById('select-track');
+        const titleEl = document.getElementById('select-title');
+        const choicePanel = document.getElementById('map-select-choice');
+        const listPanel = document.getElementById('map-select-list');
+        const selectViewport = document.getElementById('select-viewport');
+        choicePanel.classList.add('hidden');
+        listPanel.classList.add('hidden');
+        selectViewport.classList.remove('hidden');
+        titleEl.textContent = '';
+        titleEl.style.opacity = '0';
+        overlay.classList.remove('hidden');
+
+        const available = mapsList.slice();
+        if (!available.length){ overlay.classList.add('hidden'); loadRandomMap(); return; }
+
+        // build a longer sequence without consecutive duplicates so the wheel scrolls further
+        const L = Math.max(40, available.length * 12);
+        const seq = [];
+        while(seq.length < L){
+          const last = seq.length ? seq[seq.length-1].file : null;
+          const cand = available.filter(m => m.file !== last);
+          const pick = cand.length ? cand[Math.floor(Math.random()*cand.length)] : available[Math.floor(Math.random()*available.length)];
+          seq.push(pick);
+        }
+
+        // choose a stop index late in the sequence, ensure at least 10 items before stop
+        const chosenIdx = Math.min(L-1, Math.floor(L * 0.75) + Math.floor(Math.random() * Math.floor(L * 0.2)));
+
+        // sizes (read geometry once)
+        const vpRect = viewport.getBoundingClientRect();
+        const vpW = Math.max(320, (vpRect.width || Math.min(window.innerWidth * 0.9, 720)));
+        const itemW = Math.min(560, Math.floor(vpW * 0.72));
+        const itemH = Math.floor(itemW * 0.6);
+        const gap = 12;
+
+        // populate track with quick dark placeholders (use document fragment to minimize reflow)
+        track.innerHTML = '';
+        const frag = document.createDocumentFragment();
+        for (let i=0;i<seq.length;i++){
+          const entry = seq[i];
+          const item = document.createElement('div'); item.className = 'select-item';
+          item.style.width = itemW + 'px'; item.style.height = itemH + 'px'; item.style.background = '#07102b';
+          // if we already have a cached preview, draw it immediately (fast)
+          const cached = PREVIEW_CACHE[entry.file];
+          if (cached){
+            try{
+              const img = document.createElement('canvas'); img.width = cached.width; img.height = cached.height;
+              img.getContext('2d').drawImage(cached, 0, 0);
+              img.style.width = '100%'; img.style.height = '100%';
+              item.appendChild(img);
+            }catch(e){}
+          }
+          frag.appendChild(item);
+        }
+        track.appendChild(frag);
+
+        // compute start and target translateX so items slide left->right and chosen item ends centered
+        const viewportCenter = vpW / 2;
+        const itemFull = itemW + gap;
+        const txTarget = viewportCenter - (chosenIdx * itemFull + itemW/2);
+        const travelDistance = itemFull * (chosenIdx + 6); // go further for faster start feel
+        const tx0 = txTarget - travelDistance;
+
+        // animate using easeOutCubic (fast then slow), cap total duration to 5000ms
+        function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
+        const travelPx = txTarget - tx0;
+        const duration = Math.min(5000, Math.max(900, 1200 + Math.abs(travelPx) * 0.25));
+        track.style.transform = 'translateX(' + tx0 + 'px)';
+        let start = null;
+        titleEl.style.opacity = '0';
+        titleEl.textContent = '';
+        function frame(now){
+          if (!start) start = now;
+          const elapsed = now - start;
+          const t = Math.min(1, elapsed / duration);
+          const p = easeOutCubic(t);
+          const tx = tx0 + p * (txTarget - tx0);
+          track.style.transform = 'translateX(' + tx + 'px)';
+          if (t < 1) requestAnimationFrame(frame); else {
+            // final snap and finish
+            track.style.transform = 'translateX(' + txTarget + 'px)';
+            const final = seq[chosenIdx];
+            titleEl.textContent = final ? (final.name || final.file) : '';
+            titleEl.style.transition = 'transform .35s ease, opacity .35s ease';
+            titleEl.style.transform = 'scale(1.06)';
+            titleEl.style.opacity = '1';
+            setTimeout(()=> titleEl.style.transform = 'scale(1)', 350);
+            setTimeout(()=>{
+              overlay.classList.add('hidden');
+              loadMapFile(seq[chosenIdx].file);
+            }, 700);
+          }
+        }
+
+        // start animation immediately
+        requestAnimationFrame(frame);
+
+        // fill missing previews in idle chunks so we never block the main thread
+        (function fillMissingPreviews(){
+          const items = seq.map((e, i) => ({ e, i }));
+          let pos = 0;
+          const useIdle = typeof requestIdleCallback === 'function';
+          function chunk(deadline){
+            const start = performance.now();
+            while (pos < items.length && (useIdle ? (deadline && deadline.timeRemaining() > 0) : (performance.now() - start < 20))){
+              const { e: entry, i: idx } = items[pos++];
+              if (PREVIEW_CACHE[entry.file] === undefined){
+                if (window.MAPS_INDEX && window.MAPS_INDEX[entry.file]){
+                  try{ PREVIEW_CACHE[entry.file] = buildPreviewCanvas(window.MAPS_INDEX[entry.file], itemW, itemH); }catch(err){ PREVIEW_CACHE[entry.file] = null; }
+                } else {
+                  PREVIEW_CACHE[entry.file] = null;
+                }
+              }
+              const child = track.children[idx];
+              if (!child) continue;
+              const cached = PREVIEW_CACHE[entry.file];
+              if (cached){
+                try{
+                  const c = document.createElement('canvas'); c.width = cached.width; c.height = cached.height;
+                  c.getContext('2d').drawImage(cached, 0, 0);
+                  c.style.width = '100%'; c.style.height = '100%';
+                  child.innerHTML = ''; child.appendChild(c);
+                }catch(e){}
+              } else if (cached === null){
+                // simple textual placeholder for non-embedded maps
+                const c = document.createElement('canvas'); c.width = itemW; c.height = itemH; const ctx = c.getContext('2d');
+                ctx.fillStyle = '#072035'; ctx.fillRect(0,0,itemW,itemH);
+                ctx.fillStyle = '#e9f6ea'; ctx.font='18px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+                ctx.fillText(entry.name || entry.file, itemW/2, itemH/2);
+                c.style.width = '100%'; c.style.height = '100%';
+                child.innerHTML = ''; child.appendChild(c);
+              }
+            }
+            if (pos < items.length){
+              if (useIdle) requestIdleCallback(chunk, { timeout: 120 });
+              else setTimeout(chunk, 40);
+            }
+          }
+          if (useIdle) requestIdleCallback(chunk, { timeout: 120 }); else setTimeout(chunk, 0);
+        })();
+      }
+
+      // start: determine player order, then run selection animation
+      // --- Gameplay state & functions ---
+      const GAME = {
+        map: null,
+        players: [],
+        currentIdx: 0,
+        rafId: null,
+        lastTime: 0,
+        timerRaf: null,
+        timerStart: 0,
+        timerDuration: 10000,
+        selectedDir: null,
+        selectedPower: 0,
+        maxShots: 12,
+        inShot: false,
+        shotPlayerIndex: null,
+        wallNormalCache: Object.create(null),
+        // visual effects
+        particles: [], // collision particles
+        trailsEnabled: true,
+        trailMaxLen: 28,
+        // shot timing / early-end settings
+        shotStart: 0,
+        maxShotDuration: 15000, // ms, advance after 15s
+        shotStopSpeed: 24, // px/s threshold to consider as "very slow" (increased)
+        ended: false
+      };
+
+      // create a hidden "sauvetage" button bottom-left; shown when it's a player's turn and they have a saved previous position
+      (function(){
+        const btn = document.createElement('button'); btn.id = 'rescue-btn'; btn.textContent = 'Sauvetage';
+        Object.assign(btn.style, { position: 'fixed', left: '12px', bottom: '12px', zIndex: 10001, padding: '8px 10px', borderRadius: '8px', border: 'none', background: '#ffb34d', color: '#000', fontWeight: '700', display: 'none' });
+        btn.addEventListener('click', ()=>{
+          if (!GAME.players || !GAME.players.length) return;
+          const pl = GAME.players[GAME.currentIdx]; if (!pl) return;
+          const prev = pl._prevTurnPos; if (!prev) return;
+          const b = pl.ball; if (!b) return;
+          b.x = prev.x; b.y = prev.y; b.vx = 0; b.vy = 0;
+          // if restored position is inside a wall, try to nudge out
+          if (getTerrainAt(GAME.map, Math.floor(b.x), Math.floor(b.y)) === 'mur'){
+            const n = estimateWallNormal(GAME.map, b.x, b.y, Math.floor(b.x), Math.floor(b.y));
+            if (n){ b.x += n.x * (b.r || 8) * 1.5; b.y += n.y * (b.r || 8) * 1.5; }
+          }
+          drawBalls(); updatePlayerBar();
+        });
+        document.body.appendChild(btn);
+      })();
+
+      function getTerrainAt(map, xi, yi){
+        if (!map || !map._cells) return 'unknown';
+        const w = map.width|0, h = map.height|0;
+        if (xi < 0 || yi < 0 || xi >= w || yi >= h) return 'mur';
+        const code = map._cells[yi*w + xi];
+        const name = map._palNames && map._palNames[String(code)];
+        return name || 'unknown';
+      }
+
+      // estimate a robust outward normal by scanning a larger neighbourhood and finding the wall boundary centroid
+      function estimateWallNormal(map, bx, by, xi, yi){
+        try{
+          const key = (Math.floor(xi)||0) + ',' + (Math.floor(yi)||0);
+          if (GAME.wallNormalCache && GAME.wallNormalCache[key]) return GAME.wallNormalCache[key];
+          const w = map.width|0, h = map.height|0;
+          // sample radius: proportional to map size but clamped
+          const maxDim = Math.max(8, Math.min(200, Math.round(Math.max(w,h) * 0.04)));
+          const R = Math.max(4, Math.min(40, maxDim));
+
+          const xmin = Math.max(0, Math.floor(bx) - R), xmax = Math.min(w-1, Math.floor(bx) + R);
+          const ymin = Math.max(0, Math.floor(by) - R), ymax = Math.min(h-1, Math.floor(by) + R);
+
+          const pts = [];
+          const RR = R * R;
+          for (let tx = xmin; tx <= xmax; tx++){
+            for (let ty = ymin; ty <= ymax; ty++){
+              const dx = (tx + 0.5) - bx, dy = (ty + 0.5) - by; if (dx*dx + dy*dy > RR) continue;
+              if (getTerrainAt(map, tx, ty) === 'mur') pts.push([tx + 0.5, ty + 0.5]);
+            }
+          }
+
+          if (!pts.length) return null;
+
+          // centroid
+          let cx = 0, cy = 0;
+          for (let i=0;i<pts.length;i++){ cx += pts[i][0]; cy += pts[i][1]; }
+          cx /= pts.length; cy /= pts.length;
+
+          // covariance
+          let sxx = 0, sxy = 0, syy = 0;
+          for (let i=0;i<pts.length;i++){ const dx = pts[i][0] - cx, dy = pts[i][1] - cy; sxx += dx*dx; sxy += dx*dy; syy += dy*dy; }
+          sxx /= pts.length; sxy /= pts.length; syy /= pts.length;
+
+          // principal component (tangent) via eigen decomposition of 2x2 cov
+          const tr = sxx + syy; const det = sxx * syy - sxy * sxy;
+          const disc = Math.max(0, (tr*tr)/4 - det);
+          const lambda1 = tr/2 + Math.sqrt(disc);
+          let vx = sxy, vy = lambda1 - sxx;
+          if (Math.abs(vx) < 1e-6 && Math.abs(vy) < 1e-6){ vx = lambda1 - syy; vy = sxy; }
+          let L = Math.hypot(vx, vy);
+          if (L === 0){ // fallback to centroid direction
+            let nx = bx - cx, ny = by - cy; let NL = Math.hypot(nx, ny) || 1; nx /= NL; ny /= NL; const out = { x: nx, y: ny, tangentAngle: 0, centroid:{x:cx,y:cy}, sample: pts.length };
+            if (GAME.wallNormalCache) GAME.wallNormalCache[key] = out; return out;
+          }
+          const tx = vx / L, ty = vy / L; // tangent unit vector
+          // normal is perpendicular to tangent
+          let nx = -ty, ny = tx;
+          // ensure normal points from wall centroid toward ball center
+          const dot = nx * (bx - cx) + ny * (by - cy);
+          if (dot < 0){ nx = -nx; ny = -ny; }
+          const nL = Math.hypot(nx, ny) || 1; nx /= nL; ny /= nL;
+          const out = { x: nx, y: ny, tangent: { x: tx, y: ty }, tangentAngle: Math.atan2(ty, tx), centroid:{x:cx,y:cy}, sample: pts.length };
+          if (GAME.wallNormalCache) GAME.wallNormalCache[key] = out;
+          return out;
+        }catch(e){ return null; }
+      }
+
+      function initGame(map){
+        GAME.map = map;
+        GAME.ended = false;
+        GAME.wallNormalCache = Object.create(null);
+        const starts = Array.isArray(map.starts) && map.starts.length ? map.starts : [{ x: Math.floor(map.width/2), y: Math.floor(map.height/2), r:12 }];
+        // ball radius: match hole size when available
+        let holeR = 8;
+        if (Array.isArray(map.holes) && map.holes.length){
+          try{ holeR = Math.max(4, Math.min.apply(null, map.holes.map(h=>h.r || 8))); }catch(e){}
+        }
+
+        const placed = [];
+        const playersArr = order.map((p, idx)=>{
+          const s = starts[idx % starts.length] || starts[0];
+          let attempts = 0;
+          let x = s.x || Math.floor(map.width/2), y = s.y || Math.floor(map.height/2);
+          while(attempts++ < 80){
+            const ang = Math.random() * Math.PI * 2;
+            const rad = Math.sqrt(Math.random()) * (s.r || 12) * 0.9;
+            x = (s.x||0) + Math.cos(ang) * rad;
+            y = (s.y||0) + Math.sin(ang) * rad;
+            x = Math.max(0, Math.min(map.width - 1, x));
+            y = Math.max(0, Math.min(map.height - 1, y));
+            const tile = getTerrainAt(map, Math.floor(x), Math.floor(y));
+            if (tile === 'mur') continue;
+            let ok = true;
+            for (const o of placed){ const dx = x - o.x; const dy = y - o.y; if (Math.hypot(dx,dy) < (holeR * 1.2 + o.r)) { ok = false; break; } }
+            if (ok) break;
+          }
+          const ball = { x:x, y:y, vx:0, vy:0, r: holeR };
+          placed.push(ball);
+          return { name: p.name, color: p.color || '#fff', strokes: 0, done: false, ball };
+        });
+        GAME.players = playersArr;
+        GAME.currentIdx = 0; GAME.selectedDir = null; GAME.selectedPower = 0; GAME.lastTime = 0;
+        // show controls now that map is ready
+        const controls = document.getElementById('controls-panel'); if (controls) controls.style.display = 'flex';
+        updatePlayerBar(); drawBalls(); setupControls(); startTurn();
+      }
+
+      function drawBalls(){
+        const canvas = document.getElementById('ball-canvas'); if (!canvas || !GAME.map) return;
+        const ctx = canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width,canvas.height);
+
+        // draw particles (under balls)
+        if (GAME.particles && GAME.particles.length){
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          for (let i = GAME.particles.length - 1; i >= 0; i--){
+            const p = GAME.particles[i];
+            const a = Math.max(0, Math.min(1, p.life / p.ttl));
+            ctx.globalAlpha = a;
+            ctx.fillStyle = p.color || '#fff';
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.size || 3, 0, Math.PI*2); ctx.fill();
+          }
+          ctx.restore();
+        }
+
+        // draw trails behind balls
+        if (GAME.trailsEnabled){
+          GAME.players.forEach((pl)=>{
+            const trail = pl._trail || [];
+            if (!trail.length) return;
+            for (let t = 0; t < trail.length; t++){
+              const pct = (t+1) / trail.length; // older first
+              const pos = trail[t];
+              const r = Math.max(1, Math.round((pl.ball.r || 6) * (0.5 * pct)));
+              ctx.globalAlpha = 0.08 + 0.6 * pct;
+              ctx.fillStyle = pl.color || '#fff';
+              ctx.beginPath(); ctx.arc(pos.x, pos.y, r, 0, Math.PI*2); ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+          });
+        }
+
+        // draw balls on top
+        GAME.players.forEach((pl, i)=>{
+          const b = pl.ball; if (!b) return;
+          ctx.beginPath(); ctx.fillStyle = pl.color || '#fff'; ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
+          ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 2; ctx.stroke();
+          const label = (pl.name && pl.name.length) ? pl.name.charAt(0).toUpperCase() : String(i+1);
+          ctx.fillStyle = '#000'; ctx.font = Math.max(10, Math.floor(b.r * 0.9)) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, b.x, b.y);
+        });
+      }
+
+      // spawn some collision particles
+      function spawnParticles(x,y,color,count,normal){
+        count = count || 10; color = color || '#fff';
+        for (let i=0;i<count;i++){
+          const ang = Math.random() * Math.PI * 2;
+          // bias direction by normal when provided
+          let vx = Math.cos(ang) * (40 + Math.random()*80);
+          let vy = Math.sin(ang) * (40 + Math.random()*80);
+          if (normal){ vx = vx * 0.5 + (normal.x || 0) * (60 + Math.random()*80); vy = vy * 0.5 + (normal.y || 0) * (60 + Math.random()*80); }
+          GAME.particles.push({ x:x, y:y, vx: vx, vy: vy, ttl: 600 + Math.random()*400, life: 600 + Math.random()*400, color: color, size: 2 + Math.random()*3 });
+        }
+        // limit total particles
+        if (GAME.particles.length > 600) GAME.particles.length = 600;
+      }
+
+      function updateParticles(dt){
+        if (!GAME.particles || !GAME.particles.length) return;
+        for (let i = GAME.particles.length - 1; i >= 0; i--){
+          const p = GAME.particles[i];
+          p.life -= dt * 1000;
+          if (p.life <= 0){ GAME.particles.splice(i,1); continue; }
+          // simple integration + drag
+          p.x += p.vx * dt; p.y += p.vy * dt;
+          p.vx *= Math.max(0, 1 - 3 * dt); p.vy *= Math.max(0, 1 - 3 * dt);
+        }
+      }
+
+      function finalizeShot(){
+        const shotIdx = GAME.shotPlayerIndex;
+        try{ const shooter = GAME.players[shotIdx]; if (shooter && shooter.ball) shooter._prevTurnPos = { x: shooter.ball.x, y: shooter.ball.y }; }catch(e){}
+        GAME.inShot = false; GAME.shotPlayerIndex = null; GAME.shotStart = 0;
+        if (shotIdx === GAME.currentIdx){
+          GAME.currentIdx = (GAME.currentIdx + 1) % GAME.players.length;
+          const ended = checkGameEnd();
+          if (!ended) startTurn();
+        } else { updatePlayerBar(); }
+      }
+
+      function setupControls(){
+        const gauge = document.getElementById('power-gauge'); gauge.innerHTML = '';
+        for (let lvl=8; lvl>=1; lvl--){
+          const el = document.createElement('div'); el.className = 'power-level'; el.dataset.level = lvl;
+          el.textContent = String(lvl);
+          el.setAttribute('aria-label', 'Puissance ' + lvl);
+          // gradient from green (low) to red (high)
+          const t = (lvl-1)/7; const r = Math.round(126 + 129*t); const g = Math.round(231 - 180*t); const b = Math.round(135 - 135*t);
+          el.style.background = `rgb(${r},${g},${b})`;
+          el.addEventListener('click', ()=>{ setSelectedPower(Number(el.dataset.level)); });
+          gauge.appendChild(el);
+        }
+
+        const dirPad = document.getElementById('direction-pad'); dirPad.innerHTML = '';
+        const dirs = [ ['N',0,-1], ['NE',Math.SQRT1_2, -Math.SQRT1_2], ['E',1,0], ['SE',Math.SQRT1_2, Math.SQRT1_2], ['S',0,1], ['SW',-Math.SQRT1_2, Math.SQRT1_2], ['W',-1,0], ['NW',-Math.SQRT1_2, -Math.SQRT1_2] ];
+        dirs.forEach(d=>{
+          const b = document.createElement('div'); b.className = 'dir-btn'; b.dataset.dx = d[1]; b.dataset.dy = d[2]; b.title = d[0]; b.textContent = d[0];
+          b.addEventListener('click', ()=>{ setSelectedDir({x: Number(b.dataset.dx), y: Number(b.dataset.dy), name: d[0]}); });
+          dirPad.appendChild(b);
+        });
+
+        const shoot = document.getElementById('shoot-btn'); if (shoot) shoot.addEventListener('click', ()=>{ if (!shoot.disabled) doShoot(); });
+        const back = document.getElementById('back-btn'); if (back) back.addEventListener('click', ()=>{ window.location.href = '../../index.html'; });
+      }
+
+      function setSelectedPower(level){ GAME.selectedPower = level; document.querySelectorAll('.power-level').forEach(el=>el.classList.toggle('selected', Number(el.dataset.level) === level)); updateShootEnabled(); }
+      function setSelectedDir(vec){ GAME.selectedDir = vec; document.querySelectorAll('.dir-btn').forEach(el=>el.classList.toggle('active', Number(el.dataset.dx) === vec.x && Number(el.dataset.dy) === vec.y)); updateShootEnabled(); }
+      function updateShootEnabled(){ const btn = document.getElementById('shoot-btn'); btn.disabled = !(GAME.selectedDir && GAME.selectedPower > 0); }
+
+      function clearSelections(){
+        GAME.selectedDir = null; GAME.selectedPower = 0;
+        document.querySelectorAll('.dir-btn').forEach(el=>el.classList.remove('active'));
+        document.querySelectorAll('.power-level').forEach(el=>el.classList.remove('selected'));
+        updateShootEnabled();
+      }
+
+      function autoSelectRandomShot(){
+        const dirButtons = Array.from(document.querySelectorAll('.dir-btn'));
+        const powerButtons = Array.from(document.querySelectorAll('.power-level'));
+        if (!dirButtons.length || !powerButtons.length){
+          if (GAME.selectedDir && GAME.selectedPower) return doShoot();
+          GAME.selectedDir = { x: 1, y: 0, name: 'E' };
+          GAME.selectedPower = 4;
+          return doShoot();
+        }
+        const steps = 10;
+        let stepCount = 0;
+        function pickRandom(){ return Math.random(); }
+        function animateChoice(){
+          const dirBtn = dirButtons[Math.floor(pickRandom() * dirButtons.length)];
+          const powerBtn = powerButtons[Math.floor(pickRandom() * powerButtons.length)];
+          const vec = { x: Number(dirBtn.dataset.dx), y: Number(dirBtn.dataset.dy), name: dirBtn.textContent };
+          setSelectedDir(vec);
+          setSelectedPower(Number(powerBtn.dataset.level));
+          stepCount += 1;
+          if (stepCount < steps){
+            window.setTimeout(animateChoice, 80 + Math.round(Math.random() * 60));
+          } else {
+            doShoot();
+          }
+        }
+        animateChoice();
+      }
+
+      function startTurn(){
+        // pick next player who is not done and not exceeded shots
+        if (!GAME.players || !GAME.players.length) return;
+        // ensure currentIdx points to a valid player
+        let attempts = 0; while((GAME.players[GAME.currentIdx].done || GAME.players[GAME.currentIdx].strokes >= GAME.maxShots) && attempts < GAME.players.length){ GAME.currentIdx = (GAME.currentIdx + 1) % GAME.players.length; attempts++; }
+        const pl = GAME.players[GAME.currentIdx];
+        if (pl.done || pl.strokes >= GAME.maxShots){ // all done or exhausted?
+          checkGameEnd(); return;
+        }
+        document.getElementById('status').textContent = `${pl.name}, à toi de tirer!`;
+        statusEl.style.color = pl.color || statusDefaultColor;
+        document.getElementById('turn-info').textContent = `Coups: ${pl.strokes} / ${GAME.maxShots}`;
+        // show direction pad near player's ball
+        positionDirectionPad(pl.ball.x, pl.ball.y);
+        document.getElementById('direction-pad').style.display = 'block';
+        document.getElementById('timer-overlay').style.display = 'block';
+        clearSelections();
+        // start 10s timer
+        GAME.timerStart = performance.now(); GAME.timerDuration = 10000; if (GAME.timerRaf) cancelAnimationFrame(GAME.timerRaf);
+        (function tick(now){
+          const elapsed = now - GAME.timerStart;
+          const rem = Math.max(0, GAME.timerDuration - elapsed);
+          const frac = rem / GAME.timerDuration;
+          document.getElementById('timer-bar').style.width = (frac*100) + '%';
+          // if a shot started or the active player changed, stop this timer (it is no longer relevant)
+          if (GAME.inShot || GAME.players[GAME.currentIdx] !== pl){
+            try{ document.getElementById('timer-overlay').style.display = 'none'; }catch(e){}
+            GAME.timerRaf = null; return;
+          }
+          if (rem <= 0){ // times up -> auto-shot
+            if (GAME.inShot || GAME.players[GAME.currentIdx] !== pl){ GAME.timerRaf = null; try{ document.getElementById('timer-overlay').style.display = 'none'; }catch(e){}; return; }
+            try{ if (pl && pl.ball) pl._prevTurnPos = { x: pl.ball.x, y: pl.ball.y }; }catch(e){}
+            if (GAME.selectedDir && GAME.selectedPower > 0){
+              doShoot();
+            } else {
+              autoSelectRandomShot();
+            }
+            GAME.timerRaf = null;
+            return;
+          }
+          GAME.timerRaf = requestAnimationFrame(tick);
+        })(performance.now());
+        // show/hide rescue button for current player
+        try{ const rescueBtn = document.getElementById('rescue-btn'); if (rescueBtn) rescueBtn.style.display = (pl && pl._prevTurnPos) ? 'block' : 'none'; }catch(e){}
+      }
+
+      function positionDirectionPad(mapX, mapY){
+        const mapCanvas = document.getElementById('map-canvas'); const dirPad = document.getElementById('direction-pad'); if (!mapCanvas || !dirPad) return;
+        const rect = mapCanvas.getBoundingClientRect();
+        const scaleX = rect.width / mapCanvas.width; const scaleY = rect.height / mapCanvas.height;
+        const left = rect.left + mapX * scaleX; const top = rect.top + mapY * scaleY;
+        // position inside parent (which is relatively positioned)
+        const parentRect = mapCanvas.parentElement.getBoundingClientRect();
+        dirPad.style.left = (left - parentRect.left) + 'px'; dirPad.style.top = (top - parentRect.top) + 'px';
+        // center the pad on the target point (use transform to align origin)
+        dirPad.style.transform = 'translate(-50%,-50%)';
+        // build simple 3x3 grid around center; scale offsets to match canvas visual scale
+        const avgScale = ((scaleX + scaleY) / 2) || 1;
+        const baseOffset = 56;
+        const r = Math.max(28, Math.round(baseOffset * avgScale));
+        const offsets = [ [0,-r],[r,-r],[r,0],[r,r],[0,r],[-r,r],[-r,0],[-r,-r] ];
+        const children = Array.from(dirPad.children);
+        children.forEach((c,i)=>{
+          c.style.position = 'absolute';
+          c.style.left = offsets[i][0] + 'px';
+          c.style.top = offsets[i][1] + 'px';
+          // center each child on its (left,top) point
+          c.style.transform = 'translate(-50%,-50%)';
+        });
+      }
+
+      function doShoot(){
+        const pl = GAME.players[GAME.currentIdx]; if (!pl || !GAME.selectedDir || !GAME.selectedPower) return;
+        // cancel turn timer to avoid it firing after a shot (prevents double-count)
+        try{ if (GAME.timerRaf) { cancelAnimationFrame(GAME.timerRaf); GAME.timerRaf = null; } }catch(e){}
+        // consume a stroke
+        pl.strokes++;
+        // mark that a shot was initiated by this player (used to avoid double-advancing turns)
+        GAME.inShot = true; GAME.shotPlayerIndex = GAME.currentIdx; GAME.shotStart = performance.now();
+        // start a fresh trail for this shooter
+        try{ pl._trail = []; }catch(e){}
+        // compute speed: base * power (increased maximum)
+        const base = 600; // pixels per second per power unit (tweakable)
+        const speed = base * (GAME.selectedPower / 8);
+        pl.ball.vx = GAME.selectedDir.x * speed; pl.ball.vy = GAME.selectedDir.y * speed;
+        // hide controls until motion completes
+        document.getElementById('direction-pad').style.display = 'none'; document.getElementById('timer-overlay').style.display = 'none';
+        updatePlayerBar(); startPhysics();
+      }
+
+      function startPhysics(){ if (!GAME.rafId) { GAME.lastTime = performance.now(); GAME.rafId = requestAnimationFrame(physicsStep); } }
+
+      function physicsStep(now){
+        const dt = (now - (GAME.lastTime || now)) / 1000; GAME.lastTime = now; let anyMoving = false; const map = GAME.map; if (!map) return;
+        const w = map.width|0, h = map.height|0;
+        // particles are updated later in the frame
+
+        // update trails: record positions for moving balls (simple fixed-length queue)
+        try{
+          GAME.players.forEach(pl => {
+            if (!pl || !pl.ball) return;
+            pl._trail = pl._trail || [];
+            const b = pl.ball;
+            const last = pl._trail.length ? pl._trail[pl._trail.length-1] : null;
+            // add when moved a bit or every frame if empty
+            if (!last || Math.hypot(b.x - last.x, b.y - last.y) > 1.5){ pl._trail.push({ x: b.x, y: b.y }); if (pl._trail.length > GAME.trailMaxLen) pl._trail.shift(); }
+          });
+        }catch(e){}
+
+        // integrate movement and map interactions
+        for (let i=0;i<GAME.players.length;i++){
+          const pl = GAME.players[i]; const b = pl.ball; if (!b) continue;
+          if (pl.done) continue;
+          if (Math.abs(b.vx) > 0.1 || Math.abs(b.vy) > 0.1){
+            anyMoving = true;
+            const nextX = b.x + b.vx * dt; const nextY = b.y + b.vy * dt;
+            const xi = Math.floor(nextX), yi = Math.floor(nextY);
+            const terrain = getTerrainAt(map, xi, yi);
+
+            if (terrain === 'mur'){
+              // compute a robust local wall normal & tangent from nearby wall pixels
+              const info = estimateWallNormal(map, b.x, b.y, xi, yi);
+              if (info){
+                const nx = info.x, ny = info.y;
+                // decompose velocity into normal and tangential components
+                const vdot = b.vx * nx + b.vy * ny;
+                const vnx = vdot * nx, vny = vdot * ny;
+                const vtx = b.vx - vnx, vty = b.vy - vny;
+                // restitution (normal) and friction (tangential)
+                const restitution = 0.9; // energy kept on normal bounce
+                const tangentialRetention = 0.88; // keep some tangential velocity (sliding)
+                b.vx = -restitution * vnx + tangentialRetention * vtx;
+                b.vy = -restitution * vny + tangentialRetention * vty;
+                // store last local wall angle (useful for visuals or spin)
+                b._lastWallAngle = info.tangentAngle || 0;
+                // try to move the ball out of the wall region
+                let safety = 0;
+                const step = Math.max(0.6, (b.r || 8) * 0.5);
+                while(getTerrainAt(map, Math.floor(b.x), Math.floor(b.y)) === 'mur' && safety++ < 120){ b.x += nx * step; b.y += ny * step; }
+                if (getTerrainAt(map, Math.floor(b.x), Math.floor(b.y)) === 'mur'){
+                  const pushDist = Math.max(8, (b.r || 8) * 1.25);
+                  b.x += nx * pushDist; b.y += ny * pushDist;
+                }
+                anyMoving = true;
+                // spawn wall impact particles
+                try{ spawnParticles(b.x, b.y, pl.color || '#ffffff', 12, { x: nx, y: ny }); }catch(e){}
+              } else {
+                // fallback: simple axis-invert with nudge
+                const origVx = b.vx, origVy = b.vy;
+                if (Math.abs(origVx) > Math.abs(origVy)){
+                  b.vx = -origVx * 0.6;
+                  const push = Math.max(8, (b.r || 8) + 2);
+                  b.x -= Math.sign(origVx) * push;
+                } else {
+                  b.vy = -origVy * 0.6;
+                  const push = Math.max(8, (b.r || 8) + 2);
+                  b.y -= Math.sign(origVy) * push;
+                }
+                anyMoving = true;
+                try{ spawnParticles(b.x, b.y, pl.color || '#ffffff', 8, { x: Math.sign(origVx||1), y: Math.sign(origVy||1) }); }catch(e){}
+              }
+            } else {
+              b.x = nextX; b.y = nextY;
+            }
+
+            // bumpers (map.bumpers are circles)
+            if (Array.isArray(map.bumpers)){
+              for (const bp of map.bumpers){ const dx = b.x - (bp.x||0); const dy = b.y - (bp.y||0); const dist = Math.hypot(dx,dy); if (dist < ((bp.r||8) + b.r)){
+                    const nx = dx / Math.max(0.0001, dist), ny = dy / Math.max(0.0001, dist); const vdot = b.vx*nx + b.vy*ny; b.vx = (b.vx - 2*vdot*nx) * 1.6; b.vy = (b.vy - 2*vdot*ny) * 1.6; }
+              }
+            }
+
+            // holes: count only if center is inside hole radius
+            if (Array.isArray(map.holes)){
+              for (const ho of map.holes){ const dx = b.x - (ho.x||0); const dy = b.y - (ho.y||0); const d = Math.hypot(dx,dy); if (d <= (ho.r||0)) { b.vx = b.vy = 0; pl.done = true; b.x = ho.x; b.y = ho.y; }
+              }
+            }
+            // if player went in a hole, remove from the selectable order list and rerender the order UI
+            if (pl.done){
+              try{ order = order.filter(o => o.name !== pl.name); renderOrder(); }catch(e){}
+              updatePlayerBar();
+            }
+
+            // terrain friction at current center
+            const terrainNow = getTerrainAt(map, Math.floor(b.x), Math.floor(b.y));
+            let friction = 0.5;
+            if (terrainNow === 'herbe' || terrainNow === 'empty') friction = 0.6;
+            else if (terrainNow === 'sable') friction = 4.0;
+            else if (terrainNow === 'glace') friction = 0.12;
+            else if (terrainNow === 'unknown') friction = 0.6;
+            const decay = Math.max(0, 1 - friction * dt);
+            b.vx *= decay; b.vy *= decay;
+            const speed = Math.hypot(b.vx, b.vy);
+            if (speed < 6){
+              // only fully stop the ball if it's not embedded in a wall
+              if (getTerrainAt(map, Math.floor(b.x), Math.floor(b.y)) !== 'mur'){
+                b.vx = 0; b.vy = 0;
+              } else {
+                // attempt a small outward nudge if still inside wall
+                const n = estimateWallNormal(map, b.x, b.y, Math.floor(b.x), Math.floor(b.y));
+                if (n){ b.vx = n.x * 20; b.vy = n.y * 20; }
+                else { b.vx = (Math.random()-0.5) * 10; b.vy = (Math.random()-0.5) * 10; }
+                anyMoving = true;
+              }
+            }
+          }
+        }
+
+        // collisions between players (elastic-ish)
+        for (let i=0;i<GAME.players.length;i++){
+          for (let j=i+1;j<GAME.players.length;j++){
+            const p1 = GAME.players[i], p2 = GAME.players[j]; if (!p1 || !p2) continue; if (!p1.ball || !p2.ball) continue;
+            // allow collisions only if at least one is moving or both not done
+            if (p1.done || p2.done) continue;
+            const b1 = p1.ball, b2 = p2.ball;
+            const dx = b2.x - b1.x, dy = b2.y - b1.y; const dist = Math.hypot(dx,dy);
+            const minDist = (b1.r + b2.r);
+            if (dist > 0 && dist < minDist){
+              const nx = dx / dist, ny = dy / dist; const overlap = minDist - dist; const shift = overlap * 0.5;
+              b1.x -= nx * shift; b1.y -= ny * shift; b2.x += nx * shift; b2.y += ny * shift;
+              const v1n = b1.vx * nx + b1.vy * ny; const v2n = b2.vx * nx + b2.vy * ny; const ev = 0.8;
+              const v1nAfter = v2n * ev; const v2nAfter = v1n * ev;
+              b1.vx += (v1nAfter - v1n) * nx; b1.vy += (v1nAfter - v1n) * ny;
+              b2.vx += (v2nAfter - v2n) * nx; b2.vy += (v2nAfter - v2n) * ny;
+              // spawn collision particles at contact point
+              try{ const cx = (b1.x + b2.x) * 0.5, cy = (b1.y + b2.y) * 0.5; spawnParticles(cx, cy, p1.color || '#fff', 10, { x: nx, y: ny }); }catch(e){}
+            } else if (dist === 0){ b1.x += (Math.random()-0.5); b1.y += (Math.random()-0.5); }
+          }
+        }
+
+        // recovery pass: if any ball is stuck inside a wall while stationary, nudge it out
+        for (let i=0;i<GAME.players.length;i++){
+          const pl = GAME.players[i]; if (!pl || !pl.ball || pl.done) continue;
+          const b = pl.ball;
+          if (getTerrainAt(map, Math.floor(b.x), Math.floor(b.y)) === 'mur'){
+            // attempt to compute a normal and push the ball outward
+            const norm = estimateWallNormal(map, b.x, b.y, Math.floor(b.x), Math.floor(b.y));
+            const pushDist = Math.max(8, (b.r || 8) + 2);
+            if (norm){
+              b.x += norm.x * pushDist; b.y += norm.y * pushDist;
+              b.vx = norm.x * 160; b.vy = norm.y * 160;
+            } else {
+              b.x += (Math.random()-0.5) * pushDist; b.y += (Math.random()-0.5) * pushDist;
+              b.vx = (Math.random()-0.5) * 160; b.vy = (Math.random()-0.5) * 160;
+            }
+            anyMoving = true;
+          }
+        }
+
+        // Early-end: if shot started and all balls are very slow or shot took too long, stop now
+        try{
+          if (GAME.inShot){
+            let maxSpeed = 0; for (const pl of GAME.players){ if (!pl || !pl.ball) continue; const s = Math.hypot((pl.ball.vx||0),(pl.ball.vy||0)); if (s > maxSpeed) maxSpeed = s; }
+            const elapsed = GAME.shotStart ? (now - GAME.shotStart) : 0;
+            if (maxSpeed < GAME.shotStopSpeed || elapsed > GAME.maxShotDuration){
+              // spawn soft particles for visual feedback
+              GAME.players.forEach(pl => { if (!pl || !pl.ball) return; if (!(pl.done)){ try{ spawnParticles(pl.ball.x, pl.ball.y, pl.color || '#fff', 6); }catch(e){} } });
+              // if we exceeded the max allowed shot duration, stop motion and finalize
+              if (elapsed > GAME.maxShotDuration){
+                GAME.players.forEach(pl => { if (!pl || !pl.ball) return; pl.ball.vx = 0; pl.ball.vy = 0; });
+                anyMoving = false;
+                finalizeShot();
+              } else {
+                // speeds are very low but let balls continue moving; advance the turn now
+                finalizeShot();
+              }
+            }
+          }
+        }catch(e){}
+
+        // update particle motion
+        try{ updateParticles(dt); }catch(e){}
+
+        drawBalls();
+        if (anyMoving){ GAME.rafId = requestAnimationFrame(physicsStep); }
+        else {
+          GAME.rafId = null;
+          // motion stopped. If a shot was in progress, only advance the turn when the shot belongs to the current player.
+          if (GAME.inShot){
+            // compute max moving speed to decide whether to end early
+            let maxSpeed = 0; for (const pl of GAME.players){ if (!pl || !pl.ball) continue; const s = Math.hypot((pl.ball.vx||0),(pl.ball.vy||0)); if (s > maxSpeed) maxSpeed = s; }
+            const elapsed = GAME.shotStart ? (performance.now() - GAME.shotStart) : 0;
+            // if speeds are very low or shot took too long, finalize shot early
+            if (maxSpeed < GAME.shotStopSpeed || elapsed > GAME.maxShotDuration){
+              if (elapsed > GAME.maxShotDuration){
+                // timeout: stop residual motion then finalize
+                GAME.players.forEach(pl => { if (!pl || !pl.ball) return; pl.ball.vx = 0; pl.ball.vy = 0; });
+              }
+              finalizeShot();
+            } else {
+              // otherwise the shot has finished normally
+              finalizeShot();
+            }
+          } else {
+            // no active shot waiting — do not auto-advance (prevents extra skips)
+            updatePlayerBar();
+          }
+        }
+      }
+
+      function checkGameEnd(){
+        // game ends when all players are done or all players have strokes >= maxShots
+        // Also end early if there is only one active player left: qualify them as automatically last
+        try{
+          const remaining = GAME.players.filter(p => !p.done && p.strokes < GAME.maxShots);
+          if (remaining.length <= 1){
+            if (remaining.length === 1){
+              // mark as exhausted so they appear after finished players in ranking
+              try{ remaining[0].strokes = Math.max(remaining[0].strokes, GAME.maxShots); }catch(e){}
+            }
+            endGame(); return true;
+          }
+        }catch(e){}
+        const allDoneOrExhausted = GAME.players.every(p => p.done || p.strokes >= GAME.maxShots);
+        if (allDoneOrExhausted){ // show final ranking
+          endGame(); return true; }
+        updatePlayerBar(); return false;
+      }
+
+      function updatePlayerBar(){
+        if (GAME && GAME.ended) return;
+        try{
+          const bars = Array.from(document.querySelectorAll('.player-bar'));
+          if (bars.length > 1){
+            // Prefer the bar injected by game-players.js (it does not contain #player-bar-inner)
+            const injectedBar = bars.find(b => !(b.querySelector && b.querySelector('#player-bar-inner')));
+            const mainBar = injectedBar || bars[0];
+            bars.forEach(b => { if (b !== mainBar) b.style.display = 'none'; });
+          }
+        }catch(e){}
+        const bar = document.querySelector('.player-bar');
+        if (!bar){ window.addEventListener('load', updatePlayerBar, { once: true }); return; }
+        bar.innerHTML = '';
+        GAME.players.forEach((p, idx)=>{
+          const pill = document.createElement('div'); pill.className = 'player-pill'; pill.style.flex='1 1 auto'; pill.style.minWidth='120px';
+          // during play we only show name + color; scores are shown at the end
+          pill.innerHTML = `<div style="display:flex;align-items:center;gap:10px;width:100%"><div class="player-circle" style="background:${p.color}"></div><div style="flex:1 1 auto;font-weight:700">${p.name}</div></div>`;
+          bar.appendChild(pill);
+        });
+      }
+
+      function endGame(){
+        GAME.ended = true;
+        // stop any running timers/animations
+        try{ if (GAME.timerRaf) { cancelAnimationFrame(GAME.timerRaf); GAME.timerRaf = null; } if (GAME.rafId) { cancelAnimationFrame(GAME.rafId); GAME.rafId = null; } }catch(e){}
+        // compute ranking: finished players first by strokes asc, then others by strokes asc
+        const ranked = GAME.players.slice().sort((a,b)=>{ if (a.done && !b.done) return -1; if (!a.done && b.done) return 1; const as = a.done? a.strokes: Infinity; const bs = b.done? b.strokes: Infinity; return as - bs; });
+        // hide any selection overlay and controls - show results directly in player bar
+        const overlay = document.getElementById('map-select-overlay'); if (overlay) overlay.classList.add('hidden');
+        const dirPad = document.getElementById('direction-pad'); if (dirPad) dirPad.style.display = 'none';
+        const timerOverlay = document.getElementById('timer-overlay'); if (timerOverlay) timerOverlay.style.display = 'none';
+        const rescueBtn = document.getElementById('rescue-btn'); if (rescueBtn) rescueBtn.style.display = 'none';
+        // Use the injected .player-bar (from game-players.js). If it's not present yet, defer until load.
+        const bars = Array.from(document.querySelectorAll('.player-bar'));
+        if (bars.length > 1){
+          const injectedBar = bars.find(b => !(b.querySelector && b.querySelector('#player-bar-inner')));
+          const mainBar = injectedBar || bars[0];
+          bars.forEach(b => { if (b !== mainBar) b.style.display = 'none'; });
+        }
+        const bar = document.querySelector('.player-bar');
+        if (!bar){ window.addEventListener('load', endGame, { once: true }); return; }
+        bar.innerHTML = '';
+        ranked.forEach((r,i)=>{
+          const pill = document.createElement('div'); pill.className = 'player-pill'; pill.style.flex='1 1 auto'; pill.style.minWidth='120px';
+          pill.style.background = 'rgba(15,24,46,0.95)';
+          pill.style.color = '#f7fbff';
+          if (i === 0){ pill.style.border = '2px solid #ffd764'; }
+          else if (i === 1){ pill.style.border = '2px solid #d0d0d0'; }
+          else if (i === 2){ pill.style.border = '2px solid #c27a3a'; }
+          else { pill.style.border = '1px solid rgba(255,255,255,0.28)'; }
+          pill.innerHTML = `<div style="display:flex;align-items:center;gap:10px;width:100%"><div class="player-circle" style="background:${r.color}"></div><div style="flex:1 1 auto;font-weight:700">${r.name}</div><div style="font-weight:900;margin-left:6px">${i+1}#</div></div>`;
+          bar.appendChild(pill);
+          try{ if (typeof setACText === 'function') setACText(pill, i+1, ranked.length); }catch(e){}
+        });
+        // set status to final and reset color
+        statusEl.textContent = 'Classement final'; statusEl.style.color = statusDefaultColor;
+        window.PourtyMiniGame?.finish();
+        // hide the controls panel
+        const controls = document.getElementById('controls-panel'); if (controls) controls.style.display = 'none';
+        // add a final Retour button near the player bar
+        try{
+          const barWrap = document.querySelector('.player-bar');
+          if (barWrap){
+            let endBtn = document.getElementById('final-back');
+            if (!endBtn){
+              endBtn = document.createElement('button'); endBtn.id = 'final-back'; endBtn.textContent = 'Retour';
+              endBtn.style.marginLeft = '12px'; endBtn.style.padding = '8px 12px'; endBtn.style.borderRadius = '8px'; endBtn.style.border = 'none'; endBtn.style.background = '#ffb34d'; endBtn.style.color = '#000'; endBtn.style.fontWeight = '700';
+              endBtn.addEventListener('click', ()=>{ window.location.href = '../../index.html'; });
+              barWrap.appendChild(endBtn);
+            }
+          }
+        }catch(e){}
+      }
+
+      function showMapChoiceOverlay(){
+        const overlay = document.getElementById('map-select-overlay');
+        const choicePanel = document.getElementById('map-select-choice');
+        const listPanel = document.getElementById('map-select-list');
+        const selectViewport = document.getElementById('select-viewport');
+        const titleEl = document.getElementById('select-title');
+        overlay.classList.remove('hidden');
+        choicePanel.classList.remove('hidden');
+        listPanel.classList.add('hidden');
+        selectViewport.classList.add('hidden');
+        titleEl.textContent = '';
+        titleEl.style.opacity = '0';
+      }
+
+      function hideMapChoiceOverlay(){
+        const overlay = document.getElementById('map-select-overlay');
+        if (overlay) overlay.classList.add('hidden');
+      }
+
+      function renderMapListPanel(){
+        const grid = document.getElementById('map-list-grid');
+        grid.innerHTML = '';
+        mapsList.forEach(item => {
+          const tile = document.createElement('button');
+          tile.type = 'button';
+          tile.className = 'map-list-item';
+
+          const previewWrapper = document.createElement('div');
+          previewWrapper.className = 'map-list-preview';
+
+          let preview = PREVIEW_CACHE[item.file];
+          if (preview === undefined && window.MAPS_INDEX && window.MAPS_INDEX[item.file]){
+            try{
+              preview = buildPreviewCanvas(window.MAPS_INDEX[item.file], 280, 180);
+              PREVIEW_CACHE[item.file] = preview;
+            }catch(e){ preview = null; }
+          }
+
+          if (preview instanceof HTMLCanvasElement){
+            const img = document.createElement('canvas');
+            img.width = preview.width;
+            img.height = preview.height;
+            img.getContext('2d').drawImage(preview, 0, 0);
+            previewWrapper.appendChild(img);
+          } else {
+            const placeholder = document.createElement('div');
+            placeholder.style.width = '100%';
+            placeholder.style.height = '100%';
+            placeholder.style.display = 'flex';
+            placeholder.style.alignItems = 'center';
+            placeholder.style.justifyContent = 'center';
+            placeholder.style.color = '#cfe9d6';
+            placeholder.style.fontSize = '0.9rem';
+            placeholder.style.padding = '8px';
+            placeholder.textContent = item.name || item.file;
+            previewWrapper.appendChild(placeholder);
+          }
+
+          const label = document.createElement('div');
+          label.className = 'map-list-label';
+          label.textContent = item.name || item.file;
+
+          tile.appendChild(previewWrapper);
+          tile.appendChild(label);
+          tile.addEventListener('click', ()=> selectMapFromList(item.file));
+          grid.appendChild(tile);
+        });
+      }
+
+      function selectMapFromList(filename){
+        hideMapChoiceOverlay();
+        loadMapFile(filename);
+      }
+
+      function openMapList(){
+        const choicePanel = document.getElementById('map-select-choice');
+        const listPanel = document.getElementById('map-select-list');
+        const selectViewport = document.getElementById('select-viewport');
+        choicePanel.classList.add('hidden');
+        listPanel.classList.remove('hidden');
+        selectViewport.classList.add('hidden');
+        renderMapListPanel();
+      }
+
+      function attachMapChoiceHandlers(){
+        const randomBtn = document.getElementById('map-random-btn');
+        const listBtn = document.getElementById('map-list-btn');
+        const backBtn = document.getElementById('map-list-back');
+        if (randomBtn) randomBtn.addEventListener('click', ()=> startSelectionAnimation());
+        if (listBtn) listBtn.addEventListener('click', ()=> openMapList());
+        if (backBtn) backBtn.addEventListener('click', ()=> showMapChoiceOverlay());
+      }
+
+      // start: determine player order, then ask for map choice
+      announceOrder().then(()=>{ showMapChoiceOverlay(); attachMapChoiceHandlers(); });
+
+      // refresh button: re-render list and load a random map (unused in new UI)
+      const refreshBtn = document.getElementById('refreshMaps');
+      if (refreshBtn) refreshBtn.addEventListener('click', ()=>{ /* not used in this UI */ });
+
+      // file input fallback: allow user to open a local JSON file and render it
+      const inputFile = document.getElementById('mapFile');
+      if (inputFile) inputFile.addEventListener('change', e=>{
+        const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = ()=>{
+          try{ const json = JSON.parse(r.result); document.getElementById('map-title').textContent = `${f.name} (fichier local)`; renderMap(json); }catch(err){ const v = document.getElementById('map-viewer'); v.style.display='block'; v.textContent = 'Fichier JSON invalide'; }
+        }; r.readAsText(f);
+      });
+
+    })();
+  </script>
+  <script src="../commun/game-players.js"></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Aboubadawa</title>
+  <script src="../../party-payout.js"></script><script src="../../board/board-minigame-bridge.js"></script>
+  <link rel="stylesheet" href="../../style.css"><link rel="stylesheet" href="dawa.css?v=2">
+  <script src="../commun/game-players.js" defer></script><script src="dawa-engine.js?v=2" defer></script><script src="dawa.js?v=2" defer></script>
+</head>
+<body class="dawa">
+  <header class="dawa-header"><h1>Aboubadawa</h1><div id="dawa-status" role="status" aria-live="polite"></div><div id="dawa-timer" hidden><span></span><b>10</b></div></header>
+  <main id="dawa-main"><div id="dawa-order" aria-label="Ordre des explosions"></div><section id="dawa-arena" aria-label="Arène glissante"><canvas id="dawa-canvas" aria-label="Simulation de l’arène"></canvas><div id="dawa-spots" role="group" aria-label="Positions disponibles"></div></section></main>
+  <div id="dawa-pop" hidden aria-live="polite"></div>
+  <div id="dawa-end" hidden><button id="dawa-replay" type="button">Rejouer</button><button id="return-btn" type="button">Retour aux mini-jeux</button></div>
+</body></html>

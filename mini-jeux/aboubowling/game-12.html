@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <script src="../../party-payout.js"></script>
+<script src="../../board/board-minigame-bridge.js"></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Aboubowling</title>
+  <link rel="stylesheet" href="../../style.css" />
+  <style>
+    body{background:#081028;color:#fff;font-family:Segoe UI,Roboto,Arial;margin:0;padding:18px}
+    main{max-width:980px;margin:8px auto;text-align:center}
+    h1{margin:8px 0 12px;font-size:2.4rem}
+    #status{min-height:36px;margin-bottom:12px;font-weight:900;font-size:1.2rem}
+    .player-order{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:8px 0}
+    .player-chip{padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);font-weight:800}
+
+    /* selector area */
+    #selector{display:none;margin-top:14px}
+    .reel-grid{display:flex;gap:18px;justify-content:center;align-items:flex-start}
+    .reel-card{width:200px;height:220px;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.04);border-radius:10px;padding:10px;display:flex;flex-direction:column;align-items:center;position:relative;overflow:hidden}
+    .reel-title{font-weight:900;margin-bottom:8px}
+    .reel-display{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center}
+    .reel-display img{width:88px;height:88px;object-fit:contain}
+    .reel-label{margin-top:8px;font-weight:700}
+    .rarity-badge{position:absolute;left:8px;top:8px;padding:4px 8px;border-radius:999px;font-weight:800;font-size:0.75rem}
+    .rarity-pas{background:rgba(255,80,80,0.12);color:#ff9aa6;border:1px solid rgba(255,80,80,0.18)}
+    .rarity-okay{background:rgba(200,200,200,0.06);color:#ddd;border:1px solid rgba(255,255,255,0.04)}
+    .rarity-bien{background:rgba(72,201,116,0.12);color:#9fffb0;border:1px solid rgba(72,201,116,0.18)}
+
+    .controls-row{display:flex;gap:12px;justify-content:center;margin-top:12px}
+    .btn{padding:10px 14px;border-radius:10px;background:#6bc0ff;color:#072035;border:none;font-weight:800;cursor:pointer}
+    .btn.red{background:#ff4b4b;color:#fff}
+
+    /* timer */
+    .turn-timer{width:420px;height:10px;background:rgba(255,255,255,0.06);border-radius:999px;overflow:hidden;margin:8px auto}
+    .turn-timer .fill{height:100%;background:linear-gradient(90deg,#ffd7a6,#ff9aa6);width:100%;transition:width linear}
+    .timer-row{display:flex;align-items:center;gap:10px;margin-top:6px;justify-content:center}
+
+    /* reroll flash and float (more subtle) */
+    .flash{position:absolute;inset:0;background:rgba(255,0,0,0.06);pointer-events:none;opacity:0;transition:opacity .18s}
+    .flash.show{opacity:1}
+    .float-minus{position:absolute;right:14px;bottom:58px;background:transparent;color:#ff4b4b;padding:0;font-weight:900;pointer-events:none;opacity:0;transform:translateY(0);transition:transform .8s ease,opacity .8s}
+    .float-minus.show{opacity:1;transform:translateY(-40px);}
+
+    /* reel strip animation layout */
+    .reel-display{overflow:hidden;height:180px;width:100%;display:flex;align-items:center;justify-content:center;position:relative}
+    .reel-strip{display:flex;flex-direction:column;align-items:center}
+    .reel-item{height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+    .reel-item img{width:120px;height:120px;object-fit:contain;border-radius:8px}
+    .reel-label.final{position:absolute;left:50%;transform:translateX(-50%);bottom:10px;font-weight:900;background:rgba(0,0,0,0.18);padding:6px 10px;border-radius:8px}
+
+    /* hide controls while reels spin */
+    .controls-row{display:none;gap:12px;justify-content:center;margin-top:12px}
+
+    /* tighten timer label next to timer */
+    .timer-row{display:flex;align-items:center;gap:6px;margin-top:6px;justify-content:center}
+
+    /* reroll overlay */
+    .reroll-overlay{position:fixed;inset:0;background:rgba(255,0,0,0.06);pointer-events:none;opacity:0;transition:opacity .18s;z-index:10000}
+    .reroll-overlay.show{opacity:1}
+
+    /* bowling lane styles */
+    .lane-area{display:none;margin-top:18px}
+    .chosen-squares{display:flex;gap:8px;justify-content:center;margin-bottom:10px}
+    .chosen-square{width:52px;height:52px;border-radius:8px;background:rgba(255,255,255,0.02);display:flex;align-items:center;justify-content:center;flex-direction:column;border:1px solid rgba(255,255,255,0.04);font-weight:800;font-size:0.7rem}
+    .lane-row{display:flex;gap:12px;justify-content:center;align-items:flex-start}
+    .position-column{width:64px;display:flex;flex-direction:column;gap:10px;align-items:center}
+    .pos-dot{width:34px;height:34px;border-radius:50%;border:2px dashed rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;cursor:pointer}
+    .pos-dot.active{background:rgba(255,255,255,0.04);border-style:solid}
+    .lane-canvas{border-radius:8px;background:linear-gradient(180deg,#0b2540,#02203a);box-shadow:inset 0 0 18px rgba(0,0,0,0.45);border:1px solid rgba(255,255,255,0.03)}
+    .lane-controls{display:flex;gap:12px;justify-content:center;margin-top:10px;align-items:center}
+    .overlay-score{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:10001;opacity:0;pointer-events:none;transition:opacity .18s}
+    .overlay-score.show{opacity:1;pointer-events:auto}
+    .score-card{background:#072035;padding:18px 28px;border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,0.6);color:#ffd7a6;font-weight:900;font-size:2.2rem;text-align:center}
+    .return-btn{margin-top:12px;padding:10px 14px;border-radius:10px;background:#ff776d;color:#fff;border:none;font-weight:700;cursor:pointer;border:1px solid rgba(0,0,0,0.08);box-shadow:0 8px 20px rgba(0,0,0,0.32)}
+
+    /* responsive */
+    @media(max-width:720px){ .reel-grid{flex-direction:column;align-items:center} }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Aboubowling</h1>
+    <div id="status">Chargement des joueurs...</div>
+    <div id="order" class="player-order"></div>
+
+    <div id="selector">
+      <div class="reel-grid">
+        <div class="reel-card" id="card-boule">
+          <div class="rarity-badge" id="badge-boule"></div>
+          <div class="reel-title">Boule</div>
+          <div class="reel-display"><img id="img-boule" src="" alt=""/><div class="reel-label" id="label-boule"></div></div>
+          <div class="flash" id="flash-boule"></div>
+        </div>
+
+        <div class="reel-card" id="card-tir">
+          <div class="rarity-badge" id="badge-tir"></div>
+          <div class="reel-title">Tir</div>
+          <div class="reel-display"><img id="img-tir" src="" alt=""/><div class="reel-label" id="label-tir"></div></div>
+          <div class="flash" id="flash-tir"></div>
+        </div>
+
+        <div class="reel-card" id="card-puissance">
+          <div class="rarity-badge" id="badge-puissance"></div>
+          <div class="reel-title">Puissance</div>
+          <div class="reel-display"><img id="img-puissance" src="" alt=""/><div class="reel-label" id="label-puissance"></div></div>
+          <div class="flash" id="flash-puissance"></div>
+        </div>
+      </div>
+
+      <div class="controls-row">
+        <button id="validateBtn" class="btn">Valider</button>
+        <div style="position:relative">
+          <button id="rerollBtn" class="btn red">Relancer (-1 quille)</button>
+          <div class="float-minus" id="floatMinus">-1 quille</div>
+        </div>
+      </div>
+
+      <div id="turnTimer" style="display:none;max-width:720px;margin:6px auto 0;justify-content:center;align-items:center">
+        <div class="timer-row">
+          <div class="turn-timer" style="width:320px"><div id="timerFill" class="fill"></div></div>
+          <div id="timerLabel" style="min-width:52px;font-weight:900;color:#ffd7a6;margin-left:-6px">15.0s</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="width:100%;max-width:920px;margin-top:8px">
+      <script src="../commun/game-players.js"></script>
+    </div>
+
+    <!-- Bowling lane area (hidden until selections finished) -->
+    <div id="laneArea" class="lane-area">
+      <div id="chosenDisplay" class="chosen-squares"></div>
+      <div class="lane-row">
+        <div id="positionColumn" class="position-column"></div>
+        <div style="width:820px;max-width:82vw">
+          <canvas id="laneCanvas" class="lane-canvas" width="820" height="240"></canvas>
+        </div>
+        <div style="width:64px;display:flex;align-items:center;justify-content:center">
+          <!-- pins column placeholder (visual pins are drawn on canvas) -->
+        </div>
+      </div>
+      <div class="lane-controls">
+        <div id="laneTimer" style="display:none;max-width:240px">
+          <div class="timer-row" style="justify-content:flex-start;align-items:center;gap:8px">
+            <div class="turn-timer" style="width:170px"><div id="laneTimerFill" class="fill"></div></div>
+            <div id="laneTimerLabel" style="min-width:48px;font-weight:900;color:#ffd7a6;margin-left:6px">10.0s</div>
+          </div>
+        </div>
+        <button id="changeDirBtn" class="btn">Changer le sens</button>
+        <button id="shootBtn" class="btn red">TIRER</button>
+      </div>
+    </div>
+  </main>
+
+  <script>
+  (function(){
+    const stored = JSON.parse(localStorage.getItem('mini-Jeux-host-players') || '[]');
+    const statusEl = document.getElementById('status');
+    const orderEl = document.getElementById('order');
+    orderEl.style.display = 'none';
+
+    if (!stored.length){ statusEl.textContent = 'Aucun joueur enregistré.'; return; }
+
+    // build players and order
+    let players = stored.map(p=>({ name: p.name, color: p.color || '#8ac6ff', score: 0, choice: null }));
+    function shuffle(a){ return a.slice().sort(()=>Math.random()-0.5); }
+    let order = shuffle(players.slice());
+    let currentIdx = -1;
+    // remember last pattern index to avoid repeating the same pattern twice
+    let lastPatternIndex = -1;
+
+    function renderOrder(){ orderEl.innerHTML = ''; orderEl.style.display = 'flex'; order.forEach(p=>{ const chip = document.createElement('div'); chip.className='player-chip'; chip.dataset.player = p.name; chip.style.borderColor = p.color; chip.textContent = p.name; orderEl.appendChild(chip); }); }
+
+    function showStatus(html, transientMs){ statusEl.innerHTML = html; if (transientMs){ clearTimeout(statusEl._timer); statusEl._timer = setTimeout(()=> { statusEl.innerHTML = html; }, transientMs); } }
+
+    function announceOrder(){ let step=0; const preview = setInterval(()=>{ statusEl.textContent = 'Ordre aléatoire... ' + stored[Math.floor(Math.random()*stored.length)].name; step++; if (step>18){ clearInterval(preview); renderOrder(); setTimeout(()=> startSelection(0), 700); } }, 80); }
+
+    // slot options
+    const options = {
+      boule: [
+        { id:'tennis', label:'Balle de tennis', rarity:'pas', img:'assets/tennis.png' },
+        { id:'boule', label:'Boule', rarity:'okay', img:'assets/boule.png' },
+        { id:'pasteque', label:'Pastèque', rarity:'bien', img:'assets/pasteque.png' }
+      ],
+      tir: [
+        { id:'zigzag', label:'Zigzag', rarity:'pas', img:'assets/zigzag.png' },
+        { id:'effet', label:'Effet', rarity:'okay', img:'assets/effet.png' },
+        { id:'droit', label:'Droit', rarity:'bien', img:'assets/droit.png' }
+      ],
+      puissance: [
+        { id:'faible', label:'Faible', rarity:'pas', img:'assets/faible.png' },
+        { id:'normal', label:'Normal', rarity:'okay', img:'assets/normal.png' },
+        { id:'fort', label:'Fort', rarity:'bien', img:'assets/fort.png' }
+      ]
+    };
+
+    // preload images and cache
+    const imageCache = {};
+    function loadImage(src){ if (!src) return null; if (imageCache[src]) return imageCache[src]; const im = new Image(); im.src = src; imageCache[src] = im; return im; }
+    // preload common assets (load normal + red pin variants)
+    const quilleImg = loadImage('assets/quille.png');
+    const quilleRedImg = loadImage('assets/quille-rouge.png');
+    options.boule.forEach(b => loadImage(b.img));
+    options.tir.forEach(t => loadImage(t.img));
+    options.puissance.forEach(p => loadImage(p.img));
+
+    const cardB = document.getElementById('card-boule');
+    const cardT = document.getElementById('card-tir');
+    const cardP = document.getElementById('card-puissance');
+    const imgB = document.getElementById('img-boule'); const imgT = document.getElementById('img-tir'); const imgP = document.getElementById('img-puissance');
+    const labelB = document.getElementById('label-boule'); const labelT = document.getElementById('label-tir'); const labelP = document.getElementById('label-puissance');
+    const badgeB = document.getElementById('badge-boule'); const badgeT = document.getElementById('badge-tir'); const badgeP = document.getElementById('badge-puissance');
+    const flashB = document.getElementById('flash-boule'); const flashT = document.getElementById('flash-tir'); const flashP = document.getElementById('flash-puissance');
+
+    const selector = document.getElementById('selector');
+    const validateBtn = document.getElementById('validateBtn');
+    const rerollBtn = document.getElementById('rerollBtn');
+    const floatMinus = document.getElementById('floatMinus');
+
+    const timerEl = document.getElementById('turnTimer');
+    const timerFill = document.getElementById('timerFill');
+    const timerLabel = document.getElementById('timerLabel');
+    let timerDuration = 15; let timerInterval = null; let timerStart = 0;
+
+    function startTimer(){ stopTimer(); timerFill.style.transition = 'none'; timerFill.style.width = '100%'; void timerFill.offsetWidth; timerStart = Date.now(); timerFill.style.transition = `width ${timerDuration}s linear`; requestAnimationFrame(()=> timerFill.style.width = '0%'); timerLabel.textContent = `${timerDuration.toFixed(1)}s`; timerInterval = setInterval(()=>{ const rem = Math.max(0, timerDuration - ((Date.now()-timerStart)/1000)); timerLabel.textContent = rem.toFixed(1) + 's'; if (rem <= 0){ stopTimer(); statusEl.innerHTML = '<strong style="color:#ffb86b">Temps écoulé — validé automatiquement</strong>'; validateCurrent(); } }, 100); }
+    function stopTimer(){ if (timerInterval){ clearInterval(timerInterval); timerInterval = null; } timerFill.style.transition = 'none'; timerFill.style.width = '100%'; timerLabel.textContent = ''; }
+
+    // choose allowed patterns of rarities (avoid same pattern twice)
+    function choosePattern(){
+      const patterns = [
+        ['pas','okay','bien'],
+        ['bien','bien','pas'],
+        ['pas','pas','bien'],
+        ['okay','okay','okay']
+      ];
+      if (!patterns.length) return [];
+      // pick a random index, but avoid repeating the last one
+      let idx = Math.floor(Math.random()*patterns.length);
+      if (lastPatternIndex >= 0 && patterns.length > 1){
+        let tries = 0;
+        while (idx === lastPatternIndex && tries < 8){
+          idx = Math.floor(Math.random()*patterns.length);
+          tries++;
+        }
+        if (idx === lastPatternIndex){
+          idx = (lastPatternIndex + 1) % patterns.length;
+        }
+      }
+      lastPatternIndex = idx;
+      return patterns[idx].slice();
+    }
+
+    const controlsRow = document.querySelector('.controls-row');
+
+    function animateSlot(cardEl, imageEl, labelEl, badgeEl, flashEl, choices, forcedRarity){
+      return new Promise((resolve)=>{
+        const display = cardEl.querySelector('.reel-display');
+        display.innerHTML = '';
+        // reset card background to neutral while spinning
+        cardEl.style.background = 'linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01))';
+        const strip = document.createElement('div'); strip.className = 'reel-strip';
+        const repeats = 20; // more repeats to ensure no empty gap
+        for (let r = 0; r < repeats; r++){
+          for (let k = 0; k < choices.length; k++){
+            const it = document.createElement('div'); it.className = 'reel-item';
+            const im = document.createElement('img'); im.src = choices[k].img; im.alt = choices[k].label; im.style.width='120px'; im.style.height='120px';
+            // during spin we don't show text to keep visuals clean
+            it.appendChild(im); strip.appendChild(it);
+          }
+        }
+        display.appendChild(strip);
+        // force layout so item sizes are measurable before computing final translate
+        void strip.offsetHeight;
+
+        // choose final item respecting forcedRarity when possible
+        const candidates = choices.filter(c => c.rarity === forcedRarity);
+        const finalChoice = (candidates.length ? candidates[Math.floor(Math.random()*candidates.length)] : choices[Math.floor(Math.random()*choices.length)]);
+        const indexInChoices = choices.findIndex(c => c.id === finalChoice.id);
+        const cycles = 3 + Math.floor(Math.random()*3); // 3..5 cycles
+
+        // compute finalIndex but ensure it aligns with the chosen item's modulo and stays within the strip length
+        const totalItems = strip.children.length;
+        const rawFinalIndex = cycles * choices.length + indexInChoices;
+        const maxIndex = totalItems - 1;
+        const maxCandidateIndex = indexInChoices + Math.floor((maxIndex - indexInChoices)/choices.length) * choices.length;
+        let finalIndex = Math.min(rawFinalIndex, maxCandidateIndex);
+
+        // compute sizes dynamically so we land perfectly centered
+        const firstItem = strip.querySelector('.reel-item');
+        const itemHeight = firstItem ? firstItem.offsetHeight : 180;
+        // Because the strip is centered inside the display (flex align), the
+        // transform must bring the chosen item's center to the display center.
+        // Derivation: translateY = itemHeight * ((totalItems - 1)/2 - finalIndex)
+        const finalTranslate = Math.round(itemHeight * ((totalItems - 1) / 2 - finalIndex));
+
+        const duration = 900 + Math.floor(Math.random()*700);
+        // ensure initial transform and hint to the browser, force layout
+        strip.style.transform = 'translateY(0px)';
+        strip.style.willChange = 'transform';
+        void strip.offsetHeight;
+        // start transform with explicit transition and listen for its end
+        strip.style.transition = `transform ${duration}ms cubic-bezier(.2,.85,.2,1)`;
+        function onEnd(e){
+          if (e && e.propertyName && e.propertyName !== 'transform') return;
+          strip.removeEventListener('transitionend', onEnd);
+          // set final static view
+          display.innerHTML = '';
+          // color the card slightly based on rarity
+          if (finalChoice.rarity === 'pas') cardEl.style.background = 'linear-gradient(180deg, rgba(255,80,80,0.06), rgba(255,80,80,0.02))';
+          else if (finalChoice.rarity === 'okay') cardEl.style.background = 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))';
+          else cardEl.style.background = 'linear-gradient(180deg, rgba(72,201,116,0.06), rgba(72,201,116,0.02))';
+          const finalImg = document.createElement('img'); finalImg.src = finalChoice.img; finalImg.style.width='120px'; finalImg.style.height='120px'; finalImg.style.borderRadius='8px';
+          display.appendChild(finalImg);
+          // overlay label
+          const finalLab = document.createElement('div'); finalLab.className = 'reel-label final'; finalLab.textContent = finalChoice.label; display.appendChild(finalLab);
+          badgeEl.textContent = finalChoice.rarity === 'pas' ? 'Pas ouf' : finalChoice.rarity === 'okay' ? 'Okay' : 'Bien';
+          badgeEl.className = 'rarity-badge ' + (finalChoice.rarity === 'pas' ? 'rarity-pas' : finalChoice.rarity === 'okay' ? 'rarity-okay' : 'rarity-bien');
+          // brief flash
+          flashEl.classList.add('show'); setTimeout(()=> flashEl.classList.remove('show'), 160);
+          resolve(finalChoice);
+        }
+        strip.addEventListener('transitionend', onEnd);
+        // trigger the transform on next frame
+        requestAnimationFrame(()=> { strip.style.transform = `translateY(${finalTranslate}px)`; });
+      });
+    }
+
+    let currentResults = { boule:null, tir:null, puissance:null };
+
+    async function playAllSlots(){
+      // hide controls and timer while reels spin
+      if (controlsRow) controlsRow.style.display = 'none';
+      timerEl.style.display = 'none';
+
+      // choose a pattern of rarities and shuffle assignment to reels
+      const patt = choosePattern();
+      const rarities = shuffle(patt.slice());
+
+      const p1 = animateSlot(cardB, imgB, labelB, badgeB, flashB, options.boule, rarities[0]);
+      const p2 = animateSlot(cardT, imgT, labelT, badgeT, flashT, options.tir, rarities[1]);
+      const p3 = animateSlot(cardP, imgP, labelP, badgeP, flashP, options.puissance, rarities[2]);
+      const [r1,r2,r3] = await Promise.all([p1,p2,p3]);
+      currentResults = { boule:r1, tir:r2, puissance:r3 };
+
+      // show controls and start timer now
+      if (controlsRow) controlsRow.style.display = 'flex';
+      timerEl.style.display = 'block'; startTimer();
+    }
+
+    // ---------- Bowling phase implementation ----------
+    let bowlingPhaseActive = false;
+    let laneInitialized = false;
+    let laneCanvas, laneCtx, laneW, laneH;
+    let positionCount = 5, selectedPos = 2, directionSign = 1;
+    let laneTimerDuration = 10, laneTimerInterval = null, laneTimerStart = 0;
+    let simRunning = false, simFrame = null;
+    let ball = null, pins = [], particles = [];
+    let currentBowlingIdx = 0;
+    const DEFAULT_PIN_COUNT = 10;
+
+    function initLane(){
+      if (laneInitialized) return; laneInitialized = true;
+      laneCanvas = document.getElementById('laneCanvas'); laneCtx = laneCanvas.getContext('2d');
+      laneW = laneCanvas.width; laneH = laneCanvas.height;
+      const posCol = document.getElementById('positionColumn');
+      for (let i=0;i<positionCount;i++){
+        const d = document.createElement('div'); d.className='pos-dot'; d.dataset.idx = i; d.addEventListener('click', ()=>{ setSelectedPos(parseInt(d.dataset.idx,10)); });
+        posCol.appendChild(d);
+      }
+      setSelectedPos(selectedPos);
+      window.addEventListener('resize', ()=>{ const newW = Math.min(820, Math.floor(window.innerWidth*0.82)); laneCanvas.width = newW; laneW = laneCanvas.width; laneH = laneCanvas.height; computePins(); drawLane(); });
+      document.getElementById('changeDirBtn').addEventListener('click', ()=>{ directionSign *= -1; drawLane(); });
+      document.getElementById('shootBtn').addEventListener('click', ()=>{ shootCurrent(); });
+      computePins(); drawLane();
+    }
+
+    function startBowlingPhase(){
+      bowlingPhaseActive = true; document.getElementById('laneArea').style.display = 'block'; currentBowlingIdx = 0; order.forEach(p=> p.score = p.score || 0);
+      initLane(); startBowlingTurn(0);
+    }
+
+    function setSelectedPos(idx){ selectedPos = idx; const dots = document.querySelectorAll('.pos-dot'); dots.forEach(d=> d.classList.toggle('active', parseInt(d.dataset.idx,10)===idx)); drawLane(); }
+
+    function startBowlingTurn(idx){
+      // reset ongoing simulation and lane for the next player
+      if (simFrame) { cancelAnimationFrame(simFrame); simFrame = null; }
+      simRunning = false; ball = null; particles = [];
+      computePins();
+      // apply per-player removed pins (from rerolls)
+      const ptemp = order[idx];
+      if (ptemp && typeof ptemp.availablePins === 'number' && ptemp.availablePins > 0 && ptemp.availablePins < pins.length){
+        const removeCount = pins.length - ptemp.availablePins;
+        if (removeCount > 0){ pins.splice(-removeCount); }
+      }
+      drawLane();
+      currentBowlingIdx = idx; if (idx >= order.length){ finishBowlingAndShowLeaderboard(); return; }
+      const p = order[idx]; Array.from(orderEl.children).forEach(c=>{ c.classList.remove('active'); c.style.boxShadow = ''; });
+      const chip = orderEl.querySelector(`[data-player="${p.name}"]`); if (chip){ chip.classList.add('active'); chip.style.boxShadow = `0 0 22px ${p.color}55`; }
+      showStatus(`<strong style="color:${p.color}">${p.name}, choisis ta position</strong>`);
+      const chosen = document.getElementById('chosenDisplay'); chosen.innerHTML = '';
+      try{ const boule = p.choice.boule; const tir = p.choice.tir; const puiss = p.choice.puissance;
+        const s1 = document.createElement('div'); s1.className='chosen-square'; s1.innerHTML = `<img src="${boule.img}" style="max-width:36px;max-height:28px"/><div style="font-size:0.65rem;margin-top:3px">${boule.label}</div>`;
+        const s2 = document.createElement('div'); s2.className='chosen-square'; s2.innerHTML = `<img src="${tir.img}" style="max-width:36px;max-height:28px"/><div style="font-size:0.65rem;margin-top:3px">${tir.label}</div>`;
+        const s3 = document.createElement('div'); s3.className='chosen-square'; s3.innerHTML = `<img src="${puiss.img}" style="max-width:36px;max-height:28px"/><div style="font-size:0.65rem;margin-top:3px">${puiss.label}</div>`;
+        chosen.appendChild(s1); chosen.appendChild(s2); chosen.appendChild(s3);
+      }catch(e){}
+      directionSign = 1; setSelectedPos(Math.floor(positionCount/2));
+      const changeBtn = document.getElementById('changeDirBtn'); changeBtn.style.display = (p.choice.tir && (p.choice.tir.id === 'zigzag' || p.choice.tir.id === 'effet')) ? 'inline-block' : 'none';
+      startLaneTimer();
+    }
+
+    function startLaneTimer(){ stopLaneTimer(); const fill = document.getElementById('laneTimerFill'); const laneTimer = document.getElementById('laneTimer'); const label = document.getElementById('laneTimerLabel'); laneTimer.style.display='block'; fill.style.transition='none'; fill.style.width='100%'; void fill.offsetWidth; laneTimerStart = Date.now(); fill.style.transition = `width ${laneTimerDuration}s linear`; requestAnimationFrame(()=> fill.style.width='0%'); if (label) label.textContent = `${laneTimerDuration.toFixed(1)}s`;
+      laneTimerInterval = setInterval(()=>{ const rem = Math.max(0, laneTimerDuration - ((Date.now()-laneTimerStart)/1000)); if (label) label.textContent = rem.toFixed(1) + 's'; if (rem <= 0){ stopLaneTimer(); autoShoot(); } }, 120); }
+
+    function stopLaneTimer(){ if (laneTimerInterval){ clearInterval(laneTimerInterval); laneTimerInterval = null; } const fill = document.getElementById('laneTimerFill'); if (fill){ fill.style.transition='none'; fill.style.width='100%'; } const lbl = document.getElementById('laneTimerLabel'); if (lbl) lbl.textContent = ''; }
+
+    function autoShoot(){ shootCurrent(); }
+
+    function computePins(){
+      pins = [];
+      const pinR = 26;
+      const pinMass = Math.max(1, pinR * 0.18);
+      const centerY = Math.round(laneH/2);
+      const baseX = Math.floor(laneW - 100);
+      const depthSpacing = Math.round(pinR * 1.6);
+      const spacingY = Math.round(pinR * 2 + 10);
+      let id=0;
+      for (let row=0;row<4;row++){
+        const items = row+1;
+        const x = baseX - row * depthSpacing;
+        const startY = Math.round(centerY - ((items-1) * spacingY)/2);
+        for (let j=0;j<items;j++){
+          const y = startY + j * spacingY;
+          pins.push({
+            id: id++, x, y, ox:x, oy:y, vx:0, vy:0, r:pinR, collisionR: Math.round(pinR * 0.82), mass:pinMass,
+            fallen:false, angle:0, targetAngle:0, angularVelocity:0, fallStart:0
+          });
+        }
+      }
+    }
+
+    // particle helpers: trail, impacts, and small wall sparks
+    function spawnImpact(x,y){
+      const count = 8;
+      for (let i=0;i<count;i++){
+        const ang = Math.random()*Math.PI*2;
+        const sp = 60 + Math.random()*120;
+        particles.push({ x, y, vx: Math.cos(ang)*sp, vy: Math.sin(ang)*sp*0.3, life: 0.28 + Math.random()*0.28, maxLife: 0.28 + Math.random()*0.28, size: 1 + Math.random()*2, alpha: 0.18 });
+      }
+      if (particles.length > 400) particles.splice(0, particles.length - 400);
+    }
+
+    function spawnWallImpact(x,y){
+      // smaller, fainter sparks
+      const count = 6;
+      for (let i=0;i<count;i++){
+        const ang = (Math.random()*0.8 - 0.4) * Math.PI + (Math.random()<0.5 ? -Math.PI/2 : Math.PI/2);
+        const sp = 40 + Math.random()*80;
+        particles.push({ x, y, vx: Math.cos(ang)*sp, vy: Math.sin(ang)*sp*0.3, life: 0.22 + Math.random()*0.18, maxLife: 0.22 + Math.random()*0.18, size: 1 + Math.random()*1.8, alpha: 0.12 });
+      }
+      if (particles.length > 400) particles.splice(0, particles.length - 400);
+    }
+
+    function drawLane(){
+      if (!laneCtx) return;
+      laneCtx.clearRect(0,0,laneW,laneH);
+      laneCtx.fillStyle = 'rgba(255,255,255,0.02)';
+      laneCtx.fillRect(0,12,laneW, laneH-24);
+
+      // preview trajectory
+      if (!simRunning && typeof currentBowlingIdx === 'number' && currentBowlingIdx < order.length){
+        const cur = order[currentBowlingIdx];
+        if (cur && cur.choice && !ball) drawTrajectoryPreview(cur.choice, selectedPos, directionSign);
+      }
+
+      // draw pins with texture if ready; normal pins use quille.png, fallen pins show quille-rouge.png and rotate to lay down
+      pins.forEach(pin=>{
+        const imgNormal = imageCache['assets/quille.png'];
+        const imgRed = imageCache['assets/quille-rouge.png'];
+        if (!pin.fallen){
+          if (imgNormal && imgNormal.complete){
+            try{ laneCtx.drawImage(imgNormal, pin.x - pin.r, pin.y - pin.r, pin.r*2, pin.r*2); }catch(e){}
+          } else {
+            laneCtx.beginPath(); laneCtx.fillStyle = '#fff'; laneCtx.arc(pin.x, pin.y, pin.r, 0, Math.PI*2); laneCtx.fill(); laneCtx.closePath();
+          }
+        } else {
+          if (imgRed && imgRed.complete){
+            try{ laneCtx.save(); laneCtx.translate(pin.x, pin.y); laneCtx.rotate(pin.angle || 0); laneCtx.drawImage(imgRed, -pin.r, -pin.r, pin.r*2, pin.r*2); laneCtx.restore(); }catch(e){}
+          } else {
+            laneCtx.save(); laneCtx.translate(pin.x, pin.y); laneCtx.rotate(pin.angle || 0); laneCtx.beginPath(); laneCtx.fillStyle = 'rgba(220,60,60,0.9)'; laneCtx.arc(0,0,pin.r,0,Math.PI*2); laneCtx.fill(); laneCtx.closePath(); laneCtx.restore();
+          }
+        }
+      });
+
+      // draw particles (behind the ball)
+      if (particles && particles.length){
+        for (let i=0;i<particles.length;i++){
+          const pr = particles[i];
+          const t = Math.max(0, Math.min(1, pr.life / (pr.maxLife || 1)));
+          const alpha = (pr.alpha || 0.25) * t;
+          laneCtx.beginPath();
+          laneCtx.fillStyle = `rgba(255,255,255,${alpha})`;
+          laneCtx.arc(pr.x, pr.y, pr.size || 2, 0, Math.PI*2);
+          laneCtx.fill();
+          laneCtx.closePath();
+        }
+      }
+
+      // draw ball with texture if available
+      if (ball){
+        if (ball.img && imageCache[ball.img] && imageCache[ball.img].complete){
+          try{ laneCtx.drawImage(imageCache[ball.img], ball.x - ball.r, ball.y - ball.r, ball.r*2, ball.r*2); }catch(e){}
+        } else {
+          laneCtx.beginPath(); const g = laneCtx.createRadialGradient(ball.x-ball.r*0.3, ball.y-ball.r*0.3, 1, ball.x, ball.y, ball.r); g.addColorStop(0, '#ffd7a6'); g.addColorStop(1, '#ff9aa6'); laneCtx.fillStyle = g; laneCtx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2); laneCtx.fill(); laneCtx.closePath();
+        }
+      }
+    }
+
+    // compute preview trajectory points (simple simulation for preview only)
+    function computeTrajectoryPoints(choice, startX, startY, dirSign){
+      const pts = [{x:startX,y:startY}];
+      const pinCenterX = pins.reduce((s,p)=>s+p.x,0)/Math.max(1,pins.length);
+      const pinCenterY = pins.reduce((s,p)=>s+p.y,0)/Math.max(1,pins.length);
+      const tirId = choice.tir && choice.tir.id ? choice.tir.id : 'droit';
+      if (tirId === 'droit'){
+        pts.push({x: pinCenterX, y: pinCenterY});
+        return pts;
+      }
+      if (tirId === 'zigzag'){
+        let angle = Math.atan2(pinCenterY - startY, pinCenterX - startX) + dirSign * (Math.PI/4);
+        let vx = Math.cos(angle), vy = Math.sin(angle);
+        let x = startX, y = startY; const maxSteps = 40; const stepLen = 24;
+        const top = 12 + 8, bottom = laneH - 12 - 8;
+        for (let s=0;s<maxSteps && x < pinCenterX + 20; s++){
+          x += vx * stepLen; y += vy * stepLen;
+          if (y < top){ y = top + (top - y); vy = -vy; }
+          if (y > bottom){ y = bottom - (y - bottom); vy = -vy; }
+          pts.push({x,y});
+        }
+        pts.push({x: pinCenterX, y: pinCenterY});
+        return pts;
+      }
+      // effet: straight with a final curve
+      const dx = pinCenterX - startX, dy = pinCenterY - startY; const dist = Math.hypot(dx,dy)||1;
+      const steps = 24;
+      for (let i=1;i<=steps;i++){ const t = i/steps; let x = startX + dx * t; let y = startY + dy * t; const fall = Math.pow(t,2.6); const maxOffset = 60; const perpX = -dy/dist; const perpY = dx/dist; const offset = dirSign * maxOffset * fall; x += perpX * offset; y += perpY * offset; pts.push({x,y}); }
+      return pts;
+    }
+
+    function drawTrajectoryPreview(choice, selPos, dirSign){ try{ const startX = 40; const startY = Math.round((selPos + 0.5) * (laneH / positionCount)); const pts = computeTrajectoryPoints(choice, startX, startY, dirSign); if (!pts || pts.length < 2) return; laneCtx.save(); laneCtx.strokeStyle = 'rgba(200,200,200,0.28)'; laneCtx.setLineDash([6,6]); laneCtx.lineWidth = 2; laneCtx.beginPath(); laneCtx.moveTo(pts[0].x, pts[0].y); for (let i=1;i<pts.length;i++) laneCtx.lineTo(pts[i].x, pts[i].y); laneCtx.stroke(); laneCtx.restore(); }catch(e){} }
+
+    function shootCurrent(){
+      if (simRunning) return; stopLaneTimer(); const p = order[currentBowlingIdx]; if (!p || !p.choice) { startBowlingTurn(currentBowlingIdx+1); return; }
+      const startX = 40;
+      const posY = Math.round((selectedPos + 0.5) * (laneH / positionCount));
+      const bouleId = p.choice.boule.id;
+      // tune radius, mass, restitution (wall/pin) and damping per boule type
+      let r = 18, mass = 6, restitutionWall = 0.45, restitutionPin = 0.22, damping = 0.92;
+      if (bouleId === 'tennis'){ r = 10; mass = 1.2; restitutionWall = 0.9; restitutionPin = 0.18; damping = 0.98; }
+      else if (bouleId === 'pasteque'){ r = 30; mass = 20; restitutionWall = 1.0; restitutionPin = 0.05; damping = 0.86; }
+      const puissId = p.choice.puissance.id;
+      let speed = 360;
+      if (puissId === 'faible') speed = 200;
+      else if (puissId === 'fort') speed = 520;
+      const pinCenterX = pins.reduce((s,pi)=>s+pi.x,0)/Math.max(1,pins.length);
+      const pinCenterY = pins.reduce((s,pi)=>s+pi.y,0)/Math.max(1,pins.length);
+      const dx = pinCenterX - startX; const dy = pinCenterY - posY; const dist = Math.hypot(dx,dy) || 1; const dirx = dx/dist; const diry = dy/dist;
+
+      ball = { startX: startX, startY: posY, x: startX, y: posY, r, mass, img: (p.choice.boule && p.choice.boule.img) ? p.choice.boule.img : null, speed, kind: bouleId, restitutionWall, restitutionPin, damping, collisionR: Math.round(r * 0.9), _trailAcc:0 };
+      const tirId = (p.choice.tir && p.choice.tir.id) ? p.choice.tir.id : 'droit';
+      if (tirId === 'zigzag'){
+        const angle = Math.atan2(pinCenterY - posY, pinCenterX - startX) + directionSign * (Math.PI/4);
+        ball.mode = 'zigzag'; ball.baseDirX = Math.cos(angle); ball.baseDirY = Math.sin(angle); ball.vx = ball.baseDirX * speed; ball.vy = ball.baseDirY * speed;
+      } else if (tirId === 'effet'){
+        ball.mode = 'effet'; ball.baseDirX = dirx; ball.baseDirY = diry; ball.estimatedTime = dist / Math.max(1, speed); ball.maxOffset = 60; ball.vx = ball.baseDirX * speed; ball.vy = ball.baseDirY * speed;
+      } else {
+        ball.mode = 'droit'; ball.baseDirX = dirx; ball.baseDirY = diry; ball.vx = dirx * speed; ball.vy = diry * speed;
+      }
+
+      simRunning = true;
+      let last = performance.now(); let simTime = 0; let stableSince = null; let fallbackSince = null;
+      function step(now){ const dt = Math.min(0.04, (now - last)/1000); last = now; simTime += dt;
+        const minY = 12 + (ball.r || 0); const maxY = laneH - 12 - (ball.r || 0);
+        if (ball.mode === 'effet'){
+          const baseX = ball.startX + ball.baseDirX * ball.speed * simTime; const baseY = ball.startY + ball.baseDirY * ball.speed * simTime;
+          const tNorm = Math.min(1, (ball.estimatedTime > 0 ? simTime / ball.estimatedTime : 1)); const fall = Math.pow(tNorm,2.6);
+          const perpX = -ball.baseDirY; const perpY = ball.baseDirX; const lateralOffset = directionSign * (ball.maxOffset || 60) * fall;
+          ball.x = baseX + perpX * lateralOffset; ball.y = baseY + perpY * lateralOffset;
+          const lateralDeriv = (ball.maxOffset||60) * 2.6 * Math.pow(tNorm,1.6) * (1/(ball.estimatedTime||1)) * (directionSign);
+          ball.vx = ball.baseDirX * ball.speed + perpX * lateralDeriv; ball.vy = ball.baseDirY * ball.speed + perpY * lateralDeriv;
+        } else {
+          ball.x += ball.vx * dt; ball.y += ball.vy * dt;
+          if (ball.mode === 'zigzag'){
+            if (ball.y < minY){ ball.y = minY; ball.vy = Math.abs(ball.vy); spawnWallImpact && spawnWallImpact(ball.x, ball.y); }
+            if (ball.y > maxY){ ball.y = maxY; ball.vy = -Math.abs(ball.vy); spawnWallImpact && spawnWallImpact(ball.x, ball.y); }
+          }
+          // gentle global damping (type-specific damping applied after collisions)
+          ball.vx *= 0.999; ball.vy *= 0.999;
+        }
+
+        // wall bounce for non-zigzag/effet modes
+        if (ball.y < minY){ if (ball.vy < 0){ ball.y = minY; if (ball.kind === 'pasteque'){ ball.vy = Math.abs(ball.vy); } else { ball.vy = -ball.vy * (ball.restitutionWall != null ? ball.restitutionWall : (ball.restitutionPin || 0.22)); } spawnWallImpact && spawnWallImpact(ball.x, ball.y); } }
+        if (ball.y > maxY){ if (ball.vy > 0){ ball.y = maxY; if (ball.kind === 'pasteque'){ ball.vy = -Math.abs(ball.vy); } else { ball.vy = -ball.vy * (ball.restitutionWall != null ? ball.restitutionWall : (ball.restitutionPin || 0.22)); } spawnWallImpact && spawnWallImpact(ball.x, ball.y); } }
+
+        // collisions: ball -> pins (force-based fallen detection)
+        pins.forEach(pin=>{
+          if (pin.fallen) return;
+          const rx = pin.x - ball.x; const ry = pin.y - ball.y; const d = Math.hypot(rx,ry);
+          const minD = (pin.collisionR || pin.r) + (ball.collisionR || ball.r);
+          if (d < minD){
+            const nx = rx / (d || 1); const ny = ry / (d || 1);
+            const relVx = ball.vx - (pin.vx||0); const relVy = ball.vy - (pin.vy||0);
+            const relSpeed = relVx*nx + relVy*ny;
+            if (relSpeed > 0){
+              const e = (ball.restitutionPin != null) ? ball.restitutionPin : 0.22;
+              let j = -(1+e) * relSpeed / (1/ball.mass + 1/(pin.mass||1));
+              // clamp large impulses to avoid "magnet" behaviour
+              const maxJ = Math.max(200, (ball.mass + (pin.mass||1)) * 120);
+              if (j > maxJ) j = maxJ; if (j < -maxJ) j = -maxJ;
+              // apply impulse (heavy balls are less affected)
+              const ballFactor = (ball.kind === 'pasteque' ? 0.12 : 1);
+              ball.vx += (j/ball.mass) * nx * ballFactor; ball.vy += (j/ball.mass) * ny * ballFactor;
+              pin.vx -= (j/(pin.mass||1)) * nx; pin.vy -= (j/(pin.mass||1)) * ny;
+              // damping tuned by ball type
+              ball.vx *= (ball.damping || 0.86); ball.vy *= (ball.damping || 0.86); pin.vx *= 0.95; pin.vy *= 0.95;
+              // small visible particle on hit
+              spawnImpact && spawnImpact(ball.x + nx*(ball.r-4), ball.y + ny*(ball.r-4));
+              // if impulse strong enough, mark pin as fallen and schedule rotation animation
+              const impulse = Math.abs(j);
+              if (impulse > pin.mass * 4.2){
+                pin.fallen = true;
+                pin.fallStart = now || performance.now();
+                pin.targetAngle = (Math.random() < 0.5 ? Math.PI/2 : -Math.PI/2);
+                pin.angularVelocity = (Math.random() * 6 + 3) * (Math.random() < 0.5 ? 1 : -1);
+              }
+            }
+          }
+        });
+
+        // update pins and pin-pin collisions
+        for (let i=0;i<pins.length;i++){ const a = pins[i]; a.x += (a.vx||0)*dt; a.y += (a.vy||0)*dt; a.vx *= 0.98; a.vy *= 0.98; }
+        for (let i=0;i<pins.length;i++){
+          for (let j=i+1;j<pins.length;j++){
+            const A=pins[i], B=pins[j];
+            const dx2=A.x-B.x, dy2=A.y-B.y, dd=Math.hypot(dx2,dy2);
+            const minD2 = (A.collisionR || A.r) + (B.collisionR || B.r);
+            if (dd < minD2 && dd > 0){
+              const nx2 = dx2 / dd, ny2 = dy2 / dd;
+              const relvx = A.vx - B.vx, relvy = A.vy - B.vy;
+              const rel = relvx*nx2 + relvy*ny2;
+              if (rel > 0){
+                const e2 = 0.2;
+                let jimp = -(1+e2) * rel / (1/A.mass + 1/B.mass);
+                const maxJimp = Math.max(600, (A.mass + B.mass) * 60);
+                if (jimp > maxJimp) jimp = maxJimp; if (jimp < -maxJimp) jimp = -maxJimp;
+                A.vx += (jimp/A.mass) * nx2; A.vy += (jimp/A.mass) * ny2;
+                B.vx -= (jimp/B.mass) * nx2; B.vy -= (jimp/B.mass) * ny2;
+                // push objects apart to avoid sticky overlaps
+                const overlap = minD2 - dd;
+                const sepX = nx2 * overlap * 0.5; const sepY = ny2 * overlap * 0.5;
+                A.x += sepX; A.y += sepY; B.x -= sepX; B.y -= sepY;
+              }
+            }
+          }
+        }
+
+        // update falling rotation for fallen pins and fallback detection
+        pins.forEach(pr=>{
+          if (!pr.fallen){ const dxo = pr.x - pr.ox, dyo = pr.y - pr.oy; const moved = Math.hypot(dxo,dyo); if (moved > (pr.collisionR || pr.r) * 0.6){ pr.fallen = true; pr.fallStart = now; pr.targetAngle = (Math.random() < 0.5 ? Math.PI/2 : -Math.PI/2); pr.angularVelocity = (Math.random() * 6 + 3) * (Math.random() < 0.5 ? 1 : -1); } }
+          else { // animate angle smoothly
+            const ta = pr.targetAngle || (Math.PI/2);
+            // ease toward target angle
+            pr.angle = pr.angle || 0;
+            // simple smoothing + angular velocity influence
+            pr.angle += (ta - pr.angle) * Math.min(1, dt * 6) + (pr.angularVelocity || 0) * dt * 0.04;
+            // clamp
+            if (Math.abs(pr.angle) > Math.abs(ta)) pr.angle = ta;
+          }
+        });
+
+        const ballSpeed = Math.hypot(ball.vx||0, ball.vy||0); let maxPinSpeed = 0; pins.forEach(pp=>{ maxPinSpeed = Math.max(maxPinSpeed, Math.hypot(pp.vx||0, pp.vy||0)); });
+
+        // require sustained calm before ending
+        if (ballSpeed < 20 && maxPinSpeed < 6){ if (!stableSince) stableSince = now; else if (now - stableSince > 800){ endSimulation(); return; } } else { stableSince = null; }
+
+        // fallback safety
+        if (simTime > 8.0 || ball.x > laneW + 160){ endSimulation(); return; }
+
+        // update particles
+        for (let ip = particles.length - 1; ip >= 0; ip--){ const pr = particles[ip]; pr.life -= dt; if (pr.life <= 0){ particles.splice(ip,1); continue; } pr.x += (pr.vx||0) * dt; pr.y += (pr.vy||0) * dt; pr.vx *= 0.995; pr.vy *= 0.995; }
+        // spawn a soft trail particle for the ball
+        if (ball){ ball._trailAcc = (ball._trailAcc || 0) + dt; if (ball._trailAcc > 0.01){ // limit spawn rate
+            const sz = Math.max(1, Math.min(6, Math.round(ball.r * 0.12)));
+            particles.push({ x: ball.x - (ball.vx||0)*0.02 + (Math.random()-0.5)*4, y: ball.y - (ball.vy||0)*0.02 + (Math.random()-0.5)*4, vx: -(ball.vx||0)*0.03 + (Math.random()-0.5)*20, vy: -(ball.vy||0)*0.03 + (Math.random()-0.5)*20, life: 0.45, maxLife:0.45, size: sz, alpha: (ball.kind === 'boule' ? 0.25 : 0.18) });
+            // extra faint speed particles for bowling ball when fast
+            const spd = Math.hypot(ball.vx||0, ball.vy||0);
+            if (ball.kind === 'boule' && spd > 300){ const cnt = Math.random() < 0.4 ? 1 : 0; for (let k=0;k<cnt;k++){ particles.push({ x: ball.x + (Math.random()-0.5)*6, y: ball.y + (Math.random()-0.5)*6, vx: (Math.random()-0.5)*60, vy: (Math.random()-0.5)*60, life: 0.28, maxLife:0.28, size: 1 + Math.random()*2, alpha: 0.12 }); } }
+            ball._trailAcc = 0;
+          } }
+
+        drawLane(); simFrame = requestAnimationFrame(step);
+      }
+      simFrame = requestAnimationFrame(step);
+    }
+
+    function endSimulation(){ if (simFrame) cancelAnimationFrame(simFrame); simRunning = false; let knocked = 0;
+      pins.forEach(pin=>{
+        if (pin.fallen){ knocked++; }
+        else {
+          const dx = pin.x - pin.ox, dy = pin.y - pin.oy; const d = Math.hypot(dx,dy);
+          if (d > pin.r * 0.5 || Math.hypot(pin.vx||0, pin.vy||0) > 6){
+            pin.fallen = true;
+            pin.fallStart = performance.now();
+            pin.targetAngle = (Math.random() < 0.5 ? Math.PI/2 : -Math.PI/2);
+            pin.angularVelocity = (Math.random() * 6 + 3) * (Math.random() < 0.5 ? 1 : -1);
+            knocked++;
+          }
+        }
+      });
+      const p = order[currentBowlingIdx]; p.score = (p.score || 0) + knocked; p.lastPointTime = Date.now(); updatePlayerScoreInPill(p);
+      const ol = document.createElement('div'); ol.className='overlay-score show'; ol.innerHTML = `<div class="score-card"><div id="overlayText">${knocked} quille${knocked>1?'s':''}</div></div>`; document.body.appendChild(ol); setTimeout(()=>{ ol.classList.remove('show'); ol.remove(); startBowlingTurn(currentBowlingIdx+1); }, 1200);
+    }
+
+    function finishBowlingAndShowLeaderboard(){
+      window.PourtyMiniGame?.finish(); document.getElementById('laneArea').style.display = 'none';
+      // hide the order display and remove per-pill score badges
+      const ord = document.getElementById('order'); if (ord) ord.style.display = 'none'; document.querySelectorAll('.pill-score').forEach(el=> el.style.display='none');
+      const board = document.createElement('div'); board.id='endLeaderboard'; board.style.maxWidth='720px'; board.style.margin='14px auto'; board.style.textAlign='left'; const title = document.createElement('h3'); title.textContent = 'CLASSEMENT'; board.appendChild(title); const sorted = order.slice().sort((a,b)=>{ if (b.score !== a.score) return b.score - a.score; const ta = a.lastPointTime || Infinity; const tb = b.lastPointTime || Infinity; return ta - tb; }); sorted.forEach((p,idx)=>{ const r = document.createElement('div'); r.style.display='flex'; r.style.justifyContent='space-between'; r.style.padding='8px'; r.style.borderBottom='1px solid rgba(255,255,255,0.04)'; r.innerHTML = `<div>#${idx+1} ${p.name}</div><div style="font-weight:900">${p.score} pts</div>`; board.appendChild(r); }); const ret = document.createElement('button'); ret.className='return-btn'; ret.textContent='Retour'; ret.addEventListener('click', ()=> window.location.href='../../index.html'); board.appendChild(ret); showStatus('Fin du bowling'); document.getElementById('status').parentNode.insertBefore(board, document.getElementById('status').nextSibling); updatePlayerBarRanking(sorted); }
+
+    // small helper copied from game-11 to show scores in player bar
+    function updatePlayerScoreInPill(player){ const bar = document.querySelector('.player-bar'); if (!bar){ window.addEventListener('load', function onLoad(){ window.removeEventListener('load', onLoad); updatePlayerScoreInPill(player); }); return; } const pills = Array.from(bar.querySelectorAll('.player-pill')); pills.forEach(pill=>{ const name = pill.querySelector('span:nth-child(2)')?.textContent?.trim(); if (name === player.name){ if (!pill.style.position) pill.style.position='relative'; let el = pill.querySelector('.pill-score'); if (!el){ el = document.createElement('div'); el.className='pill-score'; Object.assign(el.style,{ position:'absolute', right:'8px', top:'50%', transform:'translateY(-50%)', fontWeight:'900', color:'#fff', background:'rgba(0,0,0,0.16)', padding:'2px 6px', borderRadius:'8px', fontSize:'0.85rem' }); pill.appendChild(el); } el.textContent = `${player.score} pts`; } }); }
+
+    function updatePlayerBarRanking(sorted){ const bar = document.querySelector('.player-bar'); if (!bar) return; const pills = Array.from(bar.querySelectorAll('.player-pill')); pills.forEach(pill=>{ const name = pill.querySelector('span:nth-child(2)')?.textContent?.trim(); const idx = sorted.findIndex(p=> p.name === name); let badge = pill.querySelector('.rank-badge'); if (!badge){ badge = document.createElement('span'); badge.className = 'rank-badge'; Object.assign(badge.style,{ marginLeft:'auto', fontWeight:'900', fontSize:'0.85rem', padding:'2px 6px', borderRadius:'99px', background:'rgba(255,255,255,0.8)', color:'#000' }); pill.appendChild(badge); } if (idx === -1){ badge.textContent=''; pill.style.boxShadow='none'; pill.style.border='1px solid rgba(255,255,255,0.28)'; pill.style.background='rgba(15,24,46,0.95)'; } else { const rank = idx + 1; const rankColor = rank === 1 ? '#ffd700' : rank === 2 ? '#c0c0c0' : rank === 3 ? '#cd7f32' : '#8a2be2'; badge.textContent = `#${rank}`; pill.style.border = `1px solid ${rankColor}`; pill.style.boxShadow = `0 0 0 2px ${rankColor}`; pill.style.background = 'rgba(255,255,255,0.13)'; if (typeof setACText === 'function') setACText(pill, rank, sorted.length); } }); }
+
+    
+    function validateCurrent(){ stopTimer(); const p = order[currentIdx]; if (!p) return; p.choice = currentResults; // store
+      // mark player's pill with a small check
+      const bar = document.querySelector('.player-bar'); if (bar){ const pill = Array.from(bar.querySelectorAll('.player-pill')).find(pp=> pp.querySelector('span:nth-child(2)').textContent.trim() === p.name); if (pill){ let ok = pill.querySelector('.choice-ok'); if (!ok){ ok = document.createElement('span'); ok.className='choice-ok'; ok.textContent='✓'; ok.style.marginLeft='8px'; ok.style.color='#9fffb0'; ok.style.fontWeight='900'; pill.appendChild(ok); } } }
+      // next player
+      const next = currentIdx+1; if (next >= order.length){ // finished -> start bowling phase
+        selector.style.display = 'none'; stopTimer(); timerEl.style.display='none'; showStatus('Tous les joueurs ont choisi — lancement de la piste...'); startBowlingPhase(); return; }
+      startSelection(next);
+    }
+
+    function rerollAction(){ // rerun animation and reset timer
+      // small flash on all cards
+      cardB.querySelector('.flash').classList.add('show'); cardT.querySelector('.flash').classList.add('show'); cardP.querySelector('.flash').classList.add('show'); setTimeout(()=>{ cardB.querySelector('.flash').classList.remove('show'); cardT.querySelector('.flash').classList.remove('show'); cardP.querySelector('.flash').classList.remove('show'); }, 180);
+      // decrement available pins for current player (stackable)
+      const p = order[currentIdx];
+      if (p){ if (typeof p.availablePins !== 'number') p.availablePins = DEFAULT_PIN_COUNT; if (p.availablePins > 1){ p.availablePins = Math.max(1, p.availablePins - 1); } if (p.availablePins <= 1) rerollBtn.style.display = 'none'; else rerollBtn.style.display = 'inline-block'; }
+      // float -1 quille (subtle) with remaining count
+      floatMinus.textContent = '-1 quille' + (p ? ` (${p.availablePins})` : ''); floatMinus.classList.add('show'); setTimeout(()=> { floatMinus.classList.remove('show'); floatMinus.textContent = '-1 quille'; }, 900);
+      // show subtle full-screen overlay briefly
+      const overlay = document.getElementById('rerollOverlay'); if (overlay){ overlay.classList.add('show'); setTimeout(()=> overlay.classList.remove('show'), 400); }
+      // restart slot animations (controls hidden by playAllSlots)
+      stopTimer(); playAllSlots();
+    }
+
+    validateBtn.addEventListener('click', ()=>{ validateCurrent(); });
+    rerollBtn.addEventListener('click', ()=>{ rerollAction(); });
+
+    function startSelection(idx){
+      currentIdx = idx; // highlight chip
+      Array.from(orderEl.children).forEach(c=>{ c.classList.remove('active'); c.style.boxShadow = ''; });
+      const chip = orderEl.querySelector(`[data-player="${order[currentIdx].name}"]`);
+      if (chip){ chip.classList.add('active'); chip.style.boxShadow = `0 0 22px ${order[currentIdx].color}55`; }
+      selector.style.display = 'block'; showStatus(`<strong style="color:${order[currentIdx].color}">${order[currentIdx].name}, choisis tes paramètres</strong>`);
+      // start machine reels
+      // prepare reroll button for this player
+      const p = order[currentIdx]; if (p){ if (typeof p.availablePins !== 'number') p.availablePins = DEFAULT_PIN_COUNT; rerollBtn.style.display = p.availablePins > 1 ? 'inline-block' : 'none'; }
+      playAllSlots();
+    }
+
+    // initial flow
+    renderOrder(); announceOrder();
+  })();
+  </script>
+  <div id="rerollOverlay" class="reroll-overlay"></div>
+</body>
+</html>

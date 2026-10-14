@@ -1,0 +1,1971 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <script src="../../party-payout.js"></script>
+<script src="../../board/board-minigame-bridge.js"></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Case Aboubattle</title>
+  <link rel="stylesheet" href="../../style.css" />
+  <style>
+    body{background:#081028;color:#fff;font-family:Segoe UI,Roboto,Arial;margin:0;padding:18px}
+    main{max-width:980px;margin:8px auto;text-align:center;padding-bottom:140px}
+    h1{margin:8px 0 12px;font-size:2.2rem}
+    #status{min-height:34px;margin-bottom:12px;font-weight:900;font-size:1.2rem}
+
+    /* player-bar styles are provided by style.css (shared with game-10) */
+
+    .player-order{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:12px 0}
+    .player-chip{padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);font-weight:800}
+    .choice-container{display:flex;gap:22px;justify-content:center;align-items:center;margin-top:18px}
+    .choice-btn{width:220px;height:220px;border-radius:16px;background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));border:1px solid rgba(255,255,255,0.06);display:inline-flex;align-items:center;justify-content:center;font-weight:900;color:#fff;font-size:1.05rem;cursor:pointer;box-shadow:0 8px 30px rgba(2,6,20,0.45);transform:translateY(12px) scale(0.98);opacity:0;animation:popIn .45s cubic-bezier(.2,.9,.2,1) forwards}
+    .choice-btn img{max-width:78%;max-height:78%;display:block}
+    .choice-btn:hover{transform:translateY(-6px) scale(1.02);box-shadow:0 16px 40px rgba(2,6,20,0.55)}
+    .choice-btn:nth-child(1){animation-delay:0.06s}
+    .choice-btn:nth-child(2){animation-delay:0.18s}
+    @keyframes popIn{from{opacity:0;transform:translateY(12px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+    /* tooltip for dream button */
+    .tooltip{position:fixed;padding:8px 10px;border-radius:8px;background:rgba(9,15,34,0.96);color:#eaf0ff;font-weight:800;font-size:0.95rem;pointer-events:none;z-index:10005;transform:translate(-50%,6px);opacity:0;transition:transform .18s cubic-bezier(.2,.9,.2,1),opacity .18s ease;box-shadow:0 8px 24px rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.04)}
+    .tooltip.show{opacity:1;transform:translate(-50%,-6px)}
+
+    /* stacks overlay */
+    .stacks-overlay{position:fixed;left:20%;width:60%;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:16px;align-items:stretch;z-index:10000;max-height:80vh;overflow:auto;padding:8px}
+    .player-stack-rect{position:relative;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:12px 10px;min-height:0;box-shadow:0 8px 26px rgba(0,0,0,0.44);overflow:hidden;display:flex;align-items:center}
+    .player-stack-name{position:absolute;left:10px;top:8px;font-weight:900;font-size:0.85rem;padding:4px 8px;border-radius:6px;background:rgba(0,0,0,0.65);box-shadow:0 6px 18px rgba(0,0,0,0.45);z-index:6;pointer-events:none}
+    .open-btn{position:absolute;right:12px;bottom:10px;background:#36c56d;color:#07221a;border:none;padding:8px 12px;border-radius:8px;font-weight:900;cursor:pointer;box-shadow:0 6px 20px rgba(54,197,109,0.12)}
+    .open-global-btn{position:fixed;left:20%;width:60%;bottom:80px;height:56px;background:linear-gradient(135deg,#36c56d,#2aa85a);color:#07221a;border:none;border-radius:12px;font-weight:900;font-size:1.05rem;cursor:pointer;box-shadow:0 12px 36px rgba(0,0,0,0.45);z-index:10006;display:inline-flex;align-items:center;justify-content:center}
+    .open-global-btn:active{transform:translateY(2px)}
+    .pin-line{position:absolute;left:50%;top:0;bottom:0;width:2px;background:rgba(255,255,255,0.95);transform:translateX(-50%);pointer-events:none;z-index:3}
+    .slot-track{display:flex;align-items:center;gap:8px;will-change:transform;z-index:1}
+    .slot-square{border-radius:6px;background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.06));box-shadow:inset 0 1px 0 rgba(255,255,255,0.02);flex:0 0 auto;transition:transform .12s ease, box-shadow .12s ease}
+    .slot-square.lift{transform:translateY(-10px) scale(1.04);box-shadow:0 18px 36px rgba(0,0,0,0.24)}
+    /* rarity backgrounds / halo */
+    .slot-square.rarity-blue{border:2px solid #024FE4;background-image:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.06)), linear-gradient(180deg, rgba(2,79,228,0.06), rgba(2,79,228,0.02));box-shadow:0 0 8px rgba(2,79,228,0.28), inset 0 1px 0 rgba(255,255,255,0.02)}
+    .slot-square.rarity-purple{border:2px solid #6832EA;background-image:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.06)), linear-gradient(180deg, rgba(104,50,234,0.06), rgba(104,50,234,0.02));box-shadow:0 0 8px rgba(104,50,234,0.28), inset 0 1px 0 rgba(255,255,255,0.02)}
+    .slot-square.rarity-pink{border:2px solid #9E00C5;background-image:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.06)), linear-gradient(180deg, rgba(158,0,197,0.06), rgba(158,0,197,0.02));box-shadow:0 0 8px rgba(158,0,197,0.28), inset 0 1px 0 rgba(255,255,255,0.02)}
+    .slot-square.rarity-red{border:2px solid #BB171A;background-image:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.06)), linear-gradient(180deg, rgba(187,23,26,0.06), rgba(187,23,26,0.02));box-shadow:0 0 8px rgba(187,23,26,0.28), inset 0 1px 0 rgba(255,255,255,0.02)}
+    .slot-square.rarity-gold{border:2px solid #DFC700;background-image:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.06)), linear-gradient(180deg, rgba(223,199,0,0.08), rgba(223,199,0,0.03));box-shadow:0 0 12px rgba(223,199,0,0.45), inset 0 1px 0 rgba(255,255,255,0.02)}
+    :root{--won-scale:1}
+    .won-outside{position:fixed;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;z-index:10007;opacity:0;transform:translate(-50%,-50%) scale(var(--won-scale,0.88));transition:transform .28s cubic-bezier(.2,.9,.2,1),opacity .22s ease}
+    .won-outside.show{opacity:1;transform:translate(-50%,-50%) scale(var(--won-scale,1))}
+    .won-outside.hide{opacity:0;transform:translate(-50%,-50%) scale(calc(var(--won-scale,1) * 0.86))}
+    .won-item{display:flex;flex-direction:column;align-items:center;padding:0;border-radius:0;background:transparent;min-width:0;border:none;box-shadow:none;gap:2px}
+    .won-item img{width:120px;height:120px;object-fit:contain;border-radius:0}
+    .won-img-wrap{position:relative;width:96px;height:96px;display:flex;align-items:center;justify-content:center}
+    .won-glow{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:64px;height:64px;background-size:contain;background-repeat:no-repeat;border-radius:50%;opacity:0.45;z-index:0;pointer-events:none;mix-blend-mode:screen;filter:blur(1px);animation:won-spin 18s linear infinite}
+    @keyframes won-spin{from{transform:translate(-50%,-50%) rotate(0deg)}to{transform:translate(-50%,-50%) rotate(360deg)}}
+    .won-skin-out{position:relative;z-index:1;width:120px;height:120px;object-fit:contain;border-radius:0}
+    .won-label{font-size:0.95rem;font-weight:700;margin:0;color:#fff;text-align:center;word-break:break-word}
+    .won-info{display:flex;gap:8px;align-items:center;font-size:0.78rem;color:rgba(255,255,255,0.85);font-weight:700;margin-bottom:0}
+    .won-float{font-family:monospace;background:rgba(255,255,255,0.03);padding:2px 6px;border-radius:6px;font-weight:800}
+    .won-condition{font-size:0.78rem;color:rgba(255,255,255,0.9);font-weight:700}
+    .won-stattrack{font-size:0.78rem;color:#FF8A00;font-weight:900;margin-top:6px}
+    .won-prices{display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:-10px;position:relative;z-index:10009}
+    .won-est{position:relative;z-index:10010}
+    .won-price-base{color:#fff;font-weight:800}
+    .won-price-stattrack{color:#FF8A00;font-weight:900}
+    .won-est{font-size:0.9rem;font-weight:900;margin-top:0}
+    .slot-square .slot-skin{width:100%;height:100%;object-fit:cover;display:block}
+    /* header shown above persistent best-item displays */
+    .best-items-header{position:fixed;font-weight:900;background:rgba(0,0,0,0.35);padding:6px 10px;border-radius:8px;color:#fff;z-index:10008;pointer-events:none;font-size:1rem;transform:translateX(-50%)}
+    /* small return button: hidden by default, shown as a compact bottom-right button when needed */
+    .back-btn{display:none;position:fixed;border:none;cursor:pointer;font-weight:900;z-index:10007}
+    .back-btn.small{right:12px;bottom:12px;left:auto;top:auto;width:auto;height:36px;padding:6px 10px;border-radius:8px;font-size:0.85rem;background:#ff776d;color:#fff;box-shadow:0 8px 20px rgba(0,0,0,0.4)}
+    /* Gold flash overlay for rare gold reveals */
+    .gold-flash{position:fixed;inset:0;pointer-events:none;z-index:10005;opacity:0;transition:opacity .22s ease,transform .22s ease;transform:scale(1);background:radial-gradient(circle at 50% 40%, rgba(223,199,0,0.22), rgba(223,199,0,0.12) 30%, rgba(223,199,0,0.06) 45%, rgba(0,0,0,0) 70%)}
+    .gold-flash.show{opacity:1;transform:scale(1.02)}
+
+    /* Player bar responsive tweaks to avoid overlap (rank + money) */
+    .player-bar{display:flex;gap:8px;flex-wrap:nowrap;justify-content:center;align-items:center;width:100%;max-width:calc(100vw - 36px);margin:0 auto;overflow-x:auto;padding:6px 18px;box-sizing:border-box}
+    .player-pill{display:flex;align-items:center;gap:8px;padding:8px 12px;min-width:120px;max-width:640px;flex:0 1 auto;box-sizing:border-box;border-radius:10px;position:relative}
+    .player-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:800}
+    .pill-value{margin-left:auto;margin-right:8px;font-weight:900;color:#fff;background:rgba(0,0,0,0.16);padding:2px 6px;border-radius:8px;font-size:0.85rem;white-space:nowrap}
+    .rank-badge{margin-right:8px;display:inline-flex;align-items:center;justify-content:center}
+
+    /* Make won-outside-right labels narrower and allow wrapping */
+    .won-outside-right .won-label{max-width:120px;white-space:normal;overflow-wrap:break-word;word-break:break-word;margin-top:0;position:relative;top:20px;z-index:10020}
+    .won-outside-right .won-prices{margin-top:-20px;margin-bottom:0}
+
+    /* Open button + classement wrapper (centered under stacks by JS) */
+    .open-global-wrap{position:fixed;left:50%;transform:translateX(-50%);bottom:auto;width:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;z-index:10006}
+    .open-global-wrap .open-global-btn{position:relative;left:auto;bottom:auto;width:auto;min-width:140px}
+    .open-row{display:flex;align-items:center;gap:12px}
+    .size-wrap{display:inline-flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;background:rgba(0,0,0,0.06)}
+    .size-label{font-weight:900;color:#fff;font-size:0.9rem}
+    .size-slider{width:140px;height:6px;border-radius:8px;background:linear-gradient(90deg,#ffb347,#ff7e5f);-webkit-appearance:none;appearance:none;outline:none}
+    .size-slider::-webkit-slider-thumb{width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);-webkit-appearance:none}
+    .rank-toggle-btn{background:linear-gradient(135deg,#ffc857,#ff8c00);color:#07221a;border:none;border-radius:12px;font-weight:900;font-size:1.05rem;height:56px;padding:8px 16px;cursor:pointer;box-shadow:0 12px 36px rgba(0,0,0,0.25)}
+    .rank-toggle-btn:active{transform:translateY(2px)}
+    /* Skip button (fade in/out) */
+    .skip-btn{background:linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.04));color:#fff;border:none;border-radius:12px;font-weight:900;font-size:0.95rem;height:44px;padding:8px 12px;cursor:pointer;box-shadow:0 10px 30px rgba(0,0,0,0.25);opacity:0;transform:translateY(8px);transition:opacity .18s ease,transform .18s ease;display:inline-flex;align-items:center;justify-content:center}
+    .skip-btn.show{opacity:1;transform:translateY(0)}
+    .rank-toggle-btn:active{transform:translateY(2px)}
+    .rank-wrap{display:inline-flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;background:rgba(0,0,0,0.08)}
+    .rank-label{font-weight:900;color:#fff;font-size:0.9rem;margin-right:4px}
+    /* Top-right popup used after skin animation ends (fade in/out) — enlarged */
+    .top-right-popup{position:fixed;top:18px;right:18px;z-index:11000;padding:14px 18px;border-radius:12px;background:rgba(9,15,34,0.98);color:#FFD700;font-weight:800;border:1px solid rgba(255,255,255,0.06);box-shadow:0 18px 48px rgba(2,6,20,0.7);opacity:0;transform:translateY(-8px) scale(.98);transition:opacity .32s ease,transform .32s cubic-bezier(.2,.9,.2,1);pointer-events:none;min-width:260px;font-size:1.05rem;text-align:center;text-shadow:0 2px 6px rgba(255,215,0,0.18)}
+    .top-right-popup.show{opacity:1;transform:translateY(0) scale(1.02);pointer-events:auto}
+    /* popup particle burst (simple DOM particles) */
+    .popup-particle{position:fixed;border-radius:50%;pointer-events:none;z-index:11002;mix-blend-mode:screen;box-shadow:0 6px 18px rgba(0,0,0,0.35);transform:translate(-50%,-50%);will-change:transform,opacity}
+      /* tiny event selector - discret bouton top-left */
+      #tinyEventBtn{position:fixed;top:8px;left:8px;width:18px;height:18px;border-radius:6px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);z-index:12010;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0.75;transition:transform .12s ease,opacity .12s ease}
+      #tinyEventBtn:hover{opacity:1;transform:translateY(-1px) scale(1.05)}
+      #tinyEventBtn::after{content:'';display:block;width:6px;height:6px;border-radius:50%;background:linear-gradient(180deg,#fff,#cfd8ff);opacity:0.95}
+      #tinyEventPanel{position:fixed;top:36px;left:8px;min-width:160px;max-width:260px;background:rgba(9,15,34,0.98);color:#eaf0ff;border:1px solid rgba(255,255,255,0.06);padding:8px;border-radius:8px;box-shadow:0 10px 30px rgba(2,6,20,0.7);z-index:12010;display:none;flex-direction:column;gap:8px;font-weight:800}
+    #tinyEventPanel.show{display:flex}
+    /* options: fond blanc + texte noir pour lisibilité (évite blanc sur blanc) */
+    #tinyEventPanel select{width:100%;padding:6px 8px;border-radius:6px;background:#ffffff;color:#07221a;border:1px solid rgba(0,0,0,0.12);font-weight:700}
+      .tinyEventActions{display:flex;gap:8px;justify-content:flex-end}
+      .tinyEventActions button{padding:6px 8px;border-radius:6px;border:none;background:rgba(255,255,255,0.04);color:#fff;cursor:pointer;font-weight:800}
+      .tinyEventActions button.confirm{background:linear-gradient(135deg,#36c56d,#2aa85a);color:#07221a}
+      .tinyEventActions button.cancel{background:transparent;border:1px solid rgba(255,255,255,0.04)}
+  </style>
+</head>
+<body>
+  <!-- petit bouton discret pour choisir le prochain événement -->
+  <button id="tinyEventBtn" aria-label="Choisir le prochain événement" title="Choisir le prochain événement" type="button"></button>
+  <div id="tinyEventPanel" aria-hidden="true" role="dialog" aria-label="Sélectionner le prochain événement">
+    <select id="tinyEventSelect" aria-label="Liste des événements">
+      <option value="">— Choisir —</option>
+    </select>
+    <div class="tinyEventActions">
+      <button class="cancel" type="button">Annuler</button>
+      <button class="confirm" type="button">OK</button>
+    </div>
+  </div>
+  <main>
+    <h1>Case Aboubattle</h1>
+    <div id="status">Chargement des joueurs...</div>
+
+    <div id="choiceContainer" class="choice-container" aria-hidden="false"></div>
+  </main>
+
+  <div class="player-bar" id="playerBar" aria-live="polite"></div>
+  <!-- top-right popup element (hidden by default) -->
+  <div id="topRightPopup" class="top-right-popup" aria-hidden="true">texte de test</div>
+  <div style="width:100%;max-width:920px;margin-top:8px">
+    <script src="../commun/game-players.js"></script>
+  </div>
+  <div id="goldFlash" class="gold-flash" aria-hidden="true"></div>
+  <script>
+  (function(){
+    const stored = JSON.parse(localStorage.getItem('mini-Jeux-host-players') || '[]');
+    const statusEl = document.getElementById('status');
+    let playerBar = document.getElementById('playerBar');
+    // Robust: ensure only one `.player-bar` exists. Keep the first/preferred and remove any extras.
+    function normalizePlayerBar(){
+      try{
+        const bars = Array.from(document.querySelectorAll('.player-bar'));
+        if (bars.length <= 1) return;
+        // prefer element with id 'playerBar' if present and in DOM, otherwise use the first
+        let preferred = document.getElementById('playerBar') || bars[0];
+        if (!preferred || !document.body.contains(preferred)) preferred = bars[0];
+        bars.forEach(b => { if (b !== preferred && b.parentNode) b.parentNode.removeChild(b); });
+        playerBar = preferred;
+      }catch(e){}
+    }
+    // run initial normalization
+    normalizePlayerBar();
+    // observe DOM additions for a short time to remove any player-bar duplicates created later
+    try{
+      const obs = new MutationObserver((mutations) => {
+        let found = false;
+        for (const m of mutations){
+          if (m.addedNodes && m.addedNodes.length){
+            for (const n of m.addedNodes){
+              if (n.nodeType === 1){
+                if (n.classList && n.classList.contains && n.classList.contains('player-bar')){ found = true; break; }
+                if (n.querySelector && n.querySelector('.player-bar')){ found = true; break; }
+              }
+            }
+          }
+          if (found) break;
+        }
+        if (found) normalizePlayerBar();
+      });
+      obs.observe(document.body, { childList: true, subtree: true });
+      // stop observing after a short grace period
+      setTimeout(()=>{ try{ obs.disconnect(); }catch(e){} }, 6000);
+    }catch(e){}
+    const choiceContainer = document.getElementById('choiceContainer');
+
+    if (!stored.length){ statusEl.textContent = 'Aucun joueur enregistré.'; return; }
+
+    const players = stored.map((p, idx) => ({ name: p.name, color: p.color || '#8ac6ff', totalValue: 0, bestItemPrice: 0, bestItemName: '', bestItemSrc: '', bestItemRarityColor: p.color || '#8ac6ff', index: idx }));
+
+    // AC display control: do not show AC badges until finalization (after 10/10 and animations finished)
+    let showACs = false;
+    let pendingRanking = null;
+    let acApplyIntervalId = null;
+    let acApplyTries = 0;
+    // ranking toggle and open counter (shared across closures)
+    let rankEnabled = false;
+    let openCount = 0;
+    // popup scheduling: predetermined openings (Set of integers), assigned messages and helpers
+    let popupSchedule = null;
+    let popupMessageMap = null;
+    let lastPopupDecisionOpen = -1;
+    let lastPopupShownOpen = -2;
+    // skip/finish flags for animations
+    let skipRequested = false;
+    let finalRankingApplied = false;
+    let tempRankingShown = false;
+    // active animation finishers: map rect element -> finalize function
+    const activeAnimationFinishers = new Map();
+    function applyACsNow(sorted){
+      try{
+        const bar = document.querySelector('.player-bar'); if (!bar) return;
+        const pills = Array.from(bar.querySelectorAll('.player-pill'));
+        pills.forEach(pill => {
+          try{
+            const ds = pill.dataset && pill.dataset.playerIndex ? parseInt(pill.dataset.playerIndex,10) : null;
+            const pname = (ds !== null && players[ds]) ? players[ds].name : (pill.querySelector('.player-name')?.textContent?.trim());
+            const idx = sorted.findIndex(r => r.name === pname);
+            if (idx >= 0 && typeof setACText === 'function'){
+              try{ setACText(pill, idx+1, sorted.length); } catch(e){}
+            }
+          }catch(e){}
+        });
+      }catch(e){}
+    }
+    function scheduleApplyACs(sorted){
+      try{
+        pendingRanking = sorted;
+        if (!showACs) return;
+        if (typeof setACText === 'function'){ applyACsNow(sorted); pendingRanking = null; return; }
+        acApplyTries = 0; if (acApplyIntervalId) { clearInterval(acApplyIntervalId); acApplyIntervalId = null; }
+        acApplyIntervalId = setInterval(()=>{
+          acApplyTries++;
+          if (typeof setACText === 'function'){ applyACsNow(sorted); pendingRanking = null; clearInterval(acApplyIntervalId); acApplyIntervalId = null; }
+          else if (acApplyTries > 20){ clearInterval(acApplyIntervalId); acApplyIntervalId = null; pendingRanking = null; }
+        }, 300);
+      }catch(e){}
+    }
+
+    // render player-bar (structure identical to game-10)
+    playerBar.innerHTML = '';
+    players.forEach((p, idx) => {
+      const pill = document.createElement('div');
+      pill.className = 'player-pill';
+      pill.dataset.playerIndex = String(idx);
+      pill.style.border = '1px solid ' + p.color;
+      pill.style.position = pill.style.position || '';
+      const avatar = document.createElement('span'); avatar.className = 'player-circle'; avatar.style.background = p.color;
+      const name = document.createElement('span'); name.className = 'player-name'; name.textContent = p.name;
+      pill.appendChild(avatar);
+      pill.appendChild(name);
+      // value badge (initially $0.00, will be updated when items are awarded)
+      const val = document.createElement('div');
+      val.className = 'pill-value';
+      val.textContent = '$0.00';
+      pill.appendChild(val);
+      playerBar.appendChild(pill);
+      // AC badges are intentionally deferred until the end (10/10). They will be applied after finalization.
+    });
+
+    // show two choice buttons immediately (no order/randomization)
+    statusEl.textContent = 'Choisis une option';
+    choiceContainer.innerHTML = '';
+    const btn1 = document.createElement('button'); btn1.className = 'choice-btn'; btn1.id = 'choice1';
+    const img = document.createElement('img'); img.src = 'assets/dream&nightmare.png'; img.alt = 'Dream & Nightmare'; btn1.appendChild(img);
+    const btn2 = document.createElement('button'); btn2.className = 'choice-btn'; btn2.id = 'choice2'; btn2.textContent = 'Prochainement...';
+    choiceContainer.appendChild(btn1); choiceContainer.appendChild(btn2);
+
+    // Note: AC badges will be applied at finalization only.
+
+    // tooltip logic for hover on btn1
+    let tooltipEl = null;
+    function showTooltip(text, target){ if (tooltipEl){ tooltipEl.remove(); tooltipEl=null; } tooltipEl = document.createElement('div'); tooltipEl.className = 'tooltip'; tooltipEl.textContent = text; document.body.appendChild(tooltipEl); const r = target.getBoundingClientRect(); tooltipEl.style.left = (r.left + r.width/2) + 'px'; tooltipEl.style.top = (r.top - 8) + 'px'; requestAnimationFrame(()=> tooltipEl.classList.add('show')); }
+    function hideTooltip(){ if (!tooltipEl) return; tooltipEl.classList.remove('show'); setTimeout(()=>{ if (tooltipEl && tooltipEl.parentNode) tooltipEl.parentNode.removeChild(tooltipEl); tooltipEl = null; }, 180); }
+    btn1.addEventListener('mouseenter', ()=> showTooltip('Dream & nightmare', btn1));
+    btn1.addEventListener('mouseleave', hideTooltip);
+
+    // on click: hide choices and display stacked rectangles for each player
+    btn1.addEventListener('click', ()=>{
+      hideTooltip();
+      choiceContainer.style.display = 'none';
+      // create overlay of stacks
+      const stacks = document.createElement('div'); stacks.className = 'stacks-overlay'; stacks.id = 'stacksOverlay';
+      players.forEach((p, idx)=>{
+        const rect = document.createElement('div'); rect.className = 'player-stack-rect'; rect.style.borderColor = p.color; rect.style.borderWidth = '1px'; rect.dataset.playerIndex = idx;
+        const nameEl = document.createElement('div'); nameEl.className = 'player-stack-name'; nameEl.textContent = p.name; nameEl.style.color = p.color; nameEl.style.textShadow = `0 6px 12px ${p.color}`; nameEl.style.fontSize = '0.9rem'; nameEl.style.padding = '2px 6px';
+        rect.appendChild(nameEl);
+        // placeholder for content inside rectangle
+        const content = document.createElement('div'); content.style.marginTop = '6px'; rect.appendChild(content);
+        stacks.appendChild(rect);
+      });
+
+      // compute overlay height (leave top/bottom breathing room) and rectangle heights
+      function adjustStacksHeights(){
+        const n = players.length || 1;
+        const viewportH = window.innerHeight;
+        // use ~70% of viewport height for the central stacks area
+        const overlayH = Math.max(120, Math.round(viewportH * 0.70));
+        stacks.style.height = overlayH + 'px';
+
+        const gap = 16; // CSS gap defined in .stacks-overlay
+        const overlayPadding = 8 * 2; // top + bottom padding in .stacks-overlay
+        const totalGaps = gap * Math.max(0, n - 1);
+        const availableH = Math.max(0, overlayH - overlayPadding - totalGaps);
+        const perRect = Math.floor(availableH / n);
+        const minRect = 48; // reasonable minimum
+
+        // Apply height to each rect; if perRect < minRect, allow scrolling (overlay has overflow:auto)
+        const rects = Array.from(stacks.querySelectorAll('.player-stack-rect'));
+        rects.forEach((r, idx) => {
+          const playerIndex = r.dataset && r.dataset.playerIndex != null ? parseInt(r.dataset.playerIndex, 10) : idx;
+          const h = Math.max(minRect, perRect);
+          r.style.flex = '0 0 ' + h + 'px'; r.style.height = h + 'px';
+
+          // ensure a slot-track exists
+          let track = r.querySelector('.slot-track');
+          if (!track){ track = document.createElement('div'); track.className = 'slot-track'; track.style.paddingLeft = '8px'; track.style.paddingRight = '8px'; r.appendChild(track); }
+
+          // capture which child is currently under the pin (index + rarity) so we can preserve it on resize/zoom
+          let prevCenterIdx = null; let prevCenterRarity = null; let prevCenterUid = null; let prevCenterSkin = null;
+          if (track && track._initialized){
+            try{
+              const currTx = getTranslateX(track) || 0;
+              const sqNow = track._squareSize || 48;
+              const spNow = track._spacing || (sqNow + 8);
+              const startOffNow = track._startOffset || 8;
+              const centerXnow = r.clientWidth / 2;
+              const shiftNow = Math.max(6, Math.round(sqNow * 0.12));
+              const centerRelativeToTrackNow = centerXnow - shiftNow - currTx - startOffNow;
+              const idxNow = Math.round((centerRelativeToTrackNow - sqNow/2) / spNow);
+              if (idxNow >= 0 && idxNow < track.children.length){ 
+                prevCenterIdx = idxNow; 
+                const elNow = track.children[idxNow]; 
+                const cls = Array.from(elNow.classList).find(c=>c.startsWith('rarity-'));
+                prevCenterRarity = cls ? cls.slice(7) : null;
+                prevCenterUid = elNow.dataset ? elNow.dataset.uid : null;
+                const imgNow = elNow.querySelector && elNow.querySelector('img.slot-skin');
+                prevCenterSkin = imgNow ? imgNow.src : null;
+              }
+            }catch(e){}
+          }
+
+          // compute square size based on available inner height
+          const computedRectH = r.clientHeight; // includes padding (box-sizing: border-box)
+          const topPad = 12; const bottomPad = 12; // match CSS padding
+          const contentH = Math.max(28, computedRectH - topPad - bottomPad);
+          const gapSq = 8;
+          // make squares larger (fill most of the content height)
+          const squareSize = Math.max(56, Math.floor(contentH * 0.95));
+
+          // determine number of squares to create (several screens worth)
+          const innerWidth = Math.max(200, r.clientWidth - 20); // subtract horizontal padding (10*2)
+          const per = squareSize + gapSq;
+          const screens = 3;
+          const N = Math.max(6, Math.ceil((innerWidth / per) * screens));
+
+          // populate track if needed or when size changed
+          // Avoid rebuilding on minor size changes (helps with browser zoom). Rebuild only if count changes or size difference large
+          const needRebuild = !track._initialized || track._N !== N || Math.abs((track._squareSize||0) - squareSize) > 12;
+          // set sizing metadata first so helpers can use it
+          track._squareSize = squareSize; track._spacing = per; track._gap = gapSq; track._startOffset = 8;
+          if (needRebuild){
+            if (!track._initialized){
+              // first-time initialization: create fresh nodes
+              track.innerHTML = '';
+              for (let i=0;i<N;i++){
+                track.appendChild(createSquare(track, playerIndex));
+              }
+              track._initialized = true; track._N = track.children.length;
+              // if we captured a previously centered index, try to restore its rarity and center it
+              if (prevCenterIdx !== null){
+                const newIdx = Math.min(prevCenterIdx, track.children.length - 1);
+                if (prevCenterRarity) applyRarityToSquare(track.children[newIdx], track, prevCenterRarity, prevCenterSkin);
+                // compute transform to center that index
+                const centerX = r.clientWidth / 2;
+                const shift = Math.max(6, Math.round(track._squareSize * 0.12));
+                const desired = centerX - shift - track._startOffset - (newIdx * track._spacing) - (track._squareSize/2);
+                track.style.transform = `translateX(${desired}px)`;
+              } else {
+                // ensure transform reset
+                track.style.transform = 'translateX(0px)';
+              }
+            } else {
+              // reuse existing DOM nodes: update sizes and add/remove nodes to match N
+              const curr = track.children.length;
+              // update sizing for existing nodes
+              Array.from(track.children).forEach(sq=>{ sq.style.width = squareSize + 'px'; sq.style.height = squareSize + 'px'; sq.style.flex = '0 0 ' + squareSize + 'px'; });
+              if (curr > N){
+                // remove extra nodes from the right
+                for (let i = curr - 1; i >= N; i--){ if (track.children[i]) track.removeChild(track.children[i]); }
+              } else if (curr < N){
+                for (let i = curr;i < N;i++){ track.appendChild(createSquare(track, playerIndex)); }
+              }
+              track._N = track.children.length;
+              // re-center the captured element (try to find it by uid so we preserve the exact DOM node)
+              let targetIdx = null;
+              if (prevCenterUid){
+                const children = Array.from(track.children);
+                const found = children.findIndex(c => c.dataset && c.dataset.uid === prevCenterUid);
+                if (found >= 0) targetIdx = found;
+              }
+              if (targetIdx === null && prevCenterIdx !== null) targetIdx = Math.min(prevCenterIdx, track.children.length - 1);
+              if (targetIdx !== null){
+                // if we have a stored skin, reapply exact skin to preserve appearance
+                if (prevCenterRarity){ applyRarityToSquare(track.children[targetIdx], track, prevCenterRarity, prevCenterSkin); }
+                const centerX = r.clientWidth / 2;
+                const shift = Math.max(6, Math.round(track._squareSize * 0.12));
+                const desired = centerX - shift - track._startOffset - (targetIdx * track._spacing) - (track._squareSize/2);
+                track.style.transform = `translateX(${desired}px)`;
+              }
+            }
+          } else {
+            // no rebuild needed: just adjust sizes and preserve DOM nodes
+            track.querySelectorAll('.slot-square').forEach(sq=>{ sq.style.width = squareSize + 'px'; sq.style.height = squareSize + 'px'; sq.style.flex = '0 0 ' + squareSize + 'px'; });
+            track._squareSize = squareSize; track._spacing = per; track._startOffset = 8;
+            // if we captured a centered element, re-center it using the updated sizing (prefer uid match)
+            if (track.children.length){
+              let targetIdx = null;
+              if (prevCenterUid){ const children = Array.from(track.children); const found = children.findIndex(c => c.dataset && c.dataset.uid === prevCenterUid); if (found >= 0) targetIdx = found; }
+              if (targetIdx === null && prevCenterIdx !== null) targetIdx = Math.min(prevCenterIdx, track.children.length - 1);
+              if (targetIdx !== null){
+                if (prevCenterRarity) applyRarityToSquare(track.children[targetIdx], track, prevCenterRarity, prevCenterSkin);
+                const centerX = r.clientWidth / 2;
+                const shift = Math.max(6, Math.round(track._squareSize * 0.12));
+                const desired = centerX - shift - track._startOffset - (targetIdx * track._spacing) - (track._squareSize/2);
+                track.style.transform = `translateX(${desired}px)`;
+              }
+            }
+          }
+
+          // pin line (center) if not present
+          if (!r.querySelector('.pin-line')){
+            const pin = document.createElement('div'); pin.className = 'pin-line'; r.appendChild(pin);
+          }
+        });
+      }
+
+        // append before measuring so client sizes are correct (fix zoom-initial sizing bug)
+      document.body.appendChild(stacks);
+      requestAnimationFrame(()=> adjustStacksHeights());
+
+      // generate popup schedule: pick 3 non-consecutive openings among 1..9 (exclude 10)
+      (function createPopupSchedule(){
+        try{
+          function gen(count, min, max){
+            for (let attempt=0; attempt<500; attempt++){
+              let picks = [];
+              let candidates = [];
+              for (let i=min;i<=max;i++) candidates.push(i);
+              while (picks.length < count && candidates.length > 0){
+                const idx = Math.floor(Math.random() * candidates.length);
+                const v = candidates[idx];
+                picks.push(v);
+                // remove chosen and its immediate neighbors to avoid adjacency
+                candidates = candidates.filter(x => Math.abs(x - v) > 1);
+              }
+              if (picks.length === count){ picks.sort((a,b)=>a-b); return picks; }
+            }
+            return null;
+          }
+          const arr = gen(3, 1, 9) || [1,3,5];
+          popupSchedule = new Set(arr);
+          // expose schedule indices globally for UI integration
+          try{ window.popupSchedule = arr.slice(); }catch(e){}
+          // messages pool (unique selection, no duplicates across the 3 popups)
+          const messages = [
+            '1 gold garanti',
+            'QUE des golds (All)',
+            '1 Rouge garanti',
+            'QUE des rouges/roses (All)',
+            'QUE des StatTracks (All)',
+            'Chance x2 (All)',
+            'Chance x3 (All)',
+            'Chance x5 (All)',
+            'Chance x0.5 (All)',
+            'Skin>50$ garanti (All)',
+            'Skins<1$ garanti (All)',
+            'Factory New garanti (All)',
+            'Battle-scarred garanti (All)'
+          ];
+          function shuffle(a){ const c = a.slice(); for (let i=c.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); const t = c[i]; c[i]=c[j]; c[j]=t; } return c; }
+          let picks = shuffle(messages).slice(0, arr.length);
+          // if a manual selection exists, apply it only to the next scheduled opening
+          try{
+            const manual = localStorage.getItem('tiny-event-next');
+            if (manual && String(manual).trim()){
+              const cleanedManual = String(manual).trim();
+              const filtered = messages.filter(m => m !== cleanedManual);
+              const randomPicks = shuffle(filtered).slice(0, Math.max(0, arr.length - 1));
+              picks = [cleanedManual, ...randomPicks];
+            }
+          }catch(e){}
+          popupMessageMap = {};
+          arr.forEach((openIdx, i) => { popupMessageMap[openIdx] = picks[i]; });
+          // expose the popup messages pool globally so the tiny selector can reuse them
+          try{
+            window.popupEventPool = picks.slice(); // scheduled messages (subset)
+            window.popupEventPoolFull = messages.slice(); // full messages pool
+            window.popupMessageMap = popupMessageMap;
+            // dispatch both the scheduled subset and the full pool so UI can choose
+            window.dispatchEvent(new CustomEvent('popup-events-ready', { detail: { events: picks.slice(), full: messages.slice(), mapping: popupMessageMap } }));
+          }catch(e){}
+          console.log('Popup schedule (openings 1..9):', Array.from(popupSchedule).sort((a,b)=>a-b));
+          console.log('Popup messages assignment:', popupMessageMap);
+        }catch(e){ console.warn('Failed to generate popup schedule', e); popupSchedule = new Set([1,3,5]); }
+      })();
+
+      // si l'utilisateur choisit un event via le petit sélecteur apres le démarrage,
+      // appliquer la sélection aux ouvertures déjà planifiées (3 jours) sans l'afficher immédiatement
+      try{
+        window.addEventListener('tiny-event-chosen', function(e){
+          try{
+            const val = e && e.detail && e.detail.event ? String(e.detail.event) : null;
+            if (!val) return;
+            // si le planning existe, appliquer aux indices planifiés
+            if (window.popupSchedule && window.popupMessageMap){
+              try{
+                const remaining = Array.from(window.popupSchedule).filter(idx => typeof idx === 'number' && idx > openCount);
+                const nextOpen = remaining.length ? Math.min(...remaining) : Math.min(...Array.from(window.popupSchedule));
+                window.popupMessageMap[nextOpen] = val;
+                window.popupEventPool = Array.from(window.popupSchedule).map(idx => window.popupMessageMap[idx]);
+                window.dispatchEvent(new CustomEvent('popup-events-updated', { detail: { events: window.popupEventPool.slice(), mapping: window.popupMessageMap } }));
+                console.log('%c✨ tiny-event assigned to next scheduled popup:','color:#f39c12;font-weight:700;', nextOpen, val);
+                return;
+              }catch(er){ console.warn('tiny-event: failed applying to schedule', er); }
+            }
+            // sinon, on laisse la valeur dans localStorage pour qu'elle soit prise en compte lors de la génération du planning
+            console.log('tiny-event: stored for future schedule', val);
+          }catch(er){}
+        });
+      }catch(e){}
+
+      // add a single 'Ouvrir' button and a 'Classement' toggle next to it (compact)
+      let pendingAnimations = 0; // number of active track animations waiting to finish
+      const openWrap = document.createElement('div'); openWrap.className = 'open-global-wrap'; openWrap.id = 'openGlobalWrap';
+      const openGlobal = document.createElement('button'); openGlobal.className = 'open-global-btn'; openGlobal.id = 'openGlobalBtn'; openGlobal.textContent = 'Ouvrir';
+      openGlobal.style.flex = '0 0 auto'; openGlobal.style.minWidth = '120px';
+      // override the fixed positioning from the existing .open-global-btn CSS so the button sits inside the wrapper
+      openGlobal.style.position = 'relative'; openGlobal.style.left = ''; openGlobal.style.bottom = ''; openGlobal.style.top = ''; openGlobal.style.margin = '0'; openGlobal.style.boxSizing = 'border-box';
+      // classement toggle (simple on/off button)
+      const rankWrap = document.createElement('div'); rankWrap.className = 'rank-wrap'; rankWrap.title = 'Afficher classement temporaire après chaque ouverture';
+      const rankToggleBtn = document.createElement('button'); rankToggleBtn.type = 'button'; rankToggleBtn.className = 'rank-toggle-btn'; rankToggleBtn.textContent = 'Classement';
+      // size control (Taille)
+      const sizeWrap = document.createElement('div'); sizeWrap.className = 'size-wrap';
+      const sizeLabel = document.createElement('span'); sizeLabel.className = 'size-label'; sizeLabel.textContent = 'Taille';
+      const sizeSlider = document.createElement('input'); sizeSlider.type = 'range'; sizeSlider.min = '60'; sizeSlider.max = '140'; sizeSlider.value = '100'; sizeSlider.className = 'size-slider';
+      sizeWrap.appendChild(sizeLabel); sizeWrap.appendChild(sizeSlider);
+      rankWrap.appendChild(rankToggleBtn); rankWrap.appendChild(sizeWrap);
+      // build open-row so Skip can sit below
+      const openRow = document.createElement('div'); openRow.className = 'open-row'; openRow.appendChild(openGlobal); openRow.appendChild(rankWrap);
+      openWrap.appendChild(openRow);
+      document.body.appendChild(openWrap);
+      // create skip button (hidden by default) and skip handler (placed below the two centered controls)
+      const skipBtn = document.createElement('button'); skipBtn.className = 'skip-btn'; skipBtn.textContent = 'Skip'; skipBtn.style.marginLeft = '8px'; skipBtn.style.marginTop = '0';
+      sizeWrap.appendChild(skipBtn);
+      // initialize won scale and wire size slider
+      try{ document.documentElement.style.setProperty('--won-scale', '1'); }catch(e){}
+      try{
+        sizeSlider.addEventListener('input', ()=>{
+          try{ const v = Math.max(0.3, Math.min(2, parseInt(sizeSlider.value,10) / 100)); document.documentElement.style.setProperty('--won-scale', String(v)); }catch(e){}
+        });
+      }catch(e){}
+      function skipAllAnimations(){
+        try{
+          if (skipRequested) return; skipRequested = true;
+          // hide skip UI
+          try{ skipBtn.classList.remove('show'); }catch(e){}
+          // call finalize functions for any active animations (these will handle pending count/finalization)
+          try{
+            for (const [rect, fin] of activeAnimationFinishers.entries()){
+              try{ if (typeof fin === 'function') fin(); }catch(e){}
+            }
+          }catch(e){}
+          try{ activeAnimationFinishers.clear(); }catch(e){}
+        }catch(e){}
+      }
+      skipBtn.addEventListener('click', ()=>{ try{ skipAllAnimations(); }catch(e){} });
+      // position openWrap under stacks overlay and center it horizontally
+      function positionOpenWrapBelowStacks(){
+        try{
+          const overlay = document.getElementById('stacksOverlay');
+          if (!overlay) return;
+          const or = overlay.getBoundingClientRect();
+          const centerX = or.left + (or.width / 2);
+          // place top just below overlay
+          openWrap.style.left = centerX + 'px';
+          openWrap.style.transform = 'translateX(-50%)';
+          openWrap.style.top = (Math.round(or.bottom) + 6) + 'px';
+          // ensure any CSS bottom is disabled so `top` takes effect
+          openWrap.style.bottom = 'auto';
+        }catch(e){}
+      }
+      // compute initial position after layout
+      requestAnimationFrame(()=> positionOpenWrapBelowStacks());
+      // keep it updated on resize/scroll
+      window.addEventListener('resize', positionOpenWrapBelowStacks);
+      window.addEventListener('scroll', positionOpenWrapBelowStacks, { passive: true });
+      // toggle handler (press once to enable, press again to disable)
+      rankToggleBtn.addEventListener('click', ()=>{
+        try{
+          rankEnabled = !rankEnabled;
+          // visual state: subtle brightness change when enabled
+          rankToggleBtn.style.filter = rankEnabled ? 'brightness(0.94)' : '';
+          if (!rankEnabled){ try{ clearRankingBadges(); }catch(e){} }
+          else { try{ const sortedNow = players.slice().sort((a,b)=> (b.totalValue || 0) - (a.totalValue || 0)); updatePlayerBarRanking(sortedNow, false); }catch(e){} }
+        }catch(e){}
+      });
+
+      // add a small 'Retour' button (hidden until end of 10 opens)
+      const backBtn = document.createElement('button'); backBtn.className = 'back-btn'; backBtn.id = 'backBtn'; backBtn.textContent = 'Retour';
+      backBtn.style.display = 'none';
+      document.body.appendChild(backBtn);
+      function showSmallBackBtn(){
+      window.PourtyMiniGame?.finish();
+        try{
+          backBtn.classList.add('small');
+          backBtn.style.display = 'inline-flex';
+          backBtn.style.position = 'fixed';
+          backBtn.style.right = '12px';
+          backBtn.style.bottom = '12px';
+          backBtn.style.left = '';
+          backBtn.style.top = '';
+          backBtn.style.zIndex = '10008';
+        }catch(e){}
+      }
+      backBtn.addEventListener('click', ()=>{ window.location.href = '../../index.html'; });
+
+      // helper: parse current translateX of an element
+      function getTranslateX(el){
+        const st = window.getComputedStyle(el);
+        const tr = st.transform;
+        if (!tr || tr === 'none') return 0;
+        // matrix(a, b, c, d, tx, ty)
+        const m = tr.match(/matrix\(([-0-9.,e ]+)\)/);
+        if (m){ const parts = m[1].split(','); return parseFloat(parts[4]) || 0; }
+        const m3 = tr.match(/matrix3d\(([-0-9.,e ]+)\)/);
+        if (m3){ const parts = m3[1].split(','); return parseFloat(parts[12]) || 0; }
+        return 0;
+      }
+
+      // Rarity system: probabilities and helper to pick a rarity
+      // Base rarities and their cumulative weights (probabilities derived from given rates)
+      // We'll use a modifiable `chanceScale` to affect frequency when user presses numpad + / -
+      let chanceScale = 1; // 1 = normal
+      // Configurable chances
+      const STAT_TRACK_CHANCE = 0.20; // 20% chance for StatTrak (increase as requested)
+      const GOLD_BASE_RATE = 1/120; // gold base rate (1 in X). Lower X => higher chance. Default increased from 391 -> 120
+      const rarities = [
+        { id: 'gold', color: '#DFC700', rate: GOLD_BASE_RATE },
+        { id: 'red', color: '#BB171A', rate: 1/75.6 },
+        { id: 'pink', color: '#9E00C5', rate: 1/31.28 },
+        { id: 'purple', color: '#6832EA', rate: 1/6.26 },
+        { id: 'blue', color: '#024FE4', rate: 1/1.25 }
+      ];
+
+      // convert to cumulative distribution for sampling
+      function buildDistribution(scale){
+        // Convert 1/X rates to probabilities then scale the RARE weights
+        // scale > 1 increases chance for rare items (gold/red/pink/purple)
+        const probs = rarities.map(r => r.rate);
+        // multiply all but the last entry (blue/common) by scale
+        const scaled = probs.map((p,i)=> i === probs.length - 1 ? p : p * scale);
+        const total = scaled.reduce((a,b)=>a+b,0);
+        const cum = []; let acc=0;
+        for (let i=0;i<scaled.length;i++){
+          const prob = scaled[i] / total;
+          acc += prob;
+          cum.push({ id: rarities[i].id, prob: prob, cutoff: acc });
+        }
+        return cum;
+      }
+      let distribution = buildDistribution(chanceScale);
+      let uidCounter = 1;
+      let animationDuration = 6000; // ms, decreases by 5% on each open
+
+      function formatDistribution(dist){
+        return dist.map(d => `${d.id}:${(d.prob*100).toFixed(3)}%`).join(' | ');
+      }
+      function logChance(label = 'Chance'){
+        const header = `🎯 ${label}`;
+        console.log('%c' + header + ':','color:#2ecc71;font-weight:700;', `scale=${chanceScale.toFixed(3)}`);
+        console.log('%cdistribution:', 'color:#3498db;font-weight:700;', formatDistribution(distribution));
+      }
+
+      function hexToRgba(hex, alpha){
+        if(!hex) return `rgba(255,255,255,${alpha||1})`;
+        let h = hex.replace('#',''); if (h.length===3) h = h.split('').map(c=>c+c).join('');
+        const num = parseInt(h,16); const r = (num >> 16) & 255; const g = (num >> 8) & 255; const b = num & 255;
+        return `rgba(${r},${g},${b},${alpha||1})`;
+      }
+
+      // Skin pools (filenames inside assets/game-16/skins and assets/game-16/gold)
+      const skinsDir = 'assets/skins/';
+      const goldDir = 'assets/gold/';
+      const blueSkins = [
+        'P2000 Lifted Spirits.png',
+        'Sawed-Off Spirit Board.png',
+        'MAG-7 Foresight.png',
+        'MP5-SD Necro Jr..png',
+        'Five-SeveN Scrawl.png',
+        'SCAR-20 Poultrygeist.png',
+        'MAC-10 Ensnared.png'
+      ];
+      const purpleSkins = [
+        'PP-Bizon Space Cat.png',
+        'XM1014 Zombie Offensive.png',
+        'G3SG1 Dream Glade.png',
+        'USP-S Ticket to Hell.png',
+        'M4A1-S Night Terror.png'
+      ];
+      const pinkSkins = [
+        'MP7 Abyssal Apparition.png',
+        'Dual Berettas Melondrama.png',
+        'FAMAS Rapid Eye Movement.png'
+      ];
+      const redSkins = [
+        'MP9 Starlight Protector.png',
+        'AK-47 Nightwish.png'
+      ];
+      const goldSkins = [
+        '★ Bowie Knife Autotronic.png','★ Bowie Knife Black Laminate.png','★ Bowie Knife Bright Water.png','★ Bowie Knife Freehand.png','★ Bowie Knife Gamma Doppler Emerald.png','★ Bowie Knife Lore.png',
+        '★ Butterfly Knife Autotronic.png','★ Butterfly Knife Black Laminate.png','★ Butterfly Knife Bright Water.png','★ Butterfly Knife Freehand.png','★ Butterfly Knife Gamma Doppler Emerald.png','★ Butterfly Knife Lore.png',
+        '★ Falchion Knife Autotronic.png','★ Falchion Knife Black Laminate.png','★ Falchion Knife Bright Water.png','★ Falchion Knife Freehand.png','★ Falchion Knife Gamma Doppler Emerald.png','★ Falchion Knife Lore.png',
+        '★ Huntsman Knife Autotronic.png','★ Huntsman Knife Black Laminate.png','★ Huntsman Knife Bright Water.png','★ Huntsman Knife Freehand.png','★ Huntsman Knife Gamma Doppler Emerald.png','★ Huntsman Knife Lore.png',
+        '★ Shadow Daggers Autotronic.png','★ Shadow Daggers Black Laminate.png','★ Shadow Daggers Bright Water.png','★ Shadow Daggers Freehand.png','★ Shadow Daggers Gamma Doppler Emerald.png','★ Shadow Daggers Lore.png'
+      ];
+
+      // Price data per skin (key: decoded filename without extension)
+      // Fill this object with exact ranges you want displayed for each item.
+      // Example key: 'P2000 Lifted Spirits'
+      const priceData = {
+        // Blue / common pools
+        'P2000 Lifted Spirits': { baseMin: 0.05, baseMax: 0.89, statMin: 0.06, statMax: 0.71 },
+        'Sawed-Off Spirit Board': { baseMin: 0.05, baseMax: 0.79, statMin: 0.06, statMax: 0.68 },
+        'MAG-7 Foresight': { baseMin: 0.05, baseMax: 0.34, statMin: 0.06, statMax: 0.31 },
+        'MP5-SD Necro Jr.': { baseMin: 0.05, baseMax: 0.83, statMin: 0.05, statMax: 0.82 },
+        'Five-SeveN Scrawl': { baseMin: 0.05, baseMax: 1.00, statMin: 0.05, statMax: 1.23 },
+        'SCAR-20 Poultrygeist': { baseMin: 0.05, baseMax: 0.31, statMin: 0.05, statMax: 0.30 },
+        'MAC-10 Ensnared': { baseMin: 0.05, baseMax: 0.87, statMin: 0.05, statMax: 0.88 },
+
+        // Purple / classified pools
+        'PP-Bizon Space Cat': { baseMin: 0.44, baseMax: 1.43, statMin: 0.46, statMax: 1.58 },
+        'XM1014 Zombie Offensive': { baseMin: 0.44, baseMax: 1.20, statMin: 0.45, statMax: 1.27 },
+        'G3SG1 Dream Glade': { baseMin: 0.20, baseMax: 3.91, statMin: 0.42, statMax: 3.23 },
+        'USP-S Ticket to Hell': { baseMin: 0.49, baseMax: 2.60, statMin: 0.55, statMax: 5.45 },
+        'M4A1-S Night Terror': { baseMin: 0.45, baseMax: 2.31, statMin: 1.20, statMax: 4.69 },
+
+        // Pink / restricted pools
+        'MP7 Abyssal Apparition': { baseMin: 5.09, baseMax: 17.93, statMin: 4.91, statMax: 18.16 },
+        'Dual Berettas Melondrama': { baseMin: 4.91, baseMax: 17.79, statMin: 4.85, statMax: 17.19 },
+        'FAMAS Rapid Eye Movement': { baseMin: 5.24, baseMax: 21.02, statMin: 4.76, statMax: 20.99 },
+
+        // Red / classified/rare
+        'MP9 Starlight Protector': { baseMin: 57.32, baseMax: 90.55, statMin: 51.52, statMax: 91.81 },
+        'AK-47 Nightwish': { baseMin: 57.00, baseMax: 109.00, statMin: 52.51, statMax: 137.00 },
+
+        // Gold / knives (star included in key)
+        '★ Bowie Knife Lore': { baseMin: 75.45, baseMax: 195.00, statMin: 85.75, statMax: 252.00 },
+        '★ Bowie Knife Gamma Doppler Emerald': { baseMin: 465.00, baseMax: 635.00, statMin: 444.00, statMax: 620.00 },
+        '★ Bowie Knife Autotronic': { baseMin: 78.01, baseMax: 143.00, statMin: 93.11, statMax: 296.00 },
+        '★ Bowie Knife Black Laminate': { baseMin: 560.00, baseMax: 821.00, statMin: 574.00, statMax: 936.00 },
+        '★ Bowie Knife Freehand': { baseMin: 66.08, baseMax: 83.52, statMin: 75.28, statMax: 111.00 },
+        '★ Bowie Knife Bright Water': { baseMin: 53.09, baseMax: 65.33, statMin: 62.70, statMax: 110.00 },
+        '★ Huntsman Knife Lore': { baseMin: 83.08, baseMax: 139.00, statMin: 99.66, statMax: 194.00 },
+        '★ Falchion Knife Lore': { baseMin: 90.54, baseMax: 144.00, statMin: 109.00, statMax: 180.00 },
+        '★ Huntsman Knife Autotronic': { baseMin: 88.14, baseMax: 172.00, statMin: 105.00, statMax: 268.00 },
+        '★ Shadow Daggers Lore': { baseMin: 50.43, baseMax: 109.00, statMin: 70.41, statMax: 250.00 },
+        '★ Falchion Knife Freehand': { baseMin: 75.14, baseMax: 98.29, statMin: 87.75, statMax: 116.00 },
+        '★ Shadow Daggers Gamma Doppler Emerald': { baseMin: 216.00, baseMax: 290.00, statMin: 258.00, statMax: 258.00 },
+        // Missing golds (placeholders — remplir avec vraies plages si disponible)
+        '★ Butterfly Knife Autotronic': { baseMin: 677.00, baseMax: 1339.00, statMin: 680.00, statMax: 1584.00 },
+        '★ Butterfly Knife Black Laminate': { baseMin: 560.00, baseMax: 821.00, statMin: 574.00, statMax: 936.00 },
+        '★ Butterfly Knife Bright Water': { baseMin: 490.00, baseMax: 613.00, statMin: 505.00, statMax: 640.00 },
+        '★ Butterfly Knife Freehand': { baseMin: 528.00, baseMax: 680.00, statMin: 574.00, statMax: 737.00 },
+        '★ Butterfly Knife Gamma Doppler Emerald': { baseMin: 7050.00, baseMax: 7993.00, statMin: 7000.00, statMax: 7490.00 },
+        '★ Butterfly Knife Lore': { baseMin: 508.00, baseMax: 1939.00, statMin: 540.00, statMax: 2398.00 },
+        '★ Falchion Knife Autotronic': { baseMin: 94.08, baseMax: 164.00, statMin: 112.00, statMax: 233.00 },
+        '★ Falchion Knife Black Laminate': { baseMin: 61.50, baseMax: 101.00, statMin: 71.76, statMax: 157.00 },
+        '★ Falchion Knife Bright Water': { baseMin: 64.84, baseMax: 80.06, statMin: 76.58, statMax: 102.00 },
+        '★ Falchion Knife Gamma Doppler Emerald': { baseMin: 520.00, baseMax: 537.00, statMin: 406.00, statMax: 541.00 },
+        '★ Huntsman Knife Black Laminate': { baseMin: 60.93, baseMax: 115.00, statMin: 70.11, statMax: 177.00 },
+        '★ Huntsman Knife Bright Water': { baseMin: 56.94, baseMax: 76.14, statMin: 64.00, statMax: 86.68 },
+        '★ Huntsman Knife Freehand': { baseMin: 65.84, baseMax: 86.67, statMin: 74.56, statMax: 4000.00 },
+        '★ Huntsman Knife Gamma Doppler Emerald': { baseMin: 605.00, baseMax: 625.00, statMin: 622.00, statMax: 1364.00 },
+        '★ Shadow Daggers Autotronic': { baseMin: 46.86, baseMax: 90.10, statMin: 61.75, statMax: 112.00 },
+        '★ Shadow Daggers Black Laminate': { baseMin: 39.24, baseMax: 56.44, statMin: 44.10, statMax: 138.00 },
+        '★ Shadow Daggers Bright Water': { baseMin: 39.34, baseMax: 44.22, statMin: 46.25, statMax: 58.31 },
+        '★ Shadow Daggers Freehand': { baseMin: 47.22, baseMax: 58.70, statMin: 59.82, statMax: 100.00 }
+      };
+
+      function formatMoney(v){ try { return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:2}).format(v); } catch(e){ return '$' + Number(v).toFixed(2); } }
+
+        // update the monetary total shown in a player's pill
+        function updatePlayerValueInPill(player){
+          try{
+            const bar = document.querySelector('.player-bar');
+            if (!bar) return;
+            // prefer finding by data-player-index to avoid DOM structure fragility
+            const idx = (typeof player.index !== 'undefined') ? parseInt(player.index,10) : null;
+            let pill = null;
+            if (idx !== null){ pill = bar.querySelector('.player-pill[data-player-index="' + idx + '"]'); }
+            if (!pill){ // fallback: try find by name
+              const pills = Array.from(bar.querySelectorAll('.player-pill'));
+              pill = pills.find(p => (p.querySelector('.player-name')?.textContent?.trim()) === player.name);
+            }
+            if (!pill) return;
+            let el = pill.querySelector('.pill-value');
+            if (!el){ el = document.createElement('div'); el.className='pill-value'; pill.appendChild(el); }
+            el.textContent = formatMoney(player.totalValue || 0);
+            try{ if (showACs && typeof setACText === 'function') setACText(pill, 0, players.length); }catch(e){}
+            // if ranking toggle is enabled and we are still in the opening sequence, update live ranking (temporary style)
+            try{ if (rankEnabled && typeof updatePlayerBarRanking === 'function' && openCount < 10){ const sortedNow = players.slice().sort((a,b)=> (b.totalValue || 0) - (a.totalValue || 0)); updatePlayerBarRanking(sortedNow, false); } }catch(e){}
+          }catch(e){}
+        }
+
+        // Apply ranking visuals to player-bar pills (temporary or final)
+        // `isFinal` = true applies outlines and final styling; false shows badge only without contour.
+        function updatePlayerBarRanking(sorted, isFinal = false){
+          const bar = document.querySelector('.player-bar'); if (!bar) return;
+          const pills = Array.from(bar.querySelectorAll('.player-pill'));
+          pills.forEach(pill => {
+            const ds = pill.dataset && pill.dataset.playerIndex ? parseInt(pill.dataset.playerIndex,10) : null;
+            const name = (ds !== null && players[ds]) ? players[ds].name : pill.querySelector('.player-name')?.textContent?.trim();
+            const res = sorted && sorted.length ? sorted.find(r => r.name === name) : null;
+            let badge = pill.querySelector('.rank-badge');
+            if (!badge){ badge = document.createElement('span'); badge.className='rank-badge'; badge.style.fontWeight='900'; badge.style.fontSize='0.85rem'; badge.style.padding='2px 6px'; badge.style.borderRadius='99px'; badge.style.background='rgba(255,255,255,0.8)'; badge.style.color='#000'; /* insert badge to the left to avoid overlapping the money */ pill.insertBefore(badge, pill.firstChild); }
+            if (!res){
+              badge.textContent='';
+              // reset to player's color border when ranking is not applicable
+              pill.style.boxShadow = '';
+              const dsIdx = pill.dataset && pill.dataset.playerIndex ? parseInt(pill.dataset.playerIndex,10) : null;
+              const clr = (dsIdx !== null && players[dsIdx]) ? players[dsIdx].color : 'rgba(255,255,255,0.28)';
+              pill.style.border = `1px solid ${clr}`;
+              pill.style.background = 'rgba(15,24,46,0.95)';
+            } else {
+              const rank = sorted.findIndex(r=>r.name===name) + 1;
+              const rankColor = rank === 1 ? '#ffd700' : rank === 2 ? '#c0c0c0' : rank === 3 ? '#cd7f32' : '#8a2be2';
+              badge.textContent = `#${rank}`;
+              if (isFinal){
+                pill.style.border = `1px solid ${rankColor}`;
+                pill.style.boxShadow = `0 0 0 2px ${rankColor}`;
+                pill.style.background = 'rgba(255,255,255,0.13)';
+                if (typeof setACText === 'function'){ try{ setACText(pill, rank, sorted.length);}catch(e){} }
+              } else {
+                // temporary ranking: apply ranking color as border (no halo)
+                pill.style.boxShadow = '';
+                pill.style.border = `1px solid ${rankColor}`;
+                pill.style.background = 'rgba(255,255,255,0.06)';
+              }
+            }
+          });
+          try{ pendingRanking = sorted; if (isFinal && showACs) scheduleApplyACs(sorted); }catch(e){}
+        }
+
+        // clear any ranking badges and reset pill visuals
+        function clearRankingBadges(){
+          try{
+            const bar = document.querySelector('.player-bar'); if (!bar) return;
+            Array.from(bar.querySelectorAll('.rank-badge')).forEach(b => { if (b && b.parentNode) b.parentNode.removeChild(b); });
+            Array.from(bar.querySelectorAll('.player-pill')).forEach(p => {
+              try{
+                p.style.boxShadow = '';
+                const ds = p.dataset && p.dataset.playerIndex ? parseInt(p.dataset.playerIndex,10) : null;
+                const color = (ds !== null && players[ds]) ? players[ds].color : 'rgba(255,255,255,0.28)';
+                p.style.border = '1px solid ' + color;
+                p.style.background = 'rgba(15,24,46,0.95)';
+              }catch(e){}
+            });
+            pendingRanking = null;
+          }catch(e){}
+        }
+
+      function estimatePrice(min, max, durability){
+        // durability in [0,1] where 1 -> price near min, 0 -> price near max
+        return min + (1 - durability) * (max - min);
+      }
+
+      function getPriceInfoForSkinName(name){
+        try{
+          const decoded = decodeURIComponent(String(name || ''));
+          const clean = decoded.replace(/\.[^/.]+$/, '');
+          return priceData[clean] || null;
+        }catch(e){ return null; }
+      }
+
+      function skinMatchesPriceFilter(name, filter){
+        const info = getPriceInfoForSkinName(name);
+        if (!info) return false;
+        const baseMin = Number(info.baseMin);
+        const baseMax = Number(info.baseMax);
+        const statMin = Number(info.statMin);
+        const statMax = Number(info.statMax);
+        if (!Number.isFinite(baseMin) || !Number.isFinite(baseMax) || !Number.isFinite(statMin) || !Number.isFinite(statMax)) return false;
+        if (filter && filter.mode === 'under') return baseMax < filter.threshold && statMax < filter.threshold;
+        if (filter && filter.mode === 'over') return baseMin > filter.threshold && statMin > filter.threshold;
+        return true;
+      }
+
+      function getActivePriceFilter(){
+        const text = String(activePopupString || '').toLowerCase();
+        if (!text) return null;
+        if (/skins<1\$|skins < 1\$|skin<1\$|skin < 1\$/.test(text)) return { mode: 'under', threshold: 1 };
+        if (/skin>50\$|skins>50\$|skin > 50\$|skins > 50\$/.test(text)) return { mode: 'over', threshold: 50 };
+        return null;
+      }
+
+      function getEligibleRaritiesForPriceFilter(filter){
+        const raritiesToTry = ['blue', 'purple', 'pink', 'red', 'gold'];
+        return raritiesToTry.filter(rarity => {
+          const pool = rarity === 'blue' ? blueSkins : rarity === 'purple' ? purpleSkins : rarity === 'pink' ? pinkSkins : rarity === 'red' ? redSkins : rarity === 'gold' ? goldSkins : [];
+          if (!pool || !pool.length) return false;
+          return pool.some(name => skinMatchesPriceFilter(name, filter));
+        });
+      }
+
+      function pickSkinForRarity(rarity){
+        const priceFilter = getActivePriceFilter();
+        let pool = [];
+        if (rarity === 'blue') pool = blueSkins;
+        else if (rarity === 'purple') pool = purpleSkins;
+        else if (rarity === 'pink') pool = pinkSkins;
+        else if (rarity === 'red') pool = redSkins;
+        else if (rarity === 'gold') pool = goldSkins;
+        if (!pool || !pool.length) return null;
+        let candidates = pool;
+        if (priceFilter){
+          candidates = pool.filter(name => skinMatchesPriceFilter(name, priceFilter));
+          if (!candidates.length){
+            const fallbackRarities = getEligibleRaritiesForPriceFilter(priceFilter);
+            if (fallbackRarities.length){
+              const fallbackPool = fallbackRarities.includes(rarity) ? pool : (fallbackRarities[0] === 'blue' ? blueSkins : fallbackRarities[0] === 'purple' ? purpleSkins : fallbackRarities[0] === 'pink' ? pinkSkins : fallbackRarities[0] === 'red' ? redSkins : fallbackRarities[0] === 'gold' ? goldSkins : []);
+              candidates = fallbackPool.filter(name => skinMatchesPriceFilter(name, priceFilter));
+            }
+          }
+        }
+        if (!candidates.length) return null;
+        const name = candidates[Math.floor(Math.random() * candidates.length)];
+        const dir = rarity === 'gold' ? goldDir : skinsDir;
+        return dir + encodeURIComponent(name);
+      }
+
+      function getActiveRarityOverrideForPlayer(playerIndex){
+        const text = String(activePopupString || '').toLowerCase();
+        if (!text) return null;
+        if (/que des golds/.test(text) && /all/.test(text)) return 'gold';
+        if (/skin>50\$|skins>50\$|skin > 50\$|skins > 50\$/.test(text) && /all/.test(text)) return ['red', 'gold'];
+        if (/1 gold garanti|1 gold/.test(text)){
+          return activeGoldTargetPlayerIndex != null && playerIndex === activeGoldTargetPlayerIndex ? 'gold' : null;
+        }
+        if (/1 rouge garanti|1 rouge\b/.test(text)){
+          return activeRedTargetPlayerIndex != null && playerIndex === activeRedTargetPlayerIndex ? 'red' : null;
+        }
+        if (/rouges?\s*(?:\/|et)?\s*roses?/.test(text) && /all/.test(text)) return ['red', 'pink'];
+        return null;
+      }
+
+      function pickRarity(playerIndex){
+        const override = getActiveRarityOverrideForPlayer(playerIndex);
+        if (override === 'gold') return 'gold';
+        if (override === 'red') return 'red';
+        if (Array.isArray(override)) return override[Math.floor(Math.random() * override.length)];
+        const priceFilter = getActivePriceFilter();
+        if (priceFilter){
+          const eligibleRarities = getEligibleRaritiesForPriceFilter(priceFilter);
+          if (eligibleRarities.length){
+            return eligibleRarities[Math.floor(Math.random() * eligibleRarities.length)];
+          }
+        }
+        const r = Math.random();
+        for (let i=0;i<distribution.length;i++){ if (r <= distribution[i].cutoff) return distribution[i].id; }
+        return distribution[distribution.length-1].id;
+      }
+
+      // randomize / apply rarity to an existing square element
+      function randomizeSquare(el, track, playerIndex){
+        const size = track._squareSize || 48;
+        el.className = 'slot-square';
+        el.style.width = size + 'px'; el.style.height = size + 'px'; el.style.flex = '0 0 ' + size + 'px';
+        const rarity = pickRarity(playerIndex);
+        el.classList.add('rarity-' + rarity);
+        // remove previous skin image if present
+        const prev = el.querySelector('img.slot-skin'); if (prev) prev.remove();
+        const skinPath = pickSkinForRarity(rarity);
+        if (skinPath){
+          const img = document.createElement('img'); img.className = 'slot-skin'; img.alt = '';
+          img.src = skinPath;
+          img.onerror = function(){ this.remove(); };
+          el.appendChild(img);
+        }
+      }
+
+      // create or update the persistent right-side display for a player's best item
+      function setBestItemForPlayer(idx){
+        try{
+          const p = players[idx]; if (!p) return;
+          if (!p.bestItemSrc) return;
+          let outR = document.querySelector('.won-outside-right[data-player="' + idx + '"]');
+          if (!outR){
+            outR = document.createElement('div');
+            outR.className = 'won-outside won-outside-right';
+            outR.dataset.player = String(idx);
+            outR.dataset.side = 'right';
+            document.body.appendChild(outR);
+          }
+
+          // ensure a global header exists above best-item displays
+          try{
+            let bestHeader = document.getElementById('bestItemsHeader');
+            const overlayEl = document.getElementById('stacksOverlay');
+            const overlayRect = overlayEl ? overlayEl.getBoundingClientRect() : { right: Math.min(window.innerWidth * 0.9, window.innerWidth - 100), top: Math.max(12, window.innerHeight * 0.15) };
+            const margin = 12, extraShift = 48;
+            if (!bestHeader){
+              bestHeader = document.createElement('div'); bestHeader.id = 'bestItemsHeader'; bestHeader.className = 'best-items-header'; bestHeader.textContent = 'Meilleur Item:'; document.body.appendChild(bestHeader);
+            }
+            // position header to the same X as right-side items (above them)
+            bestHeader.style.left = Math.round(overlayRect.right + margin + extraShift) + 'px';
+            bestHeader.style.top = Math.max(8, overlayRect.top - 8) + 'px';
+          }catch(e){}
+
+          // build content: name (label) above image, image, then price below (original arrangement)
+          outR.innerHTML = '';
+          const entry = document.createElement('div'); entry.className = 'won-item';
+          // label above image
+          const label = document.createElement('div'); label.className = 'won-label'; label.textContent = p.bestItemName || '';
+          label.style.color = p.bestItemRarityColor || '#fff';
+          entry.appendChild(label);
+          const wrap = document.createElement('div'); wrap.className = 'won-img-wrap';
+          const glow = document.createElement('div'); glow.className = 'won-glow';
+          glow.style.backgroundImage = `linear-gradient(${hexToRgba(p.bestItemRarityColor||'#fff',0.5)}, ${hexToRgba(p.bestItemRarityColor||'#fff',0.5)}), url(assets/GlowWheel.png)`;
+          glow.style.backgroundBlendMode = 'screen'; glow.style.backgroundSize = 'contain'; wrap.appendChild(glow);
+          if (p.bestItemSrc){ const im = document.createElement('img'); im.className = 'won-skin-out'; im.src = p.bestItemSrc; im.alt = p.bestItemName || ''; im.style.width = (p.bestItemImgW || 120) + 'px'; im.style.height = (p.bestItemImgW || 120) + 'px'; wrap.appendChild(im); }
+          entry.appendChild(wrap);
+          // price below image
+          if (p.bestItemPrice != null){
+            const pricesDiv = document.createElement('div'); pricesDiv.className = 'won-prices';
+            const estLine = document.createElement('div'); estLine.className = 'won-est'; estLine.textContent = formatMoney(p.bestItemPrice);
+            if (p.bestItemIsStatTrak) estLine.classList.add('won-price-stattrack'); else estLine.classList.add('won-price-base');
+            pricesDiv.appendChild(estLine);
+            entry.appendChild(pricesDiv);
+          }
+          outR.appendChild(entry);
+          // initial placement (try overlay / rect, fallback to pill and viewport)
+          try{
+            const overlayEl = document.getElementById('stacksOverlay');
+            const overlayRect = overlayEl ? overlayEl.getBoundingClientRect() : { left: Math.max(window.innerWidth * 0.1, 100), right: Math.min(window.innerWidth * 0.9, window.innerWidth - 100) };
+            const rect = document.querySelector('.player-stack-rect[data-player-index="' + idx + '"]');
+            const pillEl = document.querySelector('.player-pill[data-player-index="' + idx + '"]');
+            const refRect = rect ? rect.getBoundingClientRect() : (pillEl ? pillEl.getBoundingClientRect() : { top: window.innerHeight/2, height: 40 });
+            const imgW = p.bestItemImgW || 120;
+            const margin = 12; const extraShift = 48;
+            let left = Math.round(overlayRect.right + margin + extraShift + (imgW / 2));
+            const maxLeft = Math.max(12, window.innerWidth - imgW - 12);
+            if (left > maxLeft) left = maxLeft;
+            const top = Math.round(refRect.top + refRect.height / 2);
+            outR.style.left = left + 'px'; outR.style.top = top + 'px';
+            outR.dataset._imgW = String(imgW);
+            outR.classList.add('show');
+          }catch(e){}
+          // ensure RAF loop is running to keep it synced
+          ensureWonOutsideLoopRunning();
+        }catch(e){}
+      }
+
+      // apply a specific rarity (and skin) to an element
+      function applyRarityToSquare(el, track, rarity, skinPath, playerIndex){
+        if (!el) return;
+        const size = track._squareSize || 48;
+        // remove any existing rarity-* classes
+        rarities.forEach(r => el.classList.remove('rarity-' + r.id));
+        el.classList.remove('lift');
+        el.classList.add('slot-square');
+        el.style.width = size + 'px'; el.style.height = size + 'px'; el.style.flex = '0 0 ' + size + 'px';
+        el.classList.add('rarity-' + rarity);
+        const prev = el.querySelector('img.slot-skin'); if (prev) prev.remove();
+        const finalSkin = skinPath || pickSkinForRarity(rarity);
+        if (finalSkin){
+          const img = document.createElement('img'); img.className = 'slot-skin'; img.alt = '';
+          img.src = finalSkin; img.onerror = function(){ this.remove(); };
+          el.appendChild(img);
+        }
+      }
+
+      // create a slot square with rarity applied
+      function createSquare(track, playerIndex){
+        const sq = document.createElement('div');
+        // assign a stable uid so we can preserve exact nodes across resizes
+        try{ sq.dataset.uid = 's' + (uidCounter++); } catch(e){}
+        randomizeSquare(sq, track, playerIndex);
+        return sq;
+      }
+
+      // keyboard handlers: numpad + and numpad - adjust chanceScale and log
+      window.addEventListener('keydown', (ev)=>{
+        // identify NumpadAdd / NumpadSubtract
+        if (ev.code === 'NumpadAdd' || ev.key === '+'){
+          chanceScale = Math.max(0.1, chanceScale * 1.2);
+          distribution = buildDistribution(chanceScale);
+          logChance();
+          ev.preventDefault();
+        } else if (ev.code === 'NumpadSubtract' || ev.key === '-'){
+          chanceScale = Math.max(0.1, chanceScale / 1.2);
+          distribution = buildDistribution(chanceScale);
+          logChance();
+          ev.preventDefault();
+        }
+      });
+
+      // cleanup track: compute how many left squares are fully off-screen, then in one rAF compensate transform and remove/append to avoid flicker
+      function cleanupTrackAfter(r){
+        const track = r.querySelector('.slot-track'); if (!track) return;
+        const parentRect = r.getBoundingClientRect();
+        let removed = 0;
+        // count how many leading children are offscreen (do not remove yet)
+        for (let i=0;i<track.children.length;i++){
+          const childRect = track.children[i].getBoundingClientRect();
+          if (childRect.right < parentRect.left - 2) removed++; else break;
+        }
+        if (removed <= 0) return;
+        const spacing = track._spacing || (track._squareSize + 8);
+        const currTx = getTranslateX(track);
+        // do DOM changes inside a rAF to batch paint and avoid flicker
+        requestAnimationFrame(()=>{
+          // compensate transform BEFORE removing nodes so visual position remains stable
+          const newTx = currTx + spacing * removed;
+          // disable transition to avoid animated jump
+          const prevTrans = track.style.transition;
+          track.style.transition = 'none';
+          track.style.transform = `translateX(${newTx}px)`;
+          // remove leading children and append same count at right
+          for (let k=0;k<removed;k++){ if (track.firstChild) track.removeChild(track.firstChild); }
+          for (let k=0;k<removed;k++){ track.appendChild(createSquare(track)); }
+          // restore transition (if any)
+          setTimeout(()=>{ track.style.transition = prevTrans || ''; }, 20);
+          // update meta
+          track._N = track.children.length;
+          // adjust lifted square to current center
+          const centerX = r.clientWidth / 2;
+          const currentTx = getTranslateX(track);
+          const startOffset = track._startOffset || 8;
+          const sqSize = track._squareSize || 0;
+          const shift = Math.max(6, Math.round(sqSize * 0.12));
+          const centerRelativeToTrack = centerX - shift - currentTx - startOffset;
+          const idx = Math.round((centerRelativeToTrack - sqSize/2) / spacing);
+          Array.from(track.children).forEach((c, i)=> c.classList.toggle('lift', i === idx));
+        });
+      }
+
+      // After an animation finishes, remove all squares after the first `keepLeft` ones (to avoid leftover squares
+      // generated with an old chance). New squares will be generated when the user presses 'Ouvrir'.
+      function trimTrackAfterAnimation(r, keepLeft = 4){
+        const track = r.querySelector('.slot-track'); if (!track) return;
+        requestAnimationFrame(()=>{
+          const parentRect = r.getBoundingClientRect();
+          const children = Array.from(track.children);
+          // collect indices of children that are fully off-screen to the RIGHT
+          const offRight = [];
+          for (let i = children.length - 1; i >= 0; i--){
+            const ch = children[i];
+            const cr = ch.getBoundingClientRect();
+            if (cr.left > parentRect.right + 2) offRight.push(i);
+          }
+          if (!offRight.length){ track._N = track.children.length; return; }
+
+          // ensure we keep at least `keepLeft` children in the track
+          const maxRemovable = Math.max(0, track.children.length - keepLeft);
+          const removeCount = Math.min(offRight.length, maxRemovable);
+          for (let k = 0; k < removeCount; k++){
+            const idx = offRight[k];
+            if (track.children[idx]) track.removeChild(track.children[idx]);
+          }
+          track._N = track.children.length;
+          // clear lifts
+          Array.from(track.children).forEach(c => c.classList.remove('lift'));
+        });
+      }
+
+      // Real-time updater for `.won-outside` positions so they remain vertically centered on their
+      // `player-stack-rect` and slightly to the left of the overlay, even during zoom/scroll/resizes.
+      let wonOutsideRaf = null;
+      function updateWonOutsidePositions(){
+        const overlayEl = document.getElementById('stacksOverlay');
+        // if overlay not present, compute a safe fallback rect based on viewport
+        const fallbackOverlayRect = { left: Math.max(window.innerWidth * 0.1, 100), right: Math.min(window.innerWidth * 0.9, window.innerWidth - 100) };
+        const outs = Array.from(document.querySelectorAll('.won-outside, .won-outside-right'));
+        if (!outs.length) return false;
+        outs.forEach(out => {
+          const playerIdx = out.dataset.player;
+          const rect = document.querySelector('.player-stack-rect[data-player-index="' + playerIdx + '"]');
+          // if rect is not available, try to locate the player pill as fallback
+          const pillRectEl = document.querySelector('.player-pill[data-player-index="' + playerIdx + '"]');
+          if (!rect && !pillRectEl) return;
+          const overlayRect = overlayEl ? overlayEl.getBoundingClientRect() : fallbackOverlayRect;
+          const rectRect = rect ? rect.getBoundingClientRect() : pillRectEl.getBoundingClientRect();
+          // compute image width to determine horizontal offset
+          let imgW = 96;
+          const wrapEl = out.querySelector('.won-img-wrap');
+          if (out.dataset && out.dataset._imgW) imgW = parseInt(out.dataset._imgW, 10) || imgW;
+          else if (wrapEl) imgW = Math.round(wrapEl.offsetWidth || imgW);
+          const margin = 12; const extraShift = 48;
+          let left;
+          // decide side: right-side elements use different horizontal math
+          if (out.classList && out.classList.contains('won-outside-right')){
+            left = Math.round(overlayRect.right + margin + extraShift + (imgW / 2));
+            // ensure it doesn't overflow the viewport
+            const maxLeft = Math.max(12, window.innerWidth - imgW - 12);
+            if (left > maxLeft) left = maxLeft;
+          } else {
+            left = Math.round(overlayRect.left - margin - extraShift - (imgW / 2));
+            if (left < 12) left = 12;
+          }
+          const top = Math.round(rectRect.top + rectRect.height / 2);
+          // apply with no transition for immediate response to zoom/scroll
+          out.style.left = left + 'px'; out.style.top = top + 'px';
+        });
+        // update the 'Meilleur Item' header position to always be centered above the right-side best items
+        try{
+          const rightOuts = Array.from(document.querySelectorAll('.won-outside-right'));
+          if (rightOuts.length){
+            let minLeft = Infinity, maxRight = -Infinity, minTop = Infinity;
+            rightOuts.forEach(o => { try{ const rr = o.getBoundingClientRect(); minLeft = Math.min(minLeft, rr.left); maxRight = Math.max(maxRight, rr.right); minTop = Math.min(minTop, rr.top); }catch(e){} });
+            const header = document.getElementById('bestItemsHeader');
+            if (header){
+              let centerX = Math.round((minLeft + maxRight) / 2);
+              // clamp to viewport with small margin
+              const halfW = Math.round((header.offsetWidth || 160) / 2);
+              centerX = Math.max(12 + halfW, Math.min(window.innerWidth - 12 - halfW, centerX));
+              header.style.left = centerX + 'px';
+              header.style.transform = 'translateX(-50%)';
+              const top = Math.max(6, Math.round(minTop - (header.offsetHeight || 24) - 8));
+              header.style.top = top + 'px';
+              header.style.display = 'block';
+            }
+          } else {
+            const header = document.getElementById('bestItemsHeader'); if (header) header.style.display = 'none';
+          }
+        }catch(e){}
+        return true;
+      }
+      function ensureWonOutsideLoopRunning(){
+        if (wonOutsideRaf) return;
+        function loop(){
+          const ok = updateWonOutsidePositions();
+          if (ok) wonOutsideRaf = requestAnimationFrame(loop); else wonOutsideRaf = null;
+        }
+        wonOutsideRaf = requestAnimationFrame(loop);
+      }
+      function stopWonOutsideLoop(){ if (wonOutsideRaf){ cancelAnimationFrame(wonOutsideRaf); wonOutsideRaf = null; } }
+
+      // display the winning item for a given player rect (placed to the LEFT, outside the rect)
+      function showWinForRect(r){
+        const track = r.querySelector('.slot-track'); if (!track) return;
+        const rectW = r.clientWidth;
+        const startOffset = track._startOffset || 8;
+        const sqSize = track._squareSize || 48;
+        const spacing = track._spacing || (sqSize + 8);
+        const tx = getTranslateX(track) || 0;
+        const centerX = rectW / 2;
+        const shift = Math.max(6, Math.round(sqSize * 0.12));
+        const centerRelativeToTrack = centerX - shift - tx - startOffset;
+        const idx = Math.round((centerRelativeToTrack - sqSize/2) / spacing);
+        const clamped = Math.max(0, Math.min(idx, track.children.length - 1));
+        const winner = track.children[clamped]; if (!winner) return;
+        const img = winner.querySelector && winner.querySelector('img.slot-skin');
+        const src = img ? img.src : null;
+        let fileName = src ? decodeURIComponent(src.split('/').pop()) : 'item';
+        // remove extension like .png
+        fileName = fileName.replace(/\.[^/.]+$/, '');
+
+        // remove any previous LEFT per-rect display for this player (preserve persistent right-side best item)
+        const playerIdx = r.dataset.playerIndex != null ? String(r.dataset.playerIndex) : '';
+        document.querySelectorAll('.won-outside').forEach(e => { if (e.dataset && e.dataset.player === playerIdx && !e.classList.contains('won-outside-right')) e.remove(); });
+
+        // compute position to the LEFT of the overlay so it's visible (use fixed positioning)
+        const overlayEl = document.getElementById('stacksOverlay');
+        const overlayRect = overlayEl ? overlayEl.getBoundingClientRect() : { left: Math.max(window.innerWidth * 0.1, 100) };
+        const rectRect = r.getBoundingClientRect();
+        const imgW = 96; const margin = 12;
+        const extraShift = 48;
+        // ensure left placement stays within viewport (avoid being hidden off-screen)
+        let leftCenter = Math.round(overlayRect.left - margin - extraShift - (imgW / 2));
+        if (leftCenter < 12) leftCenter = 12;
+        const top = Math.round(rectRect.top + rectRect.height / 2);
+
+        const out = document.createElement('div'); out.className = 'won-outside'; out.dataset.player = playerIdx;
+        out.style.left = leftCenter + 'px'; out.style.top = top + 'px';
+        const entry = document.createElement('div'); entry.className = 'won-item';
+        // adapt sizes based on rect height
+        try{
+          const rectH = r.clientHeight || 96;
+          // compute target image size as ~75% of rect inner height but clamped (slightly larger)
+          const innerPad = 24; // approximate top+bottom padding
+          const targetImg = Math.max(72, Math.min(220, Math.round((rectH - innerPad) * 0.75)));
+          const labelSize = Math.max(12, Math.round(targetImg * 0.12));
+          // apply inline sizes to be safe with fixed positioning
+          entry.style.maxWidth = Math.max(140, targetImg + 24) + 'px';
+          entry.style.alignItems = 'center';
+          // attach computed sizes to classes via style on-made elements below
+          entry.dataset._imgSize = String(targetImg);
+          entry.dataset._labelSize = String(labelSize);
+        }catch(e){}
+        const label = document.createElement('div'); label.className = 'won-label'; label.textContent = fileName;
+        entry.appendChild(label);
+        // condition value and text (small, next to number)
+        // Allow certain popup events to override the random condition or force StatTrack
+        // Only consider the event that was applied at Open (`activePopupString`).
+        // Do NOT fall back to `popupMessageMap` here to avoid applying scheduled events before the user clicks Open.
+        const currentEventLabel = activePopupString || null;
+        let condValue = Math.random();
+        let forcedStatTrack = false;
+        try{
+          if (currentEventLabel){
+            const lbl = String(currentEventLabel).toLowerCase();
+            // QUE des StatTracks -> force all wins to be StatTrack
+            if (/stattrack/.test(lbl) || /stattracks/.test(lbl)){
+              forcedStatTrack = true;
+              console.log('%c🔧 Event: forcing StatTrack for this open','color:#f1c40f;font-weight:700;', currentEventLabel);
+            }
+            // Factory New garanti -> set condition low (Factory New threshold < 0.07)
+            if (/factory\s*new/i.test(currentEventLabel) || /factory new/i.test(lbl)){
+              condValue = 0.01 + Math.random() * (0.069 - 0.01);
+              console.log('%c✨ Event: Factory New guaranteed, condition set to','color:#2ecc71;font-weight:700;', condValue.toFixed(3));
+            }
+            // Battle-scarred garanti -> set condition high (>= 0.45)
+            if (/battle[- ]?scar/i.test(lbl) || /battle\s*scared/i.test(lbl) || /battle-scarred/i.test(lbl)){
+              condValue = 0.45 + Math.random() * (0.99 - 0.45);
+              console.log('%c⚠️ Event: Battle-scarred guaranteed, condition set to','color:#e74c3c;font-weight:700;', condValue.toFixed(3));
+            }
+          }
+        }catch(e){}
+
+        const condText = (v => {
+          if (v >= 0.45) return 'Battle-scarred';
+          if (v >= 0.38) return 'Well-worn';
+          if (v >= 0.15) return 'Field-tested';
+          if (v >= 0.07) return 'Minimal wear';
+          return 'Factory new';
+        })(condValue);
+        const info = document.createElement('div'); info.className = 'won-info';
+        const num = document.createElement('div'); num.className = 'won-float'; num.textContent = condValue.toFixed(2);
+        const cond = document.createElement('div'); cond.className = 'won-condition'; cond.textContent = condText;
+        info.appendChild(num); info.appendChild(cond);
+        entry.appendChild(info);
+        // chance to be StatTrack (configurable). Events may force StatTrack.
+        let isStatTrack = Math.random() < (typeof STAT_TRACK_CHANCE !== 'undefined' ? STAT_TRACK_CHANCE : 0.10);
+        if (forcedStatTrack) isStatTrack = true;
+        if (isStatTrack){ const st = document.createElement('div'); st.className = 'won-stattrack'; st.textContent = 'StatTrack'; entry.appendChild(st); }
+        // glow background
+        const wrap = document.createElement('div'); wrap.className = 'won-img-wrap';
+        const glow = document.createElement('div'); glow.className = 'won-glow';
+        // determine rarity color of the winner (if available)
+        let rarityColor = '#fff'; let wonRarity = null;
+        try{
+          const cls = Array.from(winner.classList).find(c=>c.startsWith('rarity-')) || 'rarity-blue';
+          const rarity = cls.replace('rarity-','');
+          wonRarity = rarity;
+          const rarObj = rarities.find(rr=>rr.id===rarity);
+          if (rarObj) rarityColor = rarObj.color;
+        }catch(e){}
+        // tint the glow by layering a semi-transparent color over the wheel and blend
+        glow.style.backgroundImage = `linear-gradient(${hexToRgba(rarityColor,0.5)}, ${hexToRgba(rarityColor,0.5)}), url(assets/GlowWheel.png)`;
+        glow.style.backgroundBlendMode = 'screen';
+        glow.style.backgroundSize = 'contain';
+        glow.style.opacity = '0.5';
+        glow.style.filter = 'saturate(1.1) blur(2px)';
+        wrap.appendChild(glow);
+        if (src){ const im = document.createElement('img'); im.className = 'won-skin-out'; im.src = src; im.alt = fileName; wrap.appendChild(im); }
+        entry.appendChild(wrap);
+
+        // price display: compute estimated price from durability; show only the relevant price (StatTrack or base)
+        const prices = priceData[fileName];
+        if (prices){
+          const pricesDiv = document.createElement('div'); pricesDiv.className = 'won-prices';
+          const useStat = isStatTrack && prices.statMin != null && prices.statMax != null;
+          const minPrice = useStat ? prices.statMin : prices.baseMin;
+          const maxPrice = useStat ? prices.statMax : prices.baseMax;
+          // only show the computed estimated price (no min/max ranges)
+          const est = estimatePrice(minPrice, maxPrice, condValue);
+          const estLine = document.createElement('div'); estLine.className = 'won-est';
+          estLine.textContent = formatMoney(est);
+          estLine.style.color = useStat ? '#FF8A00' : '#fff';
+          pricesDiv.appendChild(estLine);
+          entry.appendChild(pricesDiv);
+
+          // update player's total value and best-item record
+          try{
+            const pIdxNum = parseInt(playerIdx, 10) || 0;
+            if (players && players[pIdxNum]){
+              players[pIdxNum].totalValue = (players[pIdxNum].totalValue || 0) + est;
+              // update pill display
+              updatePlayerValueInPill(players[pIdxNum]);
+
+              // update best item only if this est is strictly greater than stored best
+              const prevBest = players[pIdxNum].bestItemPrice || 0;
+              if (est > prevBest){
+                players[pIdxNum].bestItemPrice = est;
+                players[pIdxNum].bestItemName = fileName;
+                players[pIdxNum].bestItemSrc = src;
+                players[pIdxNum].bestItemRarityColor = rarityColor || players[pIdxNum].bestItemRarityColor || players[pIdxNum].color;
+                // record whether this best item is StatTrak so persistent display can style the price
+                players[pIdxNum].bestItemIsStatTrak = useStat;
+                // also persist the computed image width (if available) for better placement
+                try{ if (entry && entry.dataset && entry.dataset._imgSize) players[pIdxNum].bestItemImgW = parseInt(entry.dataset._imgSize,10) || players[pIdxNum].bestItemImgW || 120; }catch(e){}
+                // create or update the right-side persistent display for this player's best item
+                try{ setBestItemForPlayer(pIdxNum); } catch(e){}
+              }
+            }
+          }catch(e){}
+        }
+
+        out.appendChild(entry);
+        // trigger gold flash when winning a gold rarity
+        try{ if (wonRarity === 'gold') triggerGoldFlash(); }catch(e){}
+        // color the label in the rarity color and adjust sizes from computed dataset if present
+        label.style.color = rarityColor;
+        if (entry.dataset && entry.dataset._labelSize){ label.style.fontSize = entry.dataset._labelSize + 'px'; }
+        // slightly tint the numeric value using the rarity color for subtle emphasis
+        num.style.background = hexToRgba(rarityColor, 0.08);
+        num.style.color = hexToRgba(rarityColor, 1);
+        // apply image sizing if computed and record image width on the `out` element
+        if (entry.dataset && entry.dataset._imgSize){
+          const s = parseInt(entry.dataset._imgSize,10) || 96;
+          const imgEl = wrap.querySelector('.won-skin-out');
+          if (imgEl){ imgEl.style.width = s + 'px'; imgEl.style.height = s + 'px'; }
+          wrap.style.width = s + 'px'; wrap.style.height = s + 'px';
+          out.dataset._imgW = String(s);
+          // compute an accurate initial left position using the actual image size
+          try{
+            let leftNow = Math.round(overlayRect.left - margin - extraShift - (s / 2));
+            if (leftNow < 12) leftNow = 12;
+            out.style.left = leftNow + 'px';
+          }catch(e){}
+        }
+
+        document.body.appendChild(out);
+        // start continuous position updates for won-outside elements
+        ensureWonOutsideLoopRunning();
+        // small tweak: reduce gap between label/info and image for compactness
+        requestAnimationFrame(()=>{
+          out.classList.add('show');
+          const lbl = out.querySelector('.won-label'); const inf = out.querySelector('.won-info'); const wrapEl = out.querySelector('.won-img-wrap');
+          if (lbl) lbl.style.marginBottom = '0px';
+          if (inf) inf.style.marginBottom = '0px';
+          if (wrapEl) wrapEl.style.marginBottom = '0px';
+        });
+      }
+
+        // helper: show gold flash overlay when a gold item is won
+        function triggerGoldFlash(){
+          try{
+            const gf = document.getElementById('goldFlash'); if (!gf) return;
+            gf.classList.add('show');
+            setTimeout(()=>{ gf.classList.remove('show'); }, 300);
+          }catch(e){}
+        }
+
+      // Popup: show top-right popup with 1/3 chance at end of an animation; hide at end of next animation
+      const popupEl = document.getElementById('topRightPopup');
+      let popupVisible = false;
+      let popupHideNext = false;
+      let pendingChanceEvent = null;
+      let activeChanceEvent = null;
+      // pending/active generic popup event strings
+      let pendingPopupString = null;
+      let activePopupString = null;
+      let activeGoldTargetPlayerIndex = null;
+      let activeRedTargetPlayerIndex = null;
+      function parseChanceEventText(text){
+        if (!text || typeof text !== 'string') return null;
+        const cleaned = text.replace(/^EVENT:\s*/i, '').trim();
+        const match = cleaned.match(/Chance\s*x\s*([0-9]+(?:\.[0-9]+)?)/i);
+        return match ? Number(match[1]) : null;
+      }
+      function ensurePendingChanceEventFromPopup(){
+        if (pendingChanceEvent || !popupVisible || !popupHideNext) return;
+        try{
+          const raw = popupEl && popupEl.textContent ? popupEl.textContent.replace(/^EVENT:\s*/i, '').trim() : '';
+          const multiplier = parseChanceEventText(raw);
+          if (multiplier && !Number.isNaN(multiplier)){
+            pendingChanceEvent = { text: raw, multiplier };
+            console.log('Detected pending chance event from popup:', raw);
+          }
+          // also record the raw popup text as a pending popup event (applied on next Open)
+          try{ if (raw && !pendingPopupString) { pendingPopupString = raw; console.log('%c(pending popup stored)','color:#7f8c8d;', raw); } }catch(e){}
+        }catch(e){ }
+      }
+      function applyPendingChanceEvent(){
+        if (!pendingChanceEvent || activeChanceEvent) return;
+        try{
+          const previousChanceScale = chanceScale;
+          const multiplier = pendingChanceEvent.multiplier;
+          if (typeof multiplier !== 'number' || Number.isNaN(multiplier)){
+            pendingChanceEvent = null;
+            return;
+          }
+          activeChanceEvent = { text: pendingChanceEvent.text, multiplier, previousChanceScale };
+          chanceScale = Math.max(0.1, previousChanceScale * multiplier);
+          distribution = buildDistribution(chanceScale);
+          console.log('%c🎲 Event applied:','color:#2ecc71;font-weight:700;', activeChanceEvent.text);
+          console.log('%c   from scale=%s to scale=%s','color:#8e44ad;', previousChanceScale.toFixed(3), chanceScale.toFixed(3));
+          logChance('Event distribution');
+        }catch(e){ console.warn('Failed to apply chance event', e); }
+        pendingChanceEvent = null;
+      }
+      function restoreChanceAfterEvent(){
+        if (!activeChanceEvent) return;
+        try{
+          chanceScale = activeChanceEvent.previousChanceScale;
+          distribution = buildDistribution(chanceScale);
+          console.log('%c✅ Event ended:','color:#27ae60;font-weight:700;', activeChanceEvent.text);
+          console.log('%c   restored scale=%s','color:#2980b9;', chanceScale.toFixed(3));
+          logChance('Restored distribution');
+        }catch(e){ console.warn('Failed to restore chance after event', e); }
+        activeChanceEvent = null;
+      }
+      function applyPendingPopupEvent(){
+        if (!pendingPopupString || activePopupString) return;
+        try{
+          activePopupString = pendingPopupString;
+          pendingPopupString = null;
+          activeGoldTargetPlayerIndex = null;
+          activeRedTargetPlayerIndex = null;
+          const text = String(activePopupString).toLowerCase();
+          if (/1 gold garanti|1 gold/.test(text)){
+            activeGoldTargetPlayerIndex = Math.floor(Math.random() * Math.max(1, players.length));
+            console.log('%c🟡 Single gold event target:','color:#f1c40f;font-weight:700;', activeGoldTargetPlayerIndex);
+          } else if (/que des golds/.test(text) && /all/.test(text)){
+            console.log('%c🟡 All players gold event active','color:#f1c40f;font-weight:700;');
+          }
+          if (/1 rouge garanti|1 rouge\b/.test(text)){
+            activeRedTargetPlayerIndex = Math.floor(Math.random() * Math.max(1, players.length));
+            console.log('%c🔴 Single red event target:','color:#e74c3c;font-weight:700;', activeRedTargetPlayerIndex);
+          } else if (/rouges?\s*(?:\/|et)?\s*roses?/.test(text) && /all/.test(text)){
+            console.log('%c🔴🩷 All players red/pink event active','color:#e74c3c;font-weight:700;');
+          }
+          if (/skins<1\$|skins < 1\$|skin<1\$|skin < 1\$/.test(text)){
+            console.log('%c💲 Under $1 skin event active','color:#2ecc71;font-weight:700;');
+          } else if (/skin>10\$|skins>10\$|skin > 10\$|skins > 10\$/.test(text)){
+            console.log('%c💲 Over $10 skin event active','color:#2ecc71;font-weight:700;');
+          } else if (/skin>50\$|skins>50\$|skin > 50\$|skins > 50\$/.test(text)){
+            console.log('%c💲 Over $50 skin event active','color:#2ecc71;font-weight:700;');
+          }
+          console.log('%c🔔 Event applied to this open:','color:#9b59b6;font-weight:700;', activePopupString);
+        }catch(e){ console.warn('Failed to apply pending popup event', e); }
+      }
+      function restoreActivePopupEvent(){
+        if (!activePopupString) return;
+        try{ console.log('%c🔕 Event ended for open:','color:#95a5a6;font-weight:700;', activePopupString); }catch(e){}
+        activePopupString = null;
+        activeGoldTargetPlayerIndex = null;
+        activeRedTargetPlayerIndex = null;
+      }
+      function showTopRightPopup(text, opts){
+        try{
+          if (!popupEl) return;
+          const force = opts && opts.force;
+          // safety: do not show if it was shown on previous opening (no consecutive shows)
+          if (!force && typeof lastPopupShownOpen !== 'undefined' && openCount - lastPopupShownOpen <= 1){
+            console.log('Popup suppressed to avoid consecutive show (openCount=', openCount, 'lastShown=', lastPopupShownOpen, ')');
+            return;
+          }
+          popupEl.textContent = 'EVENT: ' + text;
+          // record pending popup event to be applied on next user Open
+          try{ pendingPopupString = text; console.log('%c🔔 Popup shown (pending for next Open):','color:#f39c12;font-weight:700;', text); }catch(e){}
+          try{
+            const nextEvent = localStorage.getItem('tiny-event-next');
+            if (nextEvent && nextEvent.trim() === text.trim()){
+              localStorage.removeItem('tiny-event-next');
+              window.dispatchEvent(new CustomEvent('tiny-event-cleared'));
+              console.log('%c🔔 tiny-event-next consumed and cleared','color:#d35400;font-weight:700;');
+            }
+          }catch(e){}
+          popupEl.setAttribute('aria-hidden', 'false');
+          // force reflow so transition applies when toggling class
+          void popupEl.offsetWidth;
+          popupEl.classList.add('show');
+          popupVisible = true;
+          try{ lastPopupShownOpen = openCount; }catch(e){}
+          try{ spawnPopupParticles(); }catch(e){}
+          console.log('Popup shown (openCount=', openCount, ')');
+        }catch(e){}
+      }
+      function hideTopRightPopup(){
+        try{
+          if (!popupEl) return;
+          popupEl.classList.remove('show');
+          // mark hidden after fade-out completes
+          setTimeout(()=>{ try{ popupEl.setAttribute('aria-hidden', 'true'); }catch(e){} }, 320);
+          popupVisible = false; popupHideNext = false;
+          console.log('Popup hidden (openCount=', openCount, ')');
+        }catch(e){}
+      }
+      // simple particle burst anchored to the popup center
+      function spawnPopupParticles(count = 14){
+        try{
+          if (!popupEl) return;
+          const rect = popupEl.getBoundingClientRect();
+          const startX = rect.left + rect.width/2;
+          const startY = rect.top + rect.height/2;
+          const colors = ['#FFD700','#FFF3B0','#FFB347','#FFE49C','#FFF7E0'];
+          for (let i=0;i<count;i++){
+            const p = document.createElement('div');
+            p.className = 'popup-particle';
+            const size = Math.floor(Math.random()*8) + 4;
+            p.style.width = p.style.height = size + 'px';
+            p.style.left = startX + 'px';
+            p.style.top = startY + 'px';
+            p.style.background = colors[Math.floor(Math.random()*colors.length)];
+            p.style.opacity = '1';
+            p.style.transform = 'translate(-50%,-50%) translate(0px,0px) scale(1)';
+            document.body.appendChild(p);
+            (function(el){
+              const angle = Math.random() * Math.PI * 2;
+              const dist = 24 + Math.random() * 48;
+              const tx = Math.cos(angle) * dist;
+              const ty = Math.sin(angle) * dist - (Math.random()*12);
+              requestAnimationFrame(()=>{
+                el.style.transition = 'transform 620ms cubic-bezier(.2,.8,.2,1), opacity 520ms linear';
+                el.style.transform = `translate(-50%,-50%) translate(${tx}px, ${ty}px) scale(0.6)`;
+                el.style.opacity = '0';
+              });
+              setTimeout(()=>{ try{ el.remove(); }catch(e){} }, 900);
+            })(p);
+          }
+        }catch(e){}
+      }
+      function scheduleMaybeShowPopupAfterAnimation(){
+        try{
+          // avoid duplicate decisions within the same opening
+          if (typeof lastPopupDecisionOpen !== 'undefined' && lastPopupDecisionOpen === openCount){
+            console.log('scheduleMaybe: already decided for open', openCount);
+            return;
+          }
+          lastPopupDecisionOpen = openCount;
+
+          console.log('scheduleMaybe called for open', openCount, 'popupVisible=', popupVisible, 'popupHideNext=', popupHideNext, 'schedule=', popupSchedule ? Array.from(popupSchedule).sort((a,b)=>a-b) : null);
+
+          // do not show popup on the final (10th) opening; if visible and scheduled to hide, hide it
+          if (typeof openCount !== 'undefined' && openCount >= 10){
+            try{ if (popupVisible && popupHideNext) { console.log('scheduleMaybe: hiding popup on final open', openCount); hideTopRightPopup(); } }catch(e){}
+            return;
+          }
+
+          // Manual selections are applied to the scheduled openings via `popupMessageMap`.
+          // Do not show manual selections immediately here — they are applied when the scheduled opens occur.
+          // if popup is visible and scheduled to hide on next finalize, hide it now
+          if (popupVisible && popupHideNext){ console.log('scheduleMaybe: hiding popup (popupHideNext) at open', openCount); hideTopRightPopup(); return; }
+          // if popup already visible (but not scheduled to hide), do nothing
+          if (popupVisible){ console.log('scheduleMaybe: popup already visible, skipping show at open', openCount); return; }
+
+          // if a predetermined schedule exists, follow it (strictly)
+          if (popupSchedule){
+            if (popupSchedule.has(openCount)){
+              console.log('scheduleMaybe: popup scheduled for open', openCount);
+              const msg = (popupMessageMap && popupMessageMap[openCount]) ? popupMessageMap[openCount] : 'texte de test';
+              const multiplier = parseChanceEventText(msg);
+              if (multiplier && !Number.isNaN(multiplier)){
+                pendingChanceEvent = { text: msg, multiplier };
+                console.log('Pending chance event for next open:', msg);
+              }
+              showTopRightPopup(msg);
+              popupHideNext = true;
+            } else {
+              console.log('scheduleMaybe: not scheduled for open', openCount);
+            }
+            return;
+          }
+          // no schedule defined: do not show by default
+          console.log('scheduleMaybe: no popupSchedule defined, skipping show for open', openCount);
+        }catch(e){}
+      }
+
+      // programmatic chance increase (used by Numpad+ simulation)
+      function increaseChanceProgrammatic(){ chanceScale = Math.max(0.1, chanceScale * 1.2); distribution = buildDistribution(chanceScale); logChance(); }
+
+      // animation helper for one track (lift stays while square under ticker)
+      function animateTrackForRect(r){
+        const track = r.querySelector('.slot-track');
+        if (!track) return;
+        const playerIndex = r.dataset && r.dataset.playerIndex != null ? parseInt(r.dataset.playerIndex,10) : null;
+        // clear previous lifts
+        track.querySelectorAll('.slot-square').forEach(sq=> sq.classList.remove('lift'));
+        const squareSize = track._squareSize || 48;
+        const spacing = track._spacing || (squareSize + 8);
+        const startOffset = track._startOffset || 8;
+        const rectW = r.clientWidth;
+
+        // compute visible count & scroll distance (several screens)
+        const visibleCount = Math.max(6, Math.ceil(rectW / spacing) + 2);
+        const extraScreens = 4 + Math.floor(Math.random() * 6); // 4..9 screens
+        const deltaSquares = visibleCount * extraScreens;
+
+        // ensure track has enough squares to cover the scroll distance
+        const need = Math.max(0, visibleCount + deltaSquares + 4 - (track._N || 0));
+        if (need > 0){
+          for (let i=0;i<need;i++){ track.appendChild(createSquare(track, playerIndex)); }
+          track._N = track.children.length;
+        }
+
+        // animate by moving left by deltaSquares * spacing from current translate (no teleport)
+        const initialTranslate = getTranslateX(track) || 0;
+        const deltaPx = deltaSquares * spacing;
+        const finalTranslate = initialTranslate - deltaPx;
+        const duration = animationDuration;
+        const startTime = performance.now();
+        let lastNearest = -1;
+        let compensation = 0; // px added each time we recycle a leading node
+
+        // disable track transition to avoid flicker while recycling
+        const prevTrans = track.style.transition;
+        track.style.transition = 'none';
+
+        // finalizer accessible from outside (skip button)
+        let _done = false;
+        function finalizeOnce(){
+          if (_done) return; _done = true;
+          try{
+            // ensure remaining leading squares are moved to the end so the DOM order matches the natural finish
+            const recycledSoFar = Math.round(compensation / spacing) || 0;
+            const remaining = Math.max(0, deltaSquares - recycledSoFar);
+            for (let k = 0; k < remaining; k++){
+              const first = track.firstChild; if (!first) break;
+              try{ track.removeChild(first); track.appendChild(first); randomizeSquare(first, track); }catch(e){}
+            }
+            track._N = track.children.length;
+            // set compensation as if all deltaSquares were recycled (so final transform matches natural end)
+            compensation = spacing * deltaSquares;
+          }catch(e){}
+          // finalize position with compensation applied
+          try{ track.style.transform = `translateX(${finalTranslate + compensation}px)`; }catch(e){}
+          // restore transition
+          setTimeout(()=>{ try{ track.style.transition = prevTrans || ''; }catch(e){} }, 20);
+          // mark rect finalized to avoid double handling
+          try{ r.dataset.finalized = '1'; }catch(e){}
+          // show the won item for this rect before trimming
+          try{ showWinForRect(r); } catch(e){}
+          // --- popup logic: after an animation ends there is a 1/3 chance to show popup
+          try{
+            scheduleMaybeShowPopupAfterAnimation();
+          }catch(e){}
+          // trim right-side squares and keep leftmost ones — new squares will be generated on next 'Ouvrir'
+          try{ trimTrackAfterAnimation(r, 4); }catch(e){}
+          // remove from active finishers map
+          try{ activeAnimationFinishers.delete(r); }catch(e){}
+          // mark one animation as finished; when all are done on the 10th open, show ranking
+          try{
+            if (typeof pendingAnimations !== 'undefined' && pendingAnimations > 0) pendingAnimations = Math.max(0, pendingAnimations - 1);
+            if (pendingAnimations === 0){
+              try{ if (typeof skipBtn !== 'undefined') skipBtn.classList.remove('show'); }catch(e){}
+              restoreChanceAfterEvent();
+              restoreActivePopupEvent();
+              if (openCount >= 10){
+                if (!finalRankingApplied){
+                  try{ showACs = true; }catch(e){}
+                  try{ openWrap.style.display = 'none'; }catch(e){}
+                  try{
+                    const sorted = players.slice().sort((a,b)=> (b.totalValue || 0) - (a.totalValue || 0));
+                    updatePlayerBarRanking(sorted, true);
+                    try{ scheduleApplyACs(sorted); }catch(e){}
+                  }catch(e){}
+                  try{ showSmallBackBtn(); }catch(e){}
+                  finalRankingApplied = true;
+                }
+              } else {
+                if (rankEnabled && !tempRankingShown){
+                  try{ const sorted = players.slice().sort((a,b)=> (b.totalValue || 0) - (a.totalValue || 0)); updatePlayerBarRanking(sorted, false); tempRankingShown = true; setTimeout(()=>{ try{ if (openCount < 10 && !rankEnabled){ try{ clearRankingBadges(); }catch(e){} } }catch(e){} tempRankingShown = false; }, 900); }catch(e){}
+                }
+              }
+            }
+          }catch(e){}
+        }
+        try{ activeAnimationFinishers.set(r, finalizeOnce); }catch(e){}
+
+        function step(now){
+          if (_done) return;
+          const t = Math.min(1, (now - startTime) / duration);
+          const ease = t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+          const desiredNoComp = initialTranslate + (finalTranslate - initialTranslate) * ease;
+          let desired = desiredNoComp + compensation;
+
+          // apply transform for this frame
+          track.style.transform = `translateX(${desired}px)`;
+
+          // recycle leading squares while they're off-screen to maintain a continuous stream
+          const parentRect = r.getBoundingClientRect();
+          while (track.firstChild){
+            const firstRect = track.firstChild.getBoundingClientRect();
+            if (firstRect.right < parentRect.left - 2){
+              // compensate BEFORE DOM change so visual position stays stable
+              compensation += spacing;
+              desired += spacing;
+              track.style.transform = `translateX(${desired}px)`;
+              const first = track.firstChild;
+              track.removeChild(first);
+              track.appendChild(first);
+              // when recycling a node, re-roll its rarity so new chance applies immediately
+              try { randomizeSquare(first, track, playerIndex, playerIndex); } catch(e){}
+              track._N = track.children.length;
+              // continue in case multiple are off-screen
+            } else break;
+          }
+
+          // compute nearest square index to slightly-left-of-center for the lift
+          const centerX = rectW / 2;
+          const shift = Math.max(6, Math.round(squareSize * 0.12));
+          const centerRelativeToTrack = centerX - shift - desired - startOffset;
+          const idx = Math.round((centerRelativeToTrack - squareSize/2) / spacing);
+          if (idx !== lastNearest){
+            if (lastNearest >= 0 && lastNearest < track.children.length) track.children[lastNearest].classList.remove('lift');
+            lastNearest = idx;
+            if (idx >= 0 && idx < track.children.length) track.children[idx].classList.add('lift');
+          }
+
+          if (t < 1) requestAnimationFrame(step);
+          else {
+            try{ finalizeOnce(); }catch(e){}
+          }
+        }
+        requestAnimationFrame(step);
+      }
+
+      // global opener: increments counter and triggers animations for each rect
+      openGlobal.addEventListener('click', ()=>{
+        // simulate Numpad + on each open
+        increaseChanceProgrammatic();
+        ensurePendingChanceEventFromPopup();
+        applyPendingChanceEvent();
+        // apply any generic popup event (StatTrack / FactoryNew / Battle-scarred) to this open
+        applyPendingPopupEvent();
+        // speed up animation by 5% (reduce duration)
+        animationDuration = Math.max(150, Math.round(animationDuration * 0.95));
+        openCount = Math.min(10, openCount + 1);
+        statusEl.textContent = `Ouverture ${openCount}/10`;
+        // gracefully hide previous LEFT fixed per-rect displays (preserve right-side best-item displays) and start animations for all rects
+        const existingWins = Array.from(document.querySelectorAll('.won-outside:not(.won-outside-right)'));
+        if (existingWins.length){
+          existingWins.forEach(e => { e.classList.remove('show'); e.classList.add('hide'); });
+          setTimeout(()=> existingWins.forEach(e => { if (e && e.parentNode) e.parentNode.removeChild(e); }), 320);
+        }
+        const rects = Array.from(document.querySelectorAll('.player-stack-rect'));
+        // track pending animations and wait for all to finish before showing ranking on the 10th open
+        pendingAnimations = rects.length;
+        // prepare skip UI and state for this opening
+        try{ skipRequested = false; finalRankingApplied = false; tempRankingShown = false; if (typeof skipBtn !== 'undefined' && pendingAnimations > 0) skipBtn.classList.add('show'); }catch(e){}
+        // show temporary ranking only after animations finish (rank toggle state tracked by `rankEnabled`)
+        rects.forEach(r => animateTrackForRect(r));
+        // If there were no rects to animate, finalize immediately when this was the 10th open
+                    if (pendingAnimations === 0){
+                      try{
+                        if (openCount >= 10){
+                          try{ showACs = true; }catch(e){}
+                          try{ openWrap.style.display = 'none'; }catch(e){}
+                          try{
+                                const sorted = players.slice().sort((a,b)=> (b.totalValue || 0) - (a.totalValue || 0));
+                                  updatePlayerBarRanking(sorted, true);
+                            try{ scheduleApplyACs(sorted); }catch(e){}
+                          }catch(e){}
+                          try{ showSmallBackBtn(); }catch(e){}
+                        } else {
+                          // temporary ranking after this open if slider enabled
+                          try{
+                            if (rankEnabled){
+                              const sorted = players.slice().sort((a,b)=> (b.totalValue || 0) - (a.totalValue || 0));
+                                updatePlayerBarRanking(sorted, false);
+                                setTimeout(()=>{
+                                  // clear temporary ranking visuals if not finalized and user didn't enable the toggle
+                                  try{ if (openCount < 10 && !rankEnabled){ try{ clearRankingBadges(); }catch(e){} } }catch(e){}
+                                }, 900);
+                            }
+                          }catch(e){}
+                        }
+                      }catch(e){}
+                    }
+      });
+
+      // recompute on resize while overlay present
+      const onResize = ()=>{ if (document.getElementById('stacksOverlay')) adjustStacksHeights(); else { window.removeEventListener('resize', onResize); if (openWrap && openWrap.parentNode) openWrap.parentNode.removeChild(openWrap); } };
+      
+      window.addEventListener('resize', onResize);
+    });
+
+    // second button simple feedback
+    btn2.addEventListener('click', ()=>{ statusEl.textContent = 'Choix: Prochainement...'; });
+
+  })();
+  </script>
+  <script>
+  (function(){
+    const FALLBACK_EVENTS = [
+      '1 gold garanti',
+      'QUE des golds (All)',
+      '1 Rouge garanti',
+      'QUE des rouges/roses (All)',
+      'QUE des StatTracks (All)',
+      'Chance x2 (All)',
+      'Chance x3 (All)',
+      'Chance x5 (All)',
+      'Chance x0.5 (All)',
+      'Skin>50$ garanti (All)',
+      'Skins<1$ garanti (All)',
+      'Factory New garanti (All)',
+      'Battle-scarred garanti (All)'
+    ];
+    const KEY = 'tiny-event-next';
+    const btn = document.getElementById('tinyEventBtn');
+    const panel = document.getElementById('tinyEventPanel');
+    const select = document.getElementById('tinyEventSelect');
+    const ok = panel.querySelector('button.confirm');
+    const cancel = panel.querySelector('button.cancel');
+
+    function updateSelectOptions(list){
+      let placeholder = select.querySelector('option[value=""]');
+      if (!placeholder){ placeholder = document.createElement('option'); placeholder.value = ''; placeholder.textContent = '— Choisir —'; select.appendChild(placeholder); }
+      // remove all existing non-placeholder options
+      Array.from(select.querySelectorAll('option')).forEach(opt => { if (opt.value !== '') opt.remove(); });
+      if (!Array.isArray(list) || !list.length) list = FALLBACK_EVENTS;
+      list.forEach(ev => { const o = document.createElement('option'); o.value = ev; o.textContent = ev; select.appendChild(o); });
+    }
+
+    // initial populate (prefer the full pool if available)
+    updateSelectOptions(window.popupEventPoolFull || window.popupEventPool || FALLBACK_EVENTS);
+
+    // update when popup schedule is created — prefer full list when provided
+    window.addEventListener('popup-events-ready', e => {
+      const events = (e && e.detail && (e.detail.full || e.detail.events)) ? (e.detail.full || e.detail.events) : (window.popupEventPoolFull || window.popupEventPool || FALLBACK_EVENTS);
+      updateSelectOptions(events);
+    });
+
+    // load saved selection
+    const saved = localStorage.getItem(KEY);
+    if (saved){ if (!Array.from(select.options).some(o=>o.value===saved)){ const o = document.createElement('option'); o.value = saved; o.textContent = saved; select.appendChild(o); } select.value = saved; btn.title = 'Prochain: ' + saved; }
+
+    function openPanel(){ panel.classList.add('show'); panel.setAttribute('aria-hidden','false'); select.focus(); }
+    function closePanel(){ panel.classList.remove('show'); panel.setAttribute('aria-hidden','true'); btn.focus(); }
+
+    btn.addEventListener('click', e => { e.stopPropagation(); if (panel.classList.contains('show')) closePanel(); else openPanel(); });
+
+    ok.addEventListener('click', e => {
+      e.preventDefault();
+      const val = select.value;
+      if (val){ localStorage.setItem(KEY, val); btn.title = 'Prochain: ' + val; window.dispatchEvent(new CustomEvent('tiny-event-chosen', { detail: { event: val } })); }
+      else { localStorage.removeItem(KEY); btn.title = 'Choisir le prochain événement'; window.dispatchEvent(new CustomEvent('tiny-event-cleared')); }
+      closePanel();
+    });
+
+    cancel.addEventListener('click', e => { e.preventDefault(); closePanel(); });
+
+    document.addEventListener('click', e => { if (panel.classList.contains('show') && !panel.contains(e.target) && e.target !== btn) closePanel(); });
+
+    document.addEventListener('keydown', e => {
+      if (panel.classList.contains('show')){
+        if (e.key === 'Escape'){ e.preventDefault(); closePanel(); }
+        if (e.key === 'Enter' && document.activeElement === select){ e.preventDefault(); ok.click(); }
+      }
+    });
+
+    // helper to expose current selection
+    window.getNextEvent = function(){ return localStorage.getItem(KEY) || null; };
+    window.addEventListener('tiny-event-cleared', () => {
+      localStorage.removeItem(KEY);
+      btn.title = 'Choisir le prochain événement';
+      if (select) select.value = '';
+    });
+  })();
+  </script>
+</body>
+</html>

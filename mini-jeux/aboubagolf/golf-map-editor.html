@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Editeur de maps de golf</title>
+  <link rel="stylesheet" href="../../style.css" />
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin:0; padding:20px; background:#f7f7f8; color:#111; }
+    h1 { margin:0 0 12px 0; }
+    .editor-wrapper { max-width:1100px; margin:12px auto; display:flex; gap:12px; align-items:flex-start; }
+    .controls { width:300px; background:#fff; padding:12px; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.06); }
+    .controls h2 { margin-top:0; font-size:18px; }
+    .controls .row { margin:8px 0; display:flex; gap:8px; align-items:center; }
+    label { display:block; font-size:14px; }
+    input[type="text"]#map-name { width:100%; padding:8px; border:1px solid #e0e0e0; border-radius:6px; }
+    button { cursor:pointer; }
+    .btn-primary { background:linear-gradient(135deg,#3ddc84,#00bfa6); color:#fff; border:none; padding:8px 12px; border-radius:6px; font-weight:600; }
+    .btn-ghost { background:#fff; border:1px solid #e0e0e0; padding:8px 12px; border-radius:6px; }
+    .tools { display:flex; flex-direction:column; gap:8px; }
+    .tool-btn { display:flex; align-items:center; gap:8px; padding:8px; border-radius:6px; border:1px solid transparent; background:#fafafa; cursor:pointer; }
+    .tool-btn.active { border-color:#00bfa6; box-shadow:0 8px 20px rgba(0,191,166,0.08); background:linear-gradient(180deg,#f9fffb,#f0fff6); }
+    .palette-swatch { width:18px; height:18px; border-radius:4px; box-shadow:inset 0 0 0 1px rgba(0,0,0,0.06); }
+    .canvas-wrap { flex:1; background:#fff; padding:10px; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.06); display:flex; flex-direction:column; align-items:center; }
+    #map-canvas { background:#e9f6ea; border:1px solid #ddd; touch-action:none; cursor:crosshair; }
+    .legend { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+    .entity-list { margin-top:8px; max-height:160px; overflow:auto; background:#fff; border-radius:6px; padding:6px; border:1px solid #eee; }
+    .entity-item { display:flex; justify-content:space-between; padding:4px 6px; border-bottom:1px solid #f3f3f3; font-size:13px; }
+    .footer-actions { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+    .footer-actions button { flex: 1 1 auto; min-width: 78px; }
+    .small { font-size:13px; color:#666; }
+  </style>
+</head>
+<body>
+  <h1>Editeur de maps de golf</h1>
+  <div class="editor-wrapper">
+    <aside class="controls">
+      <h2>Options</h2>
+      <div class="row">
+        <div style="width:100%">
+          <label for="map-name">Nom de la map</label>
+          <input type="text" id="map-name" placeholder="Mon super parcours" />
+        </div>
+      </div>
+      <div class="row">
+        <label for="export-mode">Format d'export</label>
+        <select id="export-mode" style="width:100%; padding:8px; border-radius:6px; border:1px solid #e0e0e0;">
+          <option value="png">Image (PNG)</option>
+          <option value="raw">Brute (par-pixel)</option>
+          <option value="rle">Compressé (RLE)</option>
+        </select>
+      </div>
+      <div class="row footer-actions">
+        <button id="reset-btn" class="btn-ghost">Recommencer</button>
+        <button id="undo-btn" class="btn-ghost" disabled>Retour</button>
+        <button id="redo-btn" class="btn-ghost" disabled>Rétablir</button>
+        <button id="save-btn" class="btn-primary">Sauvegarder</button>
+      </div>
+      <hr />
+      <div class="tools">
+        <div><strong>Outil</strong></div>
+        <div id="tool-list">
+          <button class="tool-btn active" data-tool="herbe"><span class="palette-swatch" style="background:#4caf50"></span>Herbe</button>
+          <button class="tool-btn" data-tool="mur"><span class="palette-swatch" style="background:#222"></span>Mur</button>
+          <button class="tool-btn" data-tool="glace"><span class="palette-swatch" style="background:#a2d5f2"></span>Glace</button>
+          <button class="tool-btn" data-tool="sable"><span class="palette-swatch" style="background:#f4d3a1"></span>Sable</button>
+          <button class="tool-btn" data-tool="seau">Seau</button>
+          <button class="tool-btn" data-tool="start">Start (départ)</button>
+          <button class="tool-btn" data-tool="hole">Hole (trou)</button>
+          <button class="tool-btn" data-tool="bumper">Bumper</button>
+          <button class="tool-btn" data-tool="line">Ligne</button>
+          <button class="tool-btn" data-tool="circle">Cercle</button>
+          <button class="tool-btn" data-tool="eraser">Gomme</button>
+        </div>
+      </div>
+      <div class="row">
+        <label for="brush-size">Taille du pinceau: <span id="brush-size-label">12</span></label>
+        <input type="range" id="brush-size" min="1" max="60" value="12" />
+      </div>
+      <div class="row">
+        <label for="bumper-radius">Rayon bumper (px): <span id="bumper-radius-label">10</span></label>
+        <input type="range" id="bumper-radius" min="1" max="200" value="10" />
+      </div>
+      <div class="row small"><strong>Entités</strong></div>
+      <div class="entity-list" id="entity-list"></div>
+    </aside>
+
+    <section class="canvas-wrap">
+      <canvas id="map-canvas" width="960" height="640"></canvas>
+      <div class="legend small">
+        <div><span class="palette-swatch" style="background:#4caf50"></span> Herbe</div>
+        <div><span class="palette-swatch" style="background:#222"></span> Mur</div>
+        <div><span class="palette-swatch" style="background:#a2d5f2"></span> Glace</div>
+        <div><span class="palette-swatch" style="background:#f4d3a1"></span> Sable</div>
+        <div><span class="palette-swatch" style="background:#ff8500"></span> Start</div>
+        <div><span class="palette-swatch" style="background:#ffd600"></span> Hole</div>
+        <div><span class="palette-swatch" style="background:#ff4d4f"></span> Bumper</div>
+      </div>
+      <p class="small">Dessinez la map librement. Les comportements physiques seront ajoutés côté jeu.</p>
+    </section>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const COLORS = {
+        herbe: '#4caf50', mur: '#222222', glace: '#a2d5f2', sable: '#f4d3a1',
+        start: '#ff8500', hole: '#ffd600', bumper: '#ff4d4f', empty: '#e9f6ea'
+      };
+
+      const canvas = document.getElementById('map-canvas');
+      const ctx = canvas.getContext('2d');
+
+      const baseCanvas = document.createElement('canvas');
+      baseCanvas.width = canvas.width; baseCanvas.height = canvas.height;
+      const baseCtx = baseCanvas.getContext('2d');
+      baseCtx.fillStyle = COLORS.empty; baseCtx.fillRect(0,0,baseCanvas.width, baseCanvas.height);
+
+      let starts = [], holes = [], bumpers = [];
+
+      const mapNameInput = document.getElementById('map-name');
+      const resetBtn = document.getElementById('reset-btn');
+      const saveBtn = document.getElementById('save-btn');
+      const toolButtons = document.querySelectorAll('.tool-btn');
+      const brushSizeInput = document.getElementById('brush-size');
+      const brushSizeLabel = document.getElementById('brush-size-label');
+      const bumperRadiusInput = document.getElementById('bumper-radius');
+      const bumperRadiusLabel = document.getElementById('bumper-radius-label');
+      const entityListEl = document.getElementById('entity-list');
+
+      const undoBtn = document.getElementById('undo-btn');
+      const redoBtn = document.getElementById('redo-btn');
+
+      let selectedMaterial = 'herbe';
+      let currentTool = 'paint';
+      let brushSize = parseInt(brushSizeInput.value, 10) || 12;
+      brushSizeLabel.textContent = brushSize;
+      bumperRadiusLabel.textContent = bumperRadiusInput.value;
+
+      // Undo/Redo stacks (store ImageData + entities)
+      const undoStack = [];
+      const redoStack = [];
+      const MAX_UNDO = 80;
+
+      function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+      function snapshot() {
+        const w = baseCanvas.width, h = baseCanvas.height;
+        const img = baseCtx.getImageData(0,0,w,h);
+        const copy = new ImageData(new Uint8ClampedArray(img.data), img.width, img.height);
+        return { image: copy, starts: JSON.parse(JSON.stringify(starts)), holes: JSON.parse(JSON.stringify(holes)), bumpers: JSON.parse(JSON.stringify(bumpers)) };
+      }
+
+      function restoreState(state) {
+        baseCtx.putImageData(state.image, 0, 0);
+        starts = JSON.parse(JSON.stringify(state.starts));
+        holes = JSON.parse(JSON.stringify(state.holes));
+        bumpers = JSON.parse(JSON.stringify(state.bumpers));
+        updateEntityList(); redraw();
+      }
+
+      function pushUndo() {
+        undoStack.push(snapshot());
+        if (undoStack.length > MAX_UNDO) undoStack.shift();
+        // clear redo on new action
+        redoStack.length = 0;
+        updateUndoRedoButtons();
+      }
+
+      function undo() {
+        if (!undoStack.length) return;
+        // save current to redo
+        redoStack.push(snapshot());
+        const prev = undoStack.pop();
+        restoreState(prev);
+        updateUndoRedoButtons();
+      }
+
+      function redo() {
+        if (!redoStack.length) return;
+        undoStack.push(snapshot());
+        const next = redoStack.pop();
+        restoreState(next);
+        updateUndoRedoButtons();
+      }
+
+      function updateUndoRedoButtons() {
+        undoBtn.disabled = undoStack.length === 0;
+        redoBtn.disabled = redoStack.length === 0;
+      }
+
+      brushSizeInput.addEventListener('input', () => { brushSize = parseInt(brushSizeInput.value,10); brushSizeLabel.textContent = brushSize; });
+      bumperRadiusInput.addEventListener('input', () => { bumperRadiusLabel.textContent = bumperRadiusInput.value; });
+
+      toolButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const t = btn.getAttribute('data-tool');
+          toolButtons.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          if (['herbe','mur','glace','sable'].includes(t)) { selectedMaterial = t; currentTool = 'paint'; }
+          else if (t === 'eraser') { currentTool = 'eraser'; }
+          else if (t === 'seau') { currentTool = 'bucket'; }
+          else if (t === 'start') { currentTool = 'start'; }
+          else if (t === 'hole') { currentTool = 'hole'; }
+          else if (t === 'bumper') { currentTool = 'bumper'; }
+          else if (t === 'line') { currentTool = 'line'; }
+          else if (t === 'circle') { currentTool = 'circle'; }
+        });
+      });
+
+      let drawing = false;
+      let dragStart = null;
+      let previewPos = null;
+
+      function clientToCanvasPos(e) { const rect = canvas.getBoundingClientRect(); return { x: e.clientX - rect.left, y: e.clientY - rect.top }; }
+
+      canvas.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        const p = clientToCanvasPos(e);
+        // record undo state before modifying
+        if (['paint','eraser','bucket','start','hole','bumper','line','circle'].includes(currentTool)) pushUndo();
+
+        if (currentTool === 'paint' || currentTool === 'eraser') {
+          drawing = true; try { canvas.setPointerCapture(e.pointerId); } catch {};
+          baseCtx.save(); baseCtx.lineCap = 'round'; baseCtx.lineJoin = 'round'; baseCtx.lineWidth = Math.max(1, brushSize);
+          if (currentTool === 'eraser') { baseCtx.globalCompositeOperation = 'destination-out'; baseCtx.strokeStyle = 'rgba(0,0,0,1)'; }
+          else { baseCtx.globalCompositeOperation = 'source-over'; baseCtx.strokeStyle = COLORS[selectedMaterial]; }
+          baseCtx.beginPath(); baseCtx.moveTo(p.x, p.y);
+        } else if (currentTool === 'line' || currentTool === 'circle') {
+          drawing = true; dragStart = { x: p.x, y: p.y }; previewPos = { x: p.x, y: p.y };
+          try { canvas.setPointerCapture(e.pointerId); } catch {};
+          // preview will be drawn on the main ctx during pointermove
+          redraw();
+        } else if (currentTool === 'bucket') {
+          const fillColor = hexToRgba(COLORS[selectedMaterial]); floodFill(Math.floor(p.x), Math.floor(p.y), fillColor);
+        } else if (currentTool === 'start') { starts.push({ x: Math.round(p.x), y: Math.round(p.y), r: brushSize }); updateEntityList(); redraw(); }
+        else if (currentTool === 'hole') { holes.push({ x: Math.round(p.x), y: Math.round(p.y), r: brushSize }); updateEntityList(); redraw(); }
+        else if (currentTool === 'bumper') { const r = parseInt(bumperRadiusInput.value,10) || 10; bumpers.push({ x: p.x, y: p.y, r }); updateEntityList(); redraw(); }
+      });
+
+      canvas.addEventListener('pointermove', (e) => {
+        const p = clientToCanvasPos(e);
+        if (drawing) {
+          if (currentTool === 'paint') { baseCtx.lineTo(p.x, p.y); baseCtx.stroke(); redraw(); }
+          else if (currentTool === 'line' || currentTool === 'circle') {
+            previewPos = { x: p.x, y: p.y };
+            redraw();
+            // draw live preview on top
+            ctx.save();
+            ctx.strokeStyle = COLORS[selectedMaterial];
+            ctx.lineWidth = Math.max(1, brushSize);
+            ctx.setLineDash([6,4]);
+            if (currentTool === 'line') {
+              ctx.beginPath(); ctx.moveTo(dragStart.x, dragStart.y); ctx.lineTo(previewPos.x, previewPos.y); ctx.stroke();
+            } else {
+              const dx = previewPos.x - dragStart.x, dy = previewPos.y - dragStart.y; const r = Math.sqrt(dx*dx + dy*dy);
+              ctx.beginPath(); ctx.arc(dragStart.x, dragStart.y, r, 0, Math.PI * 2); ctx.stroke();
+            }
+            ctx.restore();
+          } else { baseCtx.lineTo(p.x, p.y); baseCtx.stroke(); redraw(); }
+        } else { redraw(); drawPreview(p); }
+      });
+
+      // mouse wheel to change brush/entity size when over canvas
+      canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const delta = Math.sign(e.deltaY);
+        if (currentTool === 'paint' || currentTool === 'eraser' || currentTool === 'bucket') {
+          brushSize = clamp(brushSize - delta, parseInt(brushSizeInput.min || 1,10), parseInt(brushSizeInput.max || 200,10));
+          brushSizeInput.value = brushSize; brushSizeLabel.textContent = brushSize;
+        } else if (currentTool === 'bumper') {
+          const val = clamp(parseInt(bumperRadiusInput.value,10) - delta, parseInt(bumperRadiusInput.min || 1,10), parseInt(bumperRadiusInput.max || 200,10));
+          bumperRadiusInput.value = val; bumperRadiusLabel.textContent = val;
+        } else if (currentTool === 'start' || currentTool === 'hole') {
+          brushSize = clamp(brushSize - delta, parseInt(brushSizeInput.min || 1,10), parseInt(brushSizeInput.max || 200,10));
+          brushSizeInput.value = brushSize; brushSizeLabel.textContent = brushSize;
+        }
+        redraw();
+      });
+
+      canvas.addEventListener('pointerup', (e) => {
+        const p = clientToCanvasPos(e);
+        if (drawing) {
+          try { canvas.releasePointerCapture(e.pointerId); } catch {}
+          if (currentTool === 'paint') { baseCtx.closePath(); baseCtx.restore(); drawing = false; redraw(); }
+          else if (currentTool === 'line') {
+            baseCtx.save(); baseCtx.lineCap = 'round'; baseCtx.lineJoin = 'round'; baseCtx.lineWidth = Math.max(1, brushSize); baseCtx.globalCompositeOperation = 'source-over'; baseCtx.strokeStyle = COLORS[selectedMaterial];
+            baseCtx.beginPath(); baseCtx.moveTo(dragStart.x, dragStart.y); baseCtx.lineTo(p.x, p.y); baseCtx.stroke(); baseCtx.restore();
+            drawing = false; dragStart = null; previewPos = null; redraw();
+          } else if (currentTool === 'circle') {
+            baseCtx.save(); baseCtx.lineWidth = Math.max(1, brushSize); baseCtx.globalCompositeOperation = 'source-over'; baseCtx.strokeStyle = COLORS[selectedMaterial];
+            const dx = p.x - dragStart.x, dy = p.y - dragStart.y, r = Math.sqrt(dx*dx + dy*dy);
+            baseCtx.beginPath(); baseCtx.arc(dragStart.x, dragStart.y, r, 0, Math.PI * 2); baseCtx.stroke(); baseCtx.restore();
+            drawing = false; dragStart = null; previewPos = null; redraw();
+          } else { baseCtx.closePath(); baseCtx.restore(); drawing = false; redraw(); }
+        }
+      });
+      canvas.addEventListener('pointerleave', () => { if (drawing) { if (currentTool === 'paint') { baseCtx.closePath(); baseCtx.restore(); } drawing = false; dragStart = null; previewPos = null; } redraw(); });
+
+      function redraw() {
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.drawImage(baseCanvas,0,0);
+        // draw starts (blue circles)
+        starts.forEach(s => { ctx.fillStyle = '#007bff'; ctx.beginPath(); ctx.arc(s.x, s.y, s.r || 12, 0, Math.PI * 2); ctx.fill(); });
+        // draw holes (black circles)
+        holes.forEach(h => { ctx.fillStyle = '#000000'; ctx.beginPath(); ctx.arc(h.x, h.y, h.r || 12, 0, Math.PI * 2); ctx.fill(); });
+        // draw bumpers
+        bumpers.forEach(b => { ctx.strokeStyle = COLORS.bumper; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(b.x, b.y, b.r || 10, 0, Math.PI * 2); ctx.stroke(); });
+      }
+
+      function drawPreview(p) {
+        if (!p) return; ctx.save();
+        if (currentTool === 'paint') { ctx.globalAlpha = 0.6; ctx.fillStyle = COLORS[selectedMaterial]; ctx.beginPath(); ctx.arc(p.x, p.y, brushSize / 2, 0, Math.PI * 2); ctx.fill(); }
+        else if (currentTool === 'eraser') { ctx.globalAlpha = 0.6; ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.beginPath(); ctx.arc(p.x, p.y, brushSize / 2, 0, Math.PI * 2); ctx.fill(); }
+        else if (currentTool === 'bucket') { ctx.strokeStyle = '#000'; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(8, brushSize), 0, Math.PI * 2); ctx.stroke(); }
+        else if (currentTool === 'start') { ctx.fillStyle = '#007bff'; ctx.beginPath(); ctx.arc(p.x, p.y, brushSize || 12, 0, Math.PI * 2); ctx.fill(); }
+        else if (currentTool === 'hole') { ctx.fillStyle = '#000000'; ctx.beginPath(); ctx.arc(p.x, p.y, brushSize || 12, 0, Math.PI * 2); ctx.fill(); }
+        else if (currentTool === 'bumper') { ctx.strokeStyle = COLORS.bumper; ctx.beginPath(); ctx.arc(p.x, p.y, parseInt(bumperRadiusInput.value, 10) || 10, 0, Math.PI * 2); ctx.stroke(); }
+        ctx.restore();
+      }
+
+      function updateEntityList() { entityListEl.innerHTML=''; starts.forEach((s,i)=>{entityListEl.appendChild(createEntityItem('Start',`${s.x},${s.y}`,()=>{starts.splice(i,1);updateEntityList();redraw();}))}); holes.forEach((h,i)=>{entityListEl.appendChild(createEntityItem('Hole',`${h.x},${h.y}`,()=>{holes.splice(i,1);updateEntityList();redraw();}))}); bumpers.forEach((b,i)=>{entityListEl.appendChild(createEntityItem('Bumper',`${Math.round(b.x)},${Math.round(b.y)} r=${b.r}`,()=>{bumpers.splice(i,1);updateEntityList();redraw();}))}); }
+
+      function createEntityItem(type,text,onRemove){ const el=document.createElement('div'); el.className='entity-item'; const span=document.createElement('div'); span.textContent=`${type} ${text}`; const btn=document.createElement('button'); btn.textContent='Suppr'; btn.className='btn-ghost'; btn.addEventListener('click', onRemove); el.appendChild(span); el.appendChild(btn); return el; }
+
+      resetBtn.addEventListener('click', ()=>{ if(!confirm('Recommencer ? Toutes les modifications seront perdues.')) return; pushUndo(); baseCtx.fillStyle = COLORS.empty; baseCtx.fillRect(0,0,baseCanvas.width,baseCanvas.height); starts=[]; holes=[]; bumpers=[]; updateEntityList(); redraw(); });
+
+      saveBtn.addEventListener('click', ()=>{ const nameRaw = mapNameInput.value || 'map'; const safeName = (nameRaw || 'map').trim().replace(/[^\w-]/g,'_') || 'map'; const imageData = baseCanvas.toDataURL('image/png'); const data = { name: nameRaw, width: baseCanvas.width, height: baseCanvas.height, image: imageData, starts, holes, bumpers }; const json = JSON.stringify(data, null, 2); const blob = new Blob([json], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${safeName}-${Date.now()}.json`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); showMessage('Map exportée (fichier JSON téléchargé).'); });
+
+      // undo / redo button handlers
+      undoBtn.addEventListener('click', undo);
+      redoBtn.addEventListener('click', redo);
+
+      function hexToRgba(hex){ const h=hex.replace('#',''); let r=0,g=0,b=0; if(h.length===3){ r=parseInt(h[0]+h[0],16); g=parseInt(h[1]+h[1],16); b=parseInt(h[2]+h[2],16); } else { r=parseInt(h.slice(0,2),16); g=parseInt(h.slice(2,4),16); b=parseInt(h.slice(4,6),16); } return {r,g,b,a:255}; }
+
+      function colorsMatch(data, off, r,g,b,a){ return data[off]===r && data[off+1]===g && data[off+2]===b && data[off+3]===a; }
+
+      function floodFill(sx, sy, fillColor){ const w=baseCanvas.width,h=baseCanvas.height; if(sx<0||sx>=w||sy<0||sy>=h) return; const img=baseCtx.getImageData(0,0,w,h); const data=img.data; const startOff=(sy*w+sx)*4; const tr=data[startOff], tg=data[startOff+1], tb=data[startOff+2], ta=data[startOff+3]; if(tr===fillColor.r&&tg===fillColor.g&&tb===fillColor.b&&ta===fillColor.a) return; const stack=[startOff]; while(stack.length){ const off=stack.pop(); if(!colorsMatch(data,off,tr,tg,tb,ta)) continue; data[off]=fillColor.r; data[off+1]=fillColor.g; data[off+2]=fillColor.b; data[off+3]=fillColor.a; const idx=off/4; const y=Math.floor(idx/w); const x=idx%w; if(x>0) stack.push(off-4); if(x<w-1) stack.push(off+4); if(y>0) stack.push(off-w*4); if(y<h-1) stack.push(off+w*4); } baseCtx.putImageData(img,0,0); redraw(); }
+
+      const toast=document.createElement('div'); toast.style.position='fixed'; toast.style.right='20px'; toast.style.bottom='20px'; toast.style.background='rgba(0,0,0,0.8)'; toast.style.color='#fff'; toast.style.padding='8px 12px'; toast.style.borderRadius='8px'; toast.style.fontSize='13px'; toast.style.display='none'; document.body.appendChild(toast);
+      function showMessage(txt, timeout=1500){ toast.textContent=txt; toast.style.display='block'; setTimeout(()=>toast.style.display='none', timeout); }
+
+      // override save button by cloning it (removes previous anonymous listeners) and attach multi-mode export (png/raw/rle)
+      (function overrideSave(){
+        const oldSave = document.getElementById('save-btn');
+        if(!oldSave || !oldSave.parentNode) return;
+        const newSave = oldSave.cloneNode(true);
+        oldSave.parentNode.replaceChild(newSave, oldSave);
+        newSave.addEventListener('click', () => {
+          const nameRaw = mapNameInput.value || 'map';
+          const safeName = (nameRaw || 'map').trim().replace(/[^\\w-]/g, '_') || 'map';
+          const exportModeEl = document.getElementById('export-mode');
+          const mode = (exportModeEl && exportModeEl.value) ? exportModeEl.value : 'png';
+          const w = baseCanvas.width, h = baseCanvas.height;
+
+          if (mode === 'png') {
+            const imageData = baseCanvas.toDataURL('image/png');
+            const data = { name: nameRaw, width: w, height: h, image: imageData, starts, holes, bumpers };
+            const json = JSON.stringify(data, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = `${safeName}-png-${Date.now()}.json`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+            showMessage('Map exportée (fichier JSON téléchargé).');
+            return;
+          }
+
+          const paletteKeys = ['empty','herbe','mur','glace','sable'];
+          const palette = {}; const materialId = {};
+          paletteKeys.forEach((k,i)=>{ palette[i]=k; materialId[k]=i; });
+          const paletteColors = paletteKeys.map(k=>hexToRgba(COLORS[k]));
+
+          const img = baseCtx.getImageData(0,0,w,h);
+          const data = img.data;
+          const pixels = new Uint8Array(w*h);
+
+          function nearestId(r,g,b,a){ if(a<128) return materialId.empty; let best=0, bestD=Infinity; for(let i=0;i<paletteColors.length;i++){ const c=paletteColors[i]; const dr=r-c.r, dg=g-c.g, db=b-c.b; const d=dr*dr+dg*dg+db*db; if(d<bestD){ bestD=d; best=i; } } return best; }
+
+          let idx = 0;
+          for(let y=0;y<h;y++){
+            for(let x=0;x<w;x++){
+              const off = (y*w + x) * 4; const id = nearestId(data[off], data[off+1], data[off+2], data[off+3]); pixels[idx++] = id;
+            }
+          }
+
+          if(mode === 'raw'){
+            const out = { name: nameRaw, width: w, height: h, encoding: 'raw', palette: palette, pixels: Array.from(pixels), starts, holes, bumpers };
+            const json = JSON.stringify(out, null, 2);
+            const blob = new Blob([json], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${safeName}-raw-${Date.now()}.json`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+            showMessage('Map exportée (brute) téléchargée.');
+            return;
+          }
+
+          if(mode === 'rle'){
+            const rle = []; let i = 0; while(i < pixels.length){ const v = pixels[i]; let cnt = 1; i++; while(i < pixels.length && pixels[i] === v){ cnt++; i++; } rle.push([v,cnt]); }
+            const out = { name: nameRaw, width: w, height: h, encoding: 'rle', palette: palette, rle, starts, holes, bumpers };
+            const json = JSON.stringify(out, null, 2);
+            const blob = new Blob([json], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${safeName}-rle-${Date.now()}.json`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+            showMessage('Map exportée (RLE) téléchargée.');
+            return;
+          }
+        });
+      })();
+
+      // initial state snapshot
+      updateEntityList(); redraw();
+      pushUndo();
+      updateUndoRedoButtons();
+    });
+  </script>
+</body>
+</html>

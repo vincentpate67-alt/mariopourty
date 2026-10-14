@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Aboubapiano</title>
+<script src="../../party-payout.js"></script><script src="../../board/board-minigame-bridge.js"></script><link rel="stylesheet" href="../../style.css"><link rel="stylesheet" href="piano.css?v=2">
+<script src="../commun/game-players.js" defer></script><script src="piano-engine.js?v=1" defer></script><script src="piano-audio.js?v=1" defer></script><script src="piano.js?v=5" defer></script></head>
+<body class="piano-game"><div id="piano-tint" aria-hidden="true"></div>
+<header class="piano-header"><h1>Aboubapiano</h1><div id="piano-round">3 manches</div><div id="piano-status" role="status" aria-live="polite">Retrouve la note à l’oreille.</div><div id="piano-timer" hidden><span></span><b>10</b></div></header>
+<main class="piano-main"><div id="piano-order" aria-label="Ordre des joueurs"></div>
+<section id="piano-panel" hidden><div id="piano-sound" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div id="piano-answer" aria-live="polite"></div>
+<div class="piano-shell"><div class="piano-trim"><span>ABOUBAPIANO</span><span class="piano-led"></span></div><div id="piano-keys" role="group" aria-label="Choisis une note"></div></div>
+<div class="piano-controls"><button id="piano-listen" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4zm12-2c3 3 3 7 0 10m3-13c5 5 5 11 0 16"/></svg><span id="piano-listen-label">Réécouter la note</span></button></div>
+<div id="piano-results" hidden></div><button id="piano-next" type="button" hidden>Manche suivante</button></section>
+</main><div id="piano-pop" hidden aria-live="polite"></div><div id="piano-end" hidden><button id="piano-replay" type="button">Rejouer</button><button id="return-btn" type="button">Retour aux mini-jeux</button></div>
+</body></html>

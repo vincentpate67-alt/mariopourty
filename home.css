@@ -1,0 +1,91 @@
+/* Accueil uniquement : relief discret, animations légères, aucune boucle JS. */
+body[data-page="home"] .ambient{background:radial-gradient(ellipse at 48% 20%,#1b2949 0%,transparent 62%),#0a0f22}
+body[data-page="home"] .ambient:after{opacity:.6;background-size:34px 34px;mask-image:radial-gradient(ellipse at center,#000,transparent 76%)}
+body[data-page="home"] .hero{position:relative}
+body[data-page="home"] .hero:after{content:"";display:block;width:100px;height:1px;margin:26px auto 0;background:linear-gradient(90deg,transparent,#a7b8f888,transparent);animation:home-line 6s ease-in-out infinite}
+body[data-page="home"] .hero h1{text-shadow:0 3px 32px #819bff24,0 1px 0 #fff3}
+body[data-page="home"] .title-dot{display:inline-block;animation:home-dot 5s ease-in-out infinite}
+body[data-page="home"] .mode-card{transition:transform .35s cubic-bezier(.2,.75,.25,1),border-color .35s,box-shadow .35s;background:linear-gradient(145deg,#293857a8,#121b30ed);box-shadow:inset 0 1px 0 #ffffff08,0 16px 40px #0002}
+body[data-page="home"] .arcade-card{background:linear-gradient(145deg,#30385cab,#151d33ed)}
+body[data-page="home"] .mode-card:after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(115deg,transparent 30%,#c5d5ff09 48%,transparent 65%);transform:translateX(-110%);transition:transform .85s cubic-bezier(.2,.6,.3,1)}
+body[data-page="home"] .mode-card:is(:hover,:focus-visible):after{transform:translateX(110%)}
+.home-card-art{position:absolute;right:14px;top:19px;width:155px;height:115px;pointer-events:none;color:#adbef7;opacity:.19;transition:opacity .4s,transform .6s;animation:home-card-float 8s ease-in-out infinite}
+.arcade-card .home-card-art{color:#c6b8f3;animation-delay:-4s}
+body[data-page="home"] .mode-card:is(:hover,:focus-visible) .home-card-art{opacity:.36}
+body[data-page="home"] .mode-icon{background:#8faaff10;box-shadow:inset 0 1px 0 #d5e1ff12;transition:transform .35s,background .35s}
+body[data-page="home"] .mode-card:is(:hover,:focus-visible) .mode-icon{transform:rotate(-5deg) translateY(-2px);background:#8faaff20}
+body[data-page="home"] .roster-panel{background:linear-gradient(145deg,#1b2841dd,#121c31dd);box-shadow:inset 0 1px 0 #ffffff09,0 16px 40px #0002}
+body[data-page="home"] .roster-panel summary{transition:background .25s}
+body[data-page="home"] .roster-panel summary:hover{background:#a8bbff08}
+body[data-page="home"] .site-header{animation:arrive .65s ease-out both}
+@keyframes home-card-float{0%,100%{translate:0 0;rotate:-3deg}50%{translate:0 -5px;rotate:1deg}}
+@keyframes home-dot{0%,100%{text-shadow:0 0 0 #a8b9ff00}50%{text-shadow:0 0 18px #a8b9ff66}}
+@keyframes home-line{0%,100%{opacity:.5;transform:scaleX(.85)}50%{opacity:1;transform:scaleX(1.15)}}
+@media(max-width:760px){.home-card-art{width:120px;right:4px;top:25px;opacity:.14}}
+@media(max-width:440px){.home-card-art{width:95px;right:-7px;top:32px}body[data-page="home"] .hero:after{margin-top:20px}}
+@media(prefers-reduced-motion:reduce){body[data-page="home"] *,body[data-page="home"] *:before,body[data-page="home"] *:after{animation:none!important;transition:none!important}.home-star{opacity:.25}}
+
+/* Dégradés sur trois plans : mouvement très lent et perspective douce. */
+body[data-page="home"] .ambient{perspective:1100px;background:#0a0f22}
+body[data-page="home"] .ambient:after{opacity:.18}
+body[data-page="home"] .ambient i{inset:-15%;width:auto;height:auto;border-radius:0;filter:none;opacity:1;transform-origin:50% 50%;animation:home-depth-one 30s ease-in-out infinite alternate;will-change:transform;background:radial-gradient(ellipse at 27% 33%,#34497870,transparent 58%)}
+body[data-page="home"] .ambient i:nth-child(2){background:radial-gradient(ellipse at 79% 53%,#6347833b,transparent 50%);animation:home-depth-two 37s -12s ease-in-out infinite alternate}
+body[data-page="home"] .ambient i:nth-child(3){background:radial-gradient(ellipse at 48% 92%,#256a7c2e,transparent 49%);animation:home-depth-three 33s -21s ease-in-out infinite alternate}
+.home-star{position:absolute;left:var(--x);top:var(--y);width:var(--size);height:var(--size);background:#d3e0ff;clip-path:polygon(50% 0,62% 37%,100% 50%,62% 63%,50% 100%,38% 63%,0 50%,38% 37%);opacity:0;animation:home-star-appear var(--duration) var(--delay) ease-in-out infinite;pointer-events:none}
+@keyframes home-star-appear{0%,18%,100%{opacity:0;transform:translate3d(0,5px,var(--depth)) scale(.35) rotate(-12deg)}40%{opacity:.55;transform:translate3d(2px,0,var(--depth)) scale(1) rotate(0)}65%{opacity:.18}82%{opacity:0;transform:translate3d(4px,-5px,var(--depth)) scale(.45) rotate(12deg)}}
+@keyframes home-depth-one{from{transform:translate3d(-1%,-1%,0) rotateX(3deg) rotateY(-4deg) scale(1.03)}to{transform:translate3d(2%,1%,25px) rotateX(-3deg) rotateY(4deg) scale(1.06)}}
+@keyframes home-depth-two{from{transform:translate3d(2%,0,-20px) rotateY(5deg) rotateZ(-2deg)}to{transform:translate3d(-2%,-2%,20px) rotateY(-5deg) rotateZ(2deg)}}
+@keyframes home-depth-three{from{transform:translate3d(-2%,2%,10px) rotateX(-4deg) scale(1.02)}to{transform:translate3d(2%,-1%,30px) rotateX(4deg) scale(1.07)}}
+@media(prefers-reduced-motion:reduce){body[data-page="home"] .ambient i{will-change:auto;transform:none}.home-star{opacity:.25}}
+
+/* Survol progressif : lumière et léger gonflement, sans saut vertical. */
+body[data-page="home"] .hero h1{animation:home-title-breathe 10s ease-in-out infinite;transform-origin:50% 60%;transition:text-shadow .7s ease,color .7s ease}
+@keyframes home-title-breathe{0%,100%{transform:translate3d(0,0,0) rotate(-.3deg) scale(1)}50%{transform:translate3d(0,-5px,0) rotate(.3deg) scale(1.008)}}
+@media(hover:hover) and (pointer:fine){
+  body[data-page="home"] :is(.mode-card,.wordmark,.brand-mark,.eyebrow,.roster-panel,.roster-row,.player-avatar,.roster-status,.developer-menu summary,.developer-menu a,button,input){transition:transform .6s cubic-bezier(.22,1,.36,1),color .5s ease,border-color .5s ease,background .5s ease,box-shadow .6s ease,text-shadow .6s ease}
+  body[data-page="home"] .wordmark:hover{color:#fff;text-shadow:0 0 20px #a8bcff55}
+  body[data-page="home"] .wordmark:hover .brand-mark{border-color:#bacaff;background:#344368;box-shadow:0 0 22px #829fff30,inset 0 1px 0 #e1eaff20}
+  body[data-page="home"] .hero h1:hover{text-shadow:0 4px 45px #a7bbff65}
+  body[data-page="home"] .eyebrow:hover{color:#d6e1ff;text-shadow:0 0 18px #a8bcff60}
+  body[data-page="home"] .mode-card:hover{transform:scale(1.008);border-color:#b9caff70;box-shadow:inset 0 1px 0 #d9e5ff20,0 12px 45px #050b2055,0 0 30px #829fff0d}
+  body[data-page="home"] .mode-card:is(:hover,:focus-visible) .mode-icon{transform:scale(1.045);background:#a6bdff22;box-shadow:inset 0 1px 0 #e0eaff22,0 0 22px #91acff25}
+  body[data-page="home"] .mode-icon{transition:transform .6s cubic-bezier(.22,1,.36,1),background .5s,box-shadow .6s}
+  body[data-page="home"] .card-bottom>span{transition:transform .6s cubic-bezier(.22,1,.36,1),color .5s}
+  body[data-page="home"] .mode-card:hover .card-bottom>span{transform:translateX(3px);color:#e3eaff}
+  body[data-page="home"] .roster-panel:hover{border-color:#a9bdff44;box-shadow:inset 0 1px 0 #ffffff12,0 16px 40px #0003,0 0 28px #7e9fff0c}
+  body[data-page="home"] .roster-row:hover{border-color:#aec6ff38;background:#26375488;box-shadow:inset 0 0 18px #a8c1ff08}
+  body[data-page="home"] .roster-row:hover .player-avatar{box-shadow:0 0 18px color-mix(in srgb,var(--player-color) 30%,transparent);transform:scale(1.04)}
+  body[data-page="home"] .roster-status:hover{color:#d5e3ff;background:#94afff09}
+  body[data-page="home"] :is(#player-name,#player-color):hover{border-color:#b1c4ff70;background:#131f38;box-shadow:0 0 0 3px #a6bbff08}
+  body[data-page="home"] button:not(:disabled):hover{box-shadow:0 0 20px #a5b9ff18,inset 0 1px 0 #e5ecff12}
+  body[data-page="home"] #cancel-edit:hover{background:#9fafff12;border-color:#b1c4ff66}
+  body[data-page="home"] .developer-menu summary:hover{text-shadow:0 0 20px #a8bcff55}
+  body[data-page="home"] .developer-menu a:hover{box-shadow:inset 2px 0 #9eb3f2,0 0 16px #9ab7ff0a}
+  body[data-page="home"] .mode-card:active,body[data-page="home"] button:not(:disabled):active{transform:scale(.99)}
+}
+@media(prefers-reduced-motion:reduce){body[data-page="home"] .hero h1{animation:none;transform:none}}
+
+/* Même ordre des ombres au repos/survol : permet leur interpolation. */
+body[data-page="home"] .mode-icon{box-shadow:inset 0 1px 0 #d5e1ff12,0 0 22px #91acff00}
+@media(hover:hover) and (pointer:fine){
+  body[data-page="home"] :is(.mode-card,.mode-icon,.wordmark,.brand-mark,.hero h1,.eyebrow,.roster-panel,.roster-row,.player-avatar,.roster-status,.developer-menu summary,.developer-menu a,.roster-panel summary,button,input,.card-bottom>span,.home-card-art){
+    transition-property:transform,opacity,color,border-color,background-color,box-shadow,text-shadow;
+    transition-duration:81.25ms;
+    transition-timing-function:cubic-bezier(.42,0,.25,1);
+    transition-delay:5ms;
+  }
+  body[data-page="home"] .mode-card:before{transition:opacity 700ms cubic-bezier(.42,0,.25,1) 40ms}
+  body[data-page="home"] .mode-card:after{transition:transform 1100ms cubic-bezier(.42,0,.25,1) 40ms}
+  body[data-page="home"] .mode-card:active,body[data-page="home"] button:not(:disabled):active{transition-duration:140ms;transition-delay:0ms}
+}
+
+/* Même avec les mouvements réduits, conserver les fondus demandés.
+   Les déplacements, les rotations et les boucles restent désactivés. */
+@media(prefers-reduced-motion:reduce){
+  body[data-page="home"] :is(.mode-card,.mode-icon,.wordmark,.brand-mark,.hero h1,.eyebrow,.roster-panel,.roster-row,.player-avatar,.roster-status,.developer-menu summary,.developer-menu a,.roster-panel summary,button,input,.card-bottom>span,.home-card-art){
+    transition:opacity 81.25ms cubic-bezier(.42,0,.25,1),color 81.25ms cubic-bezier(.42,0,.25,1),border-color 81.25ms cubic-bezier(.42,0,.25,1),background-color 81.25ms cubic-bezier(.42,0,.25,1),box-shadow 81.25ms cubic-bezier(.42,0,.25,1),text-shadow 81.25ms cubic-bezier(.42,0,.25,1)!important;
+    transform:none!important;
+  }
+  body[data-page="home"] .mode-card:before{transition:opacity 81.25ms ease-in-out!important}
+  body[data-page="home"] .mode-card:after{display:none}
+}

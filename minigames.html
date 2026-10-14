@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mini-jeux — Mario Pourty</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="menu.css" />
+  <script src="lobby.js" defer></script>
+  <style>
+    /* Reroll button styling (fixed, visible, high z-index). */
+    #reroll-btn {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 999999;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: linear-gradient(135deg, #ff5f72 0%, #ff8c42 100%);
+      color: #fff;
+      font-weight: 600;
+      font-size: 16px;
+      border: none;
+      border-radius: 999px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+      cursor: pointer;
+      transition: transform 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
+      -webkit-tap-highlight-color: transparent;
+      outline: none;
+    }
+
+    #reroll-btn:hover { transform: translateX(-50%) translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,0.28); }
+    #reroll-btn:active { transform: translateX(-50%) translateY(0); }
+
+    /* Keep the hidden class behavior predictable for this button */
+    #reroll-btn.hidden { display: none !important; opacity: 0; pointer-events: none; }
+    /* Map editor button styling (used in Options panel) */
+    .map-editor-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      background: linear-gradient(135deg, #3ddc84 0%, #00bfa6 100%);
+      color: #fff;
+      font-weight: 600;
+      font-size: 14px;
+      border: none;
+      border-radius: 8px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+      text-decoration: none;
+      cursor: pointer;
+      transition: transform 120ms ease, box-shadow 120ms ease;
+    }
+    .map-editor-btn:hover { transform: translateY(-3px); box-shadow: 0 10px 24px rgba(0,0,0,0.16); }
+    .map-editor-btn:active { transform: translateY(0); }
+  </style>
+<link rel="stylesheet" href="minigames-menu.css?v=3" /><link rel="stylesheet" href="special-games.css?v=1">
+</head>
+<body class="lobby-page selection-page" data-page="minigames">
+  <div class="ambient" aria-hidden="true"><i></i><i></i><i></i></div>
+  <header class="site-header"><a class="wordmark" href="index.html"><span class="brand-mark">m<span>p</span></span> Mario Pourty</a><a class="back-link" href="index.html">← Accueil</a></header>
+  <div class="container">
+    <header class="selection-heading"><h1>Les mini-jeux<span class="title-dot">.</span></h1><div class="team-strip"><p id="team-summary"></p><a href="index.html#players">Gérer les joueurs ↗</a></div></header>
+    <section class="panel collapsible" data-open="true">
+      <div class="panel-header">
+        <h2>Sélection</h2>
+        <button class="toggle-btn" aria-label="Déplier ou replier la section">⌃</button>
+      </div>
+      <div class="panel-content">
+        <div id="games-list" class="games-grid">
+          <button class="game-button" id="random-game">
+            <img src="assets/index/aleatoire.png" alt="Aléatoire" class="game-icon" />
+            <span>Au hasard</span>
+          </button>
+          <button class="game-button" id="list-game">
+            <img src="assets/index/liste.png" alt="Liste" class="game-icon" />
+            <span>Tous les mini-jeux</span>
+          </button>
+          <button class="game-button" id="special-game" type="button">
+            <img src="assets/index/speciaux.svg" alt="" class="game-icon" />
+            <span>Spéciaux</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel collapsible" data-open="false">
+      <div class="panel-header">
+        <h2>Options</h2>
+        <button class="toggle-btn" aria-label="Déplier ou replier la section">⌃</button>
+      </div>
+      <div class="panel-content options-content">
+        <label>
+          <input type="checkbox" id="mario-pourty-toggle" />
+          <span>Mario Pourty</span>
+        </label>
+      </div>
+    </section>
+  </div>
+
+  <div id="list-overlay" class="overlay hidden">
+    <div class="overlay-inner">
+      <div class="overlay-header">
+        <h2 id="game-list-title">Tous les mini-jeux</h2>
+        <button class="close-overlay">Retour</button>
+      </div>
+      <div class="game-list-tools"><label for="game-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input id="game-search" type="search" placeholder="Rechercher un mini-jeu" autocomplete="off"></label><span id="game-list-count" aria-live="polite"></span></div><p id="game-list-empty" hidden>Aucun mini-jeu trouvé.</p><div id="games-card-grid" class="games-card-grid"></div>
+    </div>
+  </div>
+
+  <div id="random-overlay" class="overlay hidden">
+    <div class="overlay-inner">
+      <canvas id="particle-canvas"></canvas>
+      <div class="overlay-header">
+        <h2>Au hasard</h2>
+        <button class="close-overlay">Retour</button>
+      </div>
+      <div id="random-content" class="random-content">
+        <div class="wheel-wrapper">
+          <canvas id="wheel-canvas" width="520" height="520"></canvas>
+          <div class="wheel-pointer">▼</div>
+        </div>
+        <button id="spin-wheel" class="spin-wheel">Lancer la roue</button>
+        <div id="random-result" class="random-result"></div>
+      </div>
+      <div id="winner-overlay" class="winner-overlay hidden">
+        <div class="winner-content">
+          <h1 id="winner-title"></h1>
+          <p id="winner-desc"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="games.js?v=flipper-1"></script>
+  <button id="reroll-btn" class="reroll-btn hidden" style="position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:99999;">J'en veux un autre</button>
+  <script src="special-games.js?v=aboubaphoto-1"></script>
+  <script src="script.js?v=special-games-1"></script>
+</body>
+</html>

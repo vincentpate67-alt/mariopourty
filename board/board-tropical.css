@@ -1,0 +1,18 @@
+.tropical-overlay{position:fixed;inset:0;z-index:40;display:grid;place-items:center;padding:30px 24px 140px;background:#071526d9;backdrop-filter:blur(7px);overflow:auto;text-align:center}
+.tropical-content{width:min(780px,100%);color:#f0f5fc}.tropical-content h2{font-size:clamp(25px,4vw,43px);margin:0 0 15px;letter-spacing:-.03em}.tropical-content>p{color:#b1c9d6;font-size:14px;margin:0 0 22px;min-height:18px}
+.tropical-row{display:flex;align-items:center;justify-content:center;gap:14px;min-height:150px}.tropical-buttons{display:flex;justify-content:center;gap:14px;margin-top:22px}.tropical-buttons button{border:1px solid #a9d4d24d;border-radius:13px;background:#203b4d;color:#eef9f7;padding:14px 24px;font-weight:700}.tropical-buttons button:hover{background:#315265}
+.port-boat{width:190px;height:190px;object-fit:contain}.fishing-row{gap:clamp(5px,2vw,16px)}.fishing-rod,.fishing-empty{width:130px;min-width:0;flex:1;max-width:130px;height:205px;border:1px solid #99bdbb40;border-radius:18px;background:linear-gradient(#26415488,#122839aa);display:flex;align-items:center;justify-content:center;flex-direction:column;padding:9px;color:#d9e8ed}.fishing-rod{cursor:pointer;transition:transform .3s,box-shadow .3s,border-color .3s}.fishing-rod img{width:100%;height:150px;object-fit:contain;transform-origin:50% 90%;transition:transform .35s}.fishing-rod:hover,.fishing-rod:focus-visible{transform:translateY(-5px);border-color:#dbcf9c;box-shadow:0 0 30px #8fd0d01a}.fishing-rod:hover img{transform:rotate(-5deg)}.fishing-empty{opacity:.16;border-style:dashed;background:transparent}.fishing-prize{width:125px;height:125px;object-fit:contain;filter:drop-shadow(0 0 25px #e8d58c50)}.chosen-rod{width:150px;height:200px;object-fit:contain}.treasure-marker{transform-box:fill-box;transform-origin:center}
+@media(max-width:600px){.fishing-rod,.fishing-empty{height:160px;padding:4px}.fishing-rod img{height:115px}.tropical-overlay{padding-inline:12px}.tropical-buttons button{padding:12px 16px}}
+@media(prefers-reduced-motion:reduce){.fishing-rod,.fishing-rod img{transition:none}}
+
+.tropical-overlay.port-view{background:transparent;backdrop-filter:none;pointer-events:none;align-items:end;padding-bottom:150px;overflow:hidden}
+.port-view .tropical-content{pointer-events:auto;width:auto;padding:15px 20px;border-radius:20px;background:#142337d9;border:1px solid #a9d4d240;box-shadow:0 12px 35px #0003}
+.port-view .tropical-content h2{font-size:22px;margin:0}.port-view .tropical-content>p,.port-view .tropical-row{display:none}.port-view .tropical-buttons{margin-top:12px}
+.treasure-motion{transform:scale(.85);transform-box:view-box;transform-origin:0 0}.treasure-lid{transform-box:view-box;transform-origin:0 0}
+.treasure-deposit-coin{position:fixed;width:25px;height:25px;margin:-12px;object-fit:contain;pointer-events:none;z-index:45}
+
+.port-fare{margin-top:8px;padding:10px 22px;border:1px solid #e5bf6580;border-radius:12px;background:#302d22;color:#ffe18a;font-weight:800;pointer-events:auto;cursor:pointer;transition:background .2s,box-shadow .2s}.port-fare:hover{background:#49402a;box-shadow:0 0 18px #efc65e25}
+
+
+
+.port-preview{color:#ff6476;transition:color .2s}.port-preview.hovered{color:#ffe18a}.boat-choice:hover .direction-arrow{color:#ffe18a;text-shadow:0 0 18px #e6b84c70}.landing-preview .port-fare{display:block;flex-basis:100%;margin-top:8px;pointer-events:none}

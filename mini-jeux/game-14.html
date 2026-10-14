@@ -1,0 +1,1392 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <script src="../party-payout.js"></script>
+<script src="../board/board-minigame-bridge.js"></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Aboubacapture</title>
+  <link rel="stylesheet" href="../style.css" />
+  <style>
+    body{background:#081028;color:#fff;font-family:Segoe UI,Roboto,Arial;margin:0;padding:18px}
+    main{max-width:980px;margin:8px auto;text-align:center}
+    h1{margin:8px 0 12px;font-size:2.4rem}
+    #status{min-height:34px;margin-bottom:12px;font-weight:900;font-size:1.4rem}
+    .player-order{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:8px 0}
+    .player-chip{padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);font-weight:800}
+
+    .game-area{display:flex;flex-direction:column;align-items:center;gap:16px;margin-top:8px}
+
+    .cards-area{display:flex;gap:14px;justify-content:center;align-items:center;flex-wrap:wrap;width:100%;max-width:920px;margin-top:8px}
+    .card{width:220px;height:260px;border-radius:14px;background:linear-gradient(180deg,#0b1830,#071225);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;border:1px solid rgba(255,255,255,0.04);transition:transform .28s cubic-bezier(.2,.9,.2,1),opacity .28s,box-shadow .28s;cursor:pointer;position:relative;overflow:hidden}
+    .card .color-overlay{position:absolute;inset:0;border-radius:14px;opacity:0.08;pointer-events:none;mix-blend-mode:screen;transition:opacity .28s}
+    .card .title{font-size:1.25rem;font-weight:900;margin-bottom:8px;z-index:1}
+    .card .desc{font-size:0.95rem;opacity:0.9;z-index:1}
+    .card:hover{transform:translateY(-6px) scale(1.02);box-shadow:0 10px 30px rgba(0,0,0,0.5)}
+    .card.picked{transform:translateY(-26px) scale(1.08);opacity:0;pointer-events:none}
+    .card.pick-anim{animation:card-pop .36s cubic-bezier(.2,.9,.2,1)}
+    @keyframes card-pop{0%{transform:translateY(10px) scale(.98);opacity:0.6}100%{transform:translateY(0) scale(1);opacity:1}}
+
+    .particle{position:fixed;border-radius:50%;pointer-events:none;z-index:100020;mix-blend-mode:screen;box-shadow:0 4px 12px rgba(0,0,0,0.25)}
+    .spark{position:fixed;border-radius:50%;pointer-events:none;z-index:100020;mix-blend-mode:screen}
+    .pill-spark{position:absolute;right:6px;top:6px;width:6px;height:6px;border-radius:50%;opacity:0.9}
+    .cell-glow{box-shadow:0 0 10px 2px rgba(255,255,255,0.06) !important}
+    .cell-flick{animation:cell-flick .26s ease}
+    @keyframes cell-flick{0%{filter:brightness(1.6);transform:scale(1.02)}50%{filter:brightness(0.9);transform:scale(0.99)}100%{filter:brightness(1);transform:scale(1)}}
+
+    .controls{display:flex;gap:12px;align-items:center;justify-content:center;margin-top:8px}
+    .timer{display:flex;align-items:center;gap:8px}
+    .timer-bar{width:420px;height:14px;background:rgba(255,255,255,0.06);border-radius:10px;overflow:hidden}
+    .timer-bar .fill{height:100%;background:linear-gradient(90deg,#7dd3fc,#60a5fa);width:100%;transition:width linear}
+    #timeLabel{font-weight:800}
+
+    #message{min-height:26px;margin-top:8px;font-weight:900}
+
+    .return-btn{margin-top:12px;padding:10px 14px;border-radius:10px;background:#ff776d;color:#fff;border:none;font-weight:700;cursor:pointer}
+
+    /* Player bar spacing to avoid overlap */
+    body .player-bar{
+      position: fixed;
+      left: 50%;
+      bottom: 12px;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 12px;
+      background: rgba(6,8,18,0.6);
+      backdrop-filter: blur(6px);
+      z-index: 100000;
+      max-width: calc(100% - 48px);
+      justify-content: center;
+    }
+    .player-pill{position:relative}
+    .player-pill .pill-title{position:absolute;left:50%;top:-30px;transform:translateX(-50%);background:rgba(0,0,0,0.75);padding:4px 8px;border-radius:8px;font-weight:900;font-size:0.85rem;white-space:nowrap;pointer-events:none;z-index:100001}
+    /* White cube bonus that appears on empty cells */
+    .white-cube{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:12px;height:12px;background:#fff;border-radius:2px;box-shadow:0 0 14px rgba(255,255,255,0.9);pointer-events:none;z-index:100001}
+    .white-cube.flicker{animation:flickerAnim .18s linear infinite}
+    @keyframes flickerAnim{0%{opacity:1}50%{opacity:0.18}100%{opacity:1}}
+    /* Explosion overlay (expanding) */
+    .explosion-overlay{position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:100025}
+    .explosion-ring{position:absolute;border-radius:50%;pointer-events:none;opacity:0.9;transform:translate(-50%,-50%) scale(0.2);transition:transform .6s cubic-bezier(.2,.9,.2,1),opacity .6s}
+    .explosion-hit{animation:explosionHit .6s ease;box-shadow:0 0 18px 6px rgba(255,255,255,0.06) !important}
+    @keyframes explosionHit{0%{transform:scale(1.08);filter:brightness(1.8)}100%{transform:scale(1);filter:none}}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Aboubacapture</h1>
+    <div id="status">Chargement des joueurs...</div>
+    <div id="order" class="player-order"></div>
+
+    <div id="gameContainer" class="game-area">
+      <div id="centerCards" class="cards-area" aria-hidden="false"></div>
+
+      <div class="controls">
+        <div class="timer">
+            <div class="timer-bar"><div class="fill"></div></div>
+            <div id="timeLabel">20.00s</div>
+          </div>
+      </div>
+
+      <div id="message"></div>
+
+      <div style="width:100%;max-width:920px;margin-top:8px">
+        <script src="commun/game-players.js"></script>
+      </div>
+    </div>
+  </main>
+
+  <script>
+  (function(){
+    const stored = JSON.parse(localStorage.getItem('mini-Jeux-host-players') || '[]');
+    const statusEl = document.getElementById('status');
+    const orderEl = document.getElementById('order');
+    const centerEl = document.getElementById('centerCards');
+    const timerFill = document.querySelector('.timer-bar .fill');
+    const timeLabel = document.getElementById('timeLabel');
+    const messageEl = document.getElementById('message');
+
+    if (!stored.length){ statusEl.textContent = 'Aucun joueur enregistré.'; return; }
+
+    let players = stored.map(p => ({ name: p.name, color: p.color || '#8ac6ff', chosen:false, chosenCard:null }));
+    let order = shuffle(players.slice());
+    let currentIdx = 0;
+
+    const DECISION_TIME = 20.0; // seconds
+    let turnTimeout = null; let timerInterval = null; let timerStart = 0;
+    let deck = [];
+
+    // Strategy titles and descriptions
+    const EX_TITLES = [
+      'SPIRALE','GUERRIER','GOURMAND','BRIQUE','LASER','ALEATOIRE','STRATEGE','DROIT','TIMIDE','D-B-E-L','CENTRE','TRY HARD','FRONTIERE',
+      'KAMIKAZE','FOU','PARANO','NOMADE','COLMATAGE'
+    ];
+    const EX_DESCS = [
+      'Tourne sur lui-même.',
+      'Chasse l\'ennemi le plus proche.',
+      'Se dirige vers la case vide la plus proche.',
+      'Suis les murs les plus proches dans le sens horaire.',
+      'Avance et rebondis en diagonale.',
+      'Avance aléatoirement.',
+      'Copie la stratégie du joueur en première position.',
+      'Bouge toujours tout droit.',
+      'Fuit les autres joueurs.',
+      'Copie la stratégie du joueur en dernière position.',
+      'Veut contrôler le centre le plus possible.',
+      'Chasse l\'ennemi le plus faible.',
+      'Suis les murs les plus proches dans le sens anti-horaire.',
+      'Chasse l\'ennemi le plus fort.',
+      'Change de stratégie aléatoirement toutes les 25 cases.',
+      'Alterne entre TIMIDE et GUERRIER toutes les 25 cases.',
+      'Va d\'une case libre aléatoire à une autre.',
+      'Remplit les trous dans son territoire.'
+    ];
+    const EX_COLORS = ['#ff6b6b','#ffd166','#06d6a0','#4d96ff','#a78bfa','#ff7ab6','#f97316','#ffd43b','#60a5fa','#8b5cf6','#00d1b2','#ff4d4d','#c084fc','#ff2e2e','#ff8c00','#f472b6','#34d399','#a3e635'];
+
+    function shuffle(a){ return a.slice().sort(()=>Math.random()-0.5); }
+
+    function buildDeck(){
+      const count = players.length;
+      const res = [];
+      const used = new Set();
+      while(res.length < count){
+        const idx = Math.floor(Math.random()*EX_TITLES.length);
+        // avoid duplicates when possible
+        if (used.has(idx) && EX_TITLES.length >= count) continue;
+        used.add(idx);
+        res.push({ id: `card-${idx}-${res.length}`, title: EX_TITLES[idx], desc: EX_DESCS[idx], color: EX_COLORS[idx] });
+      }
+      return res;
+    }
+
+    function renderOrder(){ orderEl.innerHTML=''; order.forEach(p=>{ const chip = document.createElement('div'); chip.className='player-chip'; chip.style.borderColor = p.color; chip.textContent = p.name; orderEl.appendChild(chip); }); }
+
+    function announceOrder(){ orderEl.innerHTML = ''; let step=0; const preview = setInterval(()=>{
+      statusEl.textContent = 'Ordre aléatoire... ' + stored[Math.floor(Math.random()*stored.length)].name;
+      step++; if (step>18){ clearInterval(preview); renderOrder(); setTimeout(()=>{ deck = buildDeck(); renderDeck(); startTurn(0); }, 700); }
+    }, 70); }
+
+    function renderDeck(){ centerEl.innerHTML = ''; deck.forEach(c=>{
+      const d = document.createElement('div'); d.className='card'; d.dataset.id = c.id;
+      // colored overlay slightly tinted by the card color
+      const overlay = document.createElement('div'); overlay.className = 'color-overlay'; overlay.style.background = c.color;
+      const t = document.createElement('div'); t.className='title'; t.textContent = c.title; t.style.color = c.color;
+      const p = document.createElement('div'); p.className='desc'; p.textContent = c.desc;
+      d.appendChild(overlay); d.appendChild(t); d.appendChild(p);
+      d.addEventListener('click', onCardClick);
+      centerEl.appendChild(d);
+      // little pop animation when cards appear
+      requestAnimationFrame(()=>{ d.classList.add('pick-anim'); setTimeout(()=> d.classList.remove('pick-anim'), 420); });
+    }); }
+
+    function onCardClick(e){
+      const id = e.currentTarget.dataset.id;
+      const cardIndex = deck.findIndex(x=>x.id === id);
+      if (cardIndex === -1) return;
+      pickCard(cardIndex);
+    }
+
+    function startTimer(){ clearTimer(); timerStart = Date.now(); timerFill.style.transition = `width ${DECISION_TIME}s linear`; timerFill.style.width = '100%'; requestAnimationFrame(()=> timerFill.style.width = '0%'); timeLabel.textContent = DECISION_TIME.toFixed(2) + 's';
+      timerInterval = setInterval(()=>{ const elapsed = (Date.now()-timerStart)/1000; const rem = Math.max(0, DECISION_TIME - elapsed); timeLabel.textContent = rem.toFixed(2) + 's'; }, 120);
+      turnTimeout = setTimeout(()=>{ // auto pick random
+        if (deck.length) pickCard(Math.floor(Math.random()*deck.length));
+      }, Math.round(DECISION_TIME*1000)); }
+
+    function clearTimer(){ if (turnTimeout){ clearTimeout(turnTimeout); turnTimeout = null; } if (timerInterval){ clearInterval(timerInterval); timerInterval = null; } timerFill.style.transition = 'none'; timerFill.style.width = '100%'; }
+
+    function getNextUnchosenIndex(start){ for(let i=0;i<order.length;i++){ const j=(start + i) % order.length; if (!order[j].chosen) return j; } return -1; }
+
+    function startTurn(idx){
+      const next = getNextUnchosenIndex(idx);
+      if (next === -1){ finishRound(); return; }
+      currentIdx = next; const p = order[currentIdx];
+      statusEl.textContent = `${p.name}, choisis ta carte`;
+      statusEl.style.color = p.color;
+      // highlight player chip
+      Array.from(orderEl.children).forEach((chip,i)=> chip.style.opacity = (i===currentIdx? '1':'0.6'));
+      startTimer();
+    }
+
+    function pickCard(cardIndex){
+      clearTimer();
+      const cardEls = Array.from(centerEl.children);
+      const el = cardEls.find(c=> c.dataset.id === deck[cardIndex].id);
+      if (el) el.classList.add('picked');
+      const player = order[currentIdx];
+      const picked = deck.splice(cardIndex,1)[0];
+      player.chosen = true; player.chosenCard = picked;
+      try{ annotatePlayerPillWithChoice(player); }catch(e){}
+      // small popup on pick (use picked card color)
+      try{ showPickPopup(el, `+ ${picked.title}`, picked.color); }catch(e){}
+      // small particle burst at the picked card
+      try{ if (el){ const rect = el.getBoundingClientRect(); emitParticlesAtPage(rect.left + rect.width/2, rect.top + rect.height/2, picked.color, 12, 40, 900); } }catch(e){}
+      setTimeout(()=>{
+        // remove element
+        if (el && el.parentNode) el.parentNode.removeChild(el);
+        // next player
+        const next = getNextUnchosenIndex(currentIdx+1);
+        if (next === -1) finishRound(); else startTurn(next);
+      }, 360);
+    }
+
+    function showPickPopup(node, text, color){ if (!node) return; try{ const rect = node.getBoundingClientRect(); const pop = document.createElement('div'); pop.textContent = text; Object.assign(pop.style, { position:'fixed', left: (rect.left + rect.width/2) + 'px', top: (rect.top) + 'px', transform:'translate(-50%, -12px)', color: color || '#fff', fontWeight:'900', fontSize:'18px', pointerEvents:'none', zIndex:100010, opacity:'1', transition:'transform .7s ease, opacity .7s ease' }); document.body.appendChild(pop); requestAnimationFrame(()=>{ pop.style.transform='translate(-50%, -30px)'; pop.style.opacity='0'; }); setTimeout(()=>{ if (pop && pop.parentNode) pop.parentNode.removeChild(pop); }, 700); }catch(e){} }
+
+    function annotatePlayerPillWithChoice(player){
+      const bar = document.querySelector('.player-bar');
+      if (!bar){ window.addEventListener('load', function onLoad(){ window.removeEventListener('load', onLoad); annotatePlayerPillWithChoice(player); }); return; }
+      const pname = (player && player.name) ? String(player.name).trim() : '';
+      const pcolor = player && player.color ? String(player.color).trim() : null;
+      const normalized = (pname||'').toLowerCase();
+      // remove any existing pill-title already attached for this player (prevent duplicates/misplaced)
+      try{
+        const existing = Array.from(document.querySelectorAll('.pill-title')).filter(t=> t.dataset && t.dataset.playerName === normalized);
+        for (const ex of existing){ if (ex && ex.parentNode) ex.parentNode.removeChild(ex); }
+      }catch(e){}
+      const pill = getPlayerPillByName(pname, pcolor);
+      if (!pill) return;
+      // ensure pill has dataset player name for future reliable lookups
+      try{ pill.dataset.playerName = normalized; }catch(e){}
+      pill.style.position = 'relative';
+      let titleEl = pill.querySelector('.pill-title');
+      if (!titleEl){ titleEl = document.createElement('div'); titleEl.className = 'pill-title'; titleEl.dataset.playerName = normalized; pill.appendChild(titleEl); }
+      titleEl.dataset.playerName = normalized;
+      titleEl.textContent = player.chosenCard ? player.chosenCard.title : '';
+      if (!pill._hasPillTooltipListeners){
+        pill.addEventListener('mouseenter', ()=> showPillTooltip(pill, player.chosenCard?.desc));
+        pill.addEventListener('mouseleave', ()=> hidePillTooltip());
+        pill._hasPillTooltipListeners = true;
+      }
+    }
+
+    function showPillTooltip(pill, text){ if (!text) return; let tip = document.getElementById('pillTooltip'); if (!tip){ tip = document.createElement('div'); tip.id = 'pillTooltip'; Object.assign(tip.style,{ position:'fixed', padding:'8px 10px', background:'rgba(0,0,0,0.9)', color:'#fff', borderRadius:'8px', fontSize:'0.95rem', zIndex:100002, maxWidth:'260px', boxShadow:'0 6px 20px rgba(0,0,0,0.6)', pointerEvents:'none', transition:'opacity .18s ease' }); document.body.appendChild(tip); }
+      tip.textContent = text;
+      const rect = pill.getBoundingClientRect();
+      tip.style.left = (rect.left + rect.width/2) + 'px';
+      // place the tooltip a bit higher than before
+      tip.style.top = (rect.top - 18) + 'px';
+      tip.style.transform = 'translate(-50%, -120%)';
+      tip.style.opacity = '1';
+    }
+
+    function hidePillTooltip(){ const tip = document.getElementById('pillTooltip'); if (tip && tip.parentNode) tip.parentNode.removeChild(tip); }
+
+    // --- Simulation engine globals and helpers ---
+    const GRID_COLS = 50, GRID_ROWS = 50, GRID_TOTAL = GRID_COLS * GRID_ROWS;
+    let simOwners = null; // Int16Array of owner indices (-1 empty)
+    let simHeads = null; // player head positions (index)
+    let simTerritory = null; // counts per player
+    let simGridCells = null; // DOM cells array
+    let simTimerId = null;
+    let simRunning = false;
+    let rankRows = [];
+    let rankEl = null;
+    let speedInputElem = null;
+    let simBoosted = false; // whether speed is boosted x2 because only one player can move
+    let enableMarioMode = (localStorage.getItem('mini-Jeux-mario-mode') === '1');
+    let spiralOrder = null; // precomputed spiral ordering of grid indices (center outward)
+
+    function idxToXY(i){ return { x: i % GRID_COLS, y: Math.floor(i / GRID_COLS) }; }
+    function xyToIdx(x,y){ return y * GRID_COLS + x; }
+    function inBounds(x,y){ return x >= 0 && x < GRID_COLS && y >= 0 && y < GRID_ROWS; }
+
+    function generateSpiralOrder(){
+      const out = [];
+      const cx = Math.floor(GRID_COLS/2), cy = Math.floor(GRID_ROWS/2);
+      let x = cx, y = cy;
+      out.push(xyToIdx(x,y));
+      let step = 1;
+      const dirs = [[1,0],[0,1],[-1,0],[0,-1]]; // right, down, left, up
+      while(out.length < GRID_TOTAL){
+        for (let d=0; d<4; d++){
+          const steps = (d%2===0) ? step : step;
+          for (let s=0; s<steps; s++){
+            x += dirs[d][0]; y += dirs[d][1];
+            if (inBounds(x,y)) out.push(xyToIdx(x,y));
+            if (out.length >= GRID_TOTAL) break;
+          }
+          if (out.length >= GRID_TOTAL) break;
+          if (d%2 === 1) step++;
+        }
+      }
+      return out;
+    }
+  
+      // generate spiral order around an arbitrary center (cx,cy)
+      function generateSpiralAround(cx, cy){
+        const out = [];
+        let x = cx, y = cy;
+        if (inBounds(x,y)) out.push(xyToIdx(x,y));
+        let step = 1;
+        const dirs = [[1,0],[0,1],[-1,0],[0,-1]]; // right, down, left, up
+        while(out.length < GRID_TOTAL){
+          for (let d=0; d<4; d++){
+            const steps = (d%2===0) ? step : step;
+            for (let s=0; s<steps; s++){
+              x += dirs[d][0]; y += dirs[d][1];
+              if (inBounds(x,y)) out.push(xyToIdx(x,y));
+              if (out.length >= GRID_TOTAL) break;
+            }
+            if (out.length >= GRID_TOTAL) break;
+            if (d%2 === 1) step++;
+          }
+        }
+        return out;
+      }
+
+        // generate concentric square rings around a center (chebyshev distance)
+        function generateConcentricRings(cx, cy){
+          const rings = [];
+          const maxR = Math.max(cx, GRID_COLS-1-cx, cy, GRID_ROWS-1-cy);
+          for (let r=0;r<=maxR;r++){
+            const ring = [];
+            if (r === 0){ if (inBounds(cx,cy)) ring.push(xyToIdx(cx,cy)); rings.push(ring); continue; }
+            const left = cx - r, right = cx + r, top = cy - r, bottom = cy + r;
+            // top row left->right
+            for (let x = left; x <= right; x++){ const y = top; if (inBounds(x,y)) ring.push(xyToIdx(x,y)); }
+            // right col top+1 -> bottom
+            for (let y = top+1; y <= bottom; y++){ const x = right; if (inBounds(x,y)) ring.push(xyToIdx(x,y)); }
+            // bottom row right-1 -> left
+            for (let x = right-1; x >= left; x--){ const y = bottom; if (inBounds(x,y)) ring.push(xyToIdx(x,y)); }
+            // left col bottom-1 -> top+1
+            for (let y = bottom-1; y > top; y--){ const x = left; if (inBounds(x,y)) ring.push(xyToIdx(x,y)); }
+            if (ring.length) rings.push(ring);
+          }
+          return rings;
+        }
+
+    function setupSimulation(gridElement, initialPositions){
+      simOwners = new Int16Array(GRID_TOTAL); for(let i=0;i<GRID_TOTAL;i++) simOwners[i] = -1;
+      simGridCells = Array.from(gridElement.children);
+      simHeads = new Array(order.length).fill(-1);
+      simTerritory = new Array(order.length).fill(0);
+
+      // precompute spiral order for CENTER strategy
+      spiralOrder = generateSpiralOrder();
+
+      for (let i=0;i<order.length;i++){
+        let chosenIdx = initialPositions[i];
+        if (typeof chosenIdx !== 'number' || chosenIdx < 0 || chosenIdx >= GRID_TOTAL) chosenIdx = -1;
+        if (chosenIdx === -1 || simOwners[chosenIdx] !== -1){
+          for (let j=0;j<GRID_TOTAL;j++){ if (simOwners[j] === -1){ chosenIdx = j; break; } }
+        }
+        if (chosenIdx >= 0){ simOwners[chosenIdx] = i; simHeads[i] = chosenIdx; simTerritory[i] = 1; const cell = simGridCells[chosenIdx]; if(cell) cell.style.background = order[i].color; }
+        if (!order[i].dir) order[i].dir = {dx: (Math.random()<0.5?1:-1), dy: 0};
+      }
+
+      rankEl = document.getElementById('rankingPanel'); rankRows = [];
+      if (rankEl){
+        const rows = Array.from(rankEl.querySelectorAll('[data-player-index]'));
+        rows.forEach(r => { const pi = parseInt(r.dataset.playerIndex,10); const percentEl = r.querySelector('.percent'); rankRows[pi] = { row: r, percentEl }; });
+        speedInputElem = rankEl.querySelector('input[type=range]'); if (speedInputElem) speedInputElem.addEventListener('input', ()=>{ if (simRunning) restartSimTimer(); });
+      }
+      // initial ranking update
+      updateRankingUI();
+    }
+
+    function showCountdownAndStart(){
+      const overlay = document.createElement('div'); overlay.id = 'countdownOverlay'; Object.assign(overlay.style,{ position:'fixed',left:0,top:0,right:0,bottom:0,display:'flex',alignItems:'center',justifyContent:'center',zIndex:100020,background:'rgba(0,0,0,0.0)'});
+      const text = document.createElement('div'); text.id='countdownText'; Object.assign(text.style,{ fontSize:'120px',fontWeight:'900',color:'#fff',textAlign:'center',textShadow:'0 8px 30px rgba(0,0,0,0.6)',transform:'scale(0.6)',opacity:'0'});
+      overlay.appendChild(text); document.body.appendChild(overlay);
+      const seq = ['3','2','1','GO!']; let i=0;
+      function showNext(){ if (i>=seq.length){ document.body.removeChild(overlay); startSimulationWithCubes(); return; } text.textContent = seq[i]; text.style.transition = 'transform .28s, opacity .28s'; requestAnimationFrame(()=>{ text.style.transform='scale(1)'; text.style.opacity='1'; }); i++; setTimeout(()=>{ text.style.transform='scale(0.6)'; text.style.opacity='0'; setTimeout(showNext,120); }, 600); }
+      showNext();
+    }
+
+    function startSimulation(){ simRunning = true; startSimTimer(); }
+    function startSimulationWithCubes(){ startSimulation(); scheduleNextCubeSpawn(); }
+    function startSimTimer(){ if (simTimerId) clearInterval(simTimerId); const baseMs = mapSpeedToMs(speedInputElem ? speedInputElem.value : 3); const ms = Math.max(20, Math.round(baseMs / (simBoosted ? 2 : 1))); simTimerId = setInterval(simTick, ms); }
+    function restartSimTimer(){ startSimTimer(); }
+    function mapSpeedToMs(v){ const s = Math.max(1, parseInt(v,10)); return Math.max(20, Math.round(1000 / s)); }
+
+    function simTick(){
+      for (let i=0;i<order.length;i++){ if (simHeads[i] == null || simHeads[i] < 0) continue; movePlayerStep(i); }
+      updateRankingUI();
+      // adjust speed if only one player can move
+      const activeCount = countActivePlayers();
+      if (activeCount === 1 && !simBoosted){ simBoosted = true; restartSimTimer(); }
+      else if (activeCount !== 1 && simBoosted){ simBoosted = false; restartSimTimer(); }
+      // if nobody can move, end the game and show final ranking
+      if (activeCount === 0){ if (simTimerId) clearInterval(simTimerId); simRunning = false; try{ clearCubeTimers(); }catch(e){}; decoratePlayerBarFinalRanks(); showEndScreen(); return; }
+      const totalOwned = simTerritory.reduce((a,b)=>a+b,0);
+      if (totalOwned >= GRID_TOTAL){ clearInterval(simTimerId); simRunning=false; try{ clearCubeTimers(); }catch(e){} if (window.PourtyMiniGame) { decoratePlayerBarFinalRanks(); showEndScreen(); } }
+    }
+
+    function movePlayerStep(pi){
+      const pos = simHeads[pi]; if (pos == null || pos < 0) return;
+      const beforeReach = getReachableEmptyBool();
+      const strat = (order[pi].chosenCard && order[pi].chosenCard.title) ? order[pi].chosenCard.title.toUpperCase() : 'ALEATOIRE';
+      const {x,y} = idxToXY(pos);
+      const n4 = [[1,0],[-1,0],[0,1],[0,-1]].map(([dx,dy])=> ({x:x+dx,y:y+dy,dx,dy})).filter(p=>inBounds(p.x,p.y)).map(p=>xyToIdx(p.x,p.y));
+
+      // If there is no reachable empty cell at all, stop moving
+      const pathCheck = bfsFindNearestEmpty(pos, pi);
+      if (!pathCheck) return;
+
+      // Ask strategy for a target first (may be adjacent or distant)
+      let target = chooseTargetForStrategy(pi, pos, strat);
+      // if strategy produced nothing or produced a non-claimable target, try BFS to nearest empty
+      if (!(typeof target === 'number' && target >= 0 && target < GRID_TOTAL && simOwners[target] === -1)){
+        const path = bfsFindNearestEmpty(pos, pi);
+        if (path && path.length > 1) target = path[1];
+      }
+
+      // If strategy/BFS produced a claimable free cell, take it
+      if (typeof target === 'number' && target >= 0 && target < GRID_TOTAL && simOwners[target] === -1){
+        claimCell(target, pi); moveHeadTo(pi, target);
+        return;
+      }
+
+      // If target wasn't claimable, prefer any adjacent free orthogonal cell as a fallback
+      const freeAdj = n4.find(i=> simOwners[i] === -1);
+      if (typeof freeAdj !== 'undefined'){
+        claimCell(freeAdj, pi); moveHeadTo(pi, freeAdj);
+        return;
+      }
+
+      // allow moving back onto own adjacent cells to reposition ONLY if that own cell has an adjacent free orthogonal cell
+      const ownAdj = n4.filter(i=> simOwners[i] === pi);
+      if (ownAdj.length > 0){
+        let chosenOwn = -1;
+        for (const oi of ownAdj){
+          const {x:ox,y:oy} = idxToXY(oi);
+          let found=false;
+          const nbs = [[1,0],[-1,0],[0,1],[0,-1]];
+          for (const [dx,dy] of nbs){ const nx = ox+dx, ny = oy+dy; if (!inBounds(nx,ny)) continue; const ni = xyToIdx(nx,ny); if (simOwners[ni] === -1){ chosenOwn = oi; found = true; break; } }
+          if (found) break;
+        }
+        if (chosenOwn !== -1){ moveHeadTo(pi, chosenOwn); return; }
+      }
+
+      // If target is owned by self, move head there as last resort
+      if (typeof target === 'number' && target >= 0 && target < GRID_TOTAL && simOwners[target] === pi){
+        moveHeadTo(pi, target);
+      }
+    }
+
+    function claimCell(idx, pi){
+      simOwners[idx] = pi;
+      simTerritory[pi]++;
+      const cell = simGridCells[idx];
+      if (cell){
+        cell.style.background = order[pi].color;
+        cell.style.boxShadow = 'inset 0 0 2px rgba(0,0,0,0.6)';
+      }
+    }
+
+    // centralized head movement helper (increments internal move counter)
+    function moveHeadTo(pi, idx){
+      simHeads[pi] = idx;
+      try{ updateHeadStyles(); }catch(e){}
+      try{ claimEnclosedRegions(pi); }catch(e){}
+      order[pi].moves = (order[pi].moves || 0) + 1;
+      try{ if (typeof activeCubeIndex !== 'undefined' && activeCubeIndex === idx){ try{ triggerBomb(pi, idx); }catch(e){} } }catch(e){}
+    }
+
+    // --- Particle utilities ---
+    function emitParticlesAtPage(xPx, yPx, color, count=18, spread=36, life=700, startOpacity=1){
+      for (let i=0;i<count;i++){
+        const p = document.createElement('div'); p.className='particle';
+        const size = Math.round(Math.random()*6 + 4);
+        p.style.width = p.style.height = size + 'px';
+        p.style.left = xPx + 'px'; p.style.top = yPx + 'px';
+        p.style.background = color;
+        p.style.opacity = String(startOpacity || 1);
+        p.style.transform = 'translate(-50%,-50%) scale(1)';
+        p.style.transition = `transform ${life}ms cubic-bezier(.2,.85,.2,1), opacity ${life}ms linear`;
+        document.body.appendChild(p);
+        requestAnimationFrame(()=>{
+          const angle = Math.random()*Math.PI*2;
+          const dist = Math.random()*spread;
+          const dx = Math.cos(angle)*dist;
+          const dy = Math.sin(angle)*dist;
+          p.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(${Math.random()*0.6+0.3})`;
+          p.style.opacity = '0';
+        });
+        setTimeout(()=>{ try{ if (p && p.parentNode) p.parentNode.removeChild(p); }catch(e){} }, life + 80);
+      }
+    }
+
+    function emitParticlesAlongCells(cells, color){
+      if (!cells || !cells.length) return;
+      // centroid in grid coords
+      let sx=0, sy=0;
+      for (const idx of cells){ const r = idxToXY(idx); sx += r.x; sy += r.y; }
+      const cx = sx / cells.length; const cy = sy / cells.length;
+      // find a representative DOM cell near centroid
+      const xi = Math.round(cx), yi = Math.round(cy); const ci = xyToIdx(xi, yi);
+      let xPx = window.innerWidth/2, yPx = window.innerHeight/2;
+      if (simGridCells && simGridCells[ci]){
+        const rect = simGridCells[ci].getBoundingClientRect(); xPx = rect.left + rect.width/2; yPx = rect.top + rect.height/2;
+      } else if (simGridCells && simGridCells[cells[0]]){
+        const rect = simGridCells[cells[0]].getBoundingClientRect(); xPx = rect.left + rect.width/2; yPx = rect.top + rect.height/2;
+      }
+      emitParticlesAtPage(xPx, yPx, color, Math.min(48, Math.round(cells.length/2)+6), Math.min(120, cells.length*2 + 20), 1100);
+      // small glow on cells
+      for (const idx of cells){ const ce = simGridCells[idx]; if (!ce) continue; ce.classList.add('cell-glow'); setTimeout(()=>{ try{ ce.classList.remove('cell-glow'); }catch(e){} }, 900); }
+    }
+
+    // --- White cube (bonus) and bomb logic ---
+    let activeCubeIndex = -1;
+    let activeCubeEl = null;
+    let activeCubeTimeout = null;
+    let activeCubeFlickerTimeout = null;
+    let cubeSpawnTimer = null;
+    const CUBE_LIFE_MS = 10000; // cube exists 10s
+    const CUBE_FLICKER_MS = 3000; // last 3s flicker
+    const CUBE_MIN_SPAWN_MS = 5000; // 5s (min spawn)
+    const CUBE_MAX_SPAWN_MS = 20000; // 20s (max spawn)
+    const CUBE_RADIUS = 5; // explosion radius (chebyshev)
+
+    function scheduleNextCubeSpawn(){ if (!simRunning) return; if (cubeSpawnTimer) clearTimeout(cubeSpawnTimer); const ms = Math.floor(Math.random() * (CUBE_MAX_SPAWN_MS - CUBE_MIN_SPAWN_MS + 1)) + CUBE_MIN_SPAWN_MS; cubeSpawnTimer = setTimeout(()=>{ spawnRandomCube(); }, ms); }
+
+    function spawnRandomCube(){ if (!simGridCells || !simRunning) { scheduleNextCubeSpawn(); return; } if (activeCubeIndex >= 0) return; const empties = []; for (let i=0;i<GRID_TOTAL;i++){ if (simOwners[i] === -1) empties.push(i); }
+      if (!empties.length){ scheduleNextCubeSpawn(); return; }
+      const idx = empties[Math.floor(Math.random()*empties.length)]; placeCubeAt(idx);
+    }
+
+    function placeCubeAt(idx){ removeActiveCube(); if (!simGridCells || idx < 0 || idx >= GRID_TOTAL) return; const cell = simGridCells[idx]; if (!cell) return; try{ if (!cell.style.position || cell.style.position === '') cell.style.position = 'relative'; }catch(e){}
+      const cube = document.createElement('div'); cube.className = 'white-cube'; cube.dataset.bonus = 'bomb'; cell.appendChild(cube); activeCubeIndex = idx; activeCubeEl = cube;
+      // flicker near end
+      activeCubeFlickerTimeout = setTimeout(()=>{ try{ if (activeCubeEl) activeCubeEl.classList.add('flicker'); }catch(e){} }, Math.max(0, CUBE_LIFE_MS - CUBE_FLICKER_MS));
+      // expire after life
+      activeCubeTimeout = setTimeout(()=>{ removeActiveCube(); scheduleNextCubeSpawn(); }, CUBE_LIFE_MS);
+    }
+
+    function removeActiveCube(){ if (activeCubeTimeout){ clearTimeout(activeCubeTimeout); activeCubeTimeout = null; } if (activeCubeFlickerTimeout){ clearTimeout(activeCubeFlickerTimeout); activeCubeFlickerTimeout = null; } if (activeCubeEl){ try{ if (activeCubeEl.parentNode) activeCubeEl.parentNode.removeChild(activeCubeEl); }catch(e){} activeCubeEl = null; } activeCubeIndex = -1; }
+
+    function clearCubeTimers(){ try{ if (cubeSpawnTimer) clearTimeout(cubeSpawnTimer); cubeSpawnTimer = null; removeActiveCube(); }catch(e){} }
+
+    function takeoverCell(idx, pi){ if (idx < 0 || idx >= GRID_TOTAL) return; const prev = simOwners[idx]; if (prev === pi) return; if (prev >= 0 && simTerritory[prev] > 0) simTerritory[prev] = Math.max(0, simTerritory[prev]-1); simOwners[idx] = pi; simTerritory[pi] = (simTerritory[pi]||0) + 1; const cell = simGridCells[idx]; if (cell){ cell.style.background = order[pi].color; cell.style.boxShadow = 'inset 0 0 2px rgba(0,0,0,0.6)'; } }
+
+    // eliminate a player entirely from the map (remove head, clear owned cells, update UI)
+    function eliminatePlayer(victimPi, killerPi){
+      if (typeof victimPi !== 'number' || victimPi < 0 || victimPi >= simHeads.length) return;
+      const headPos = simHeads[victimPi];
+      // remove head
+      simHeads[victimPi] = -1;
+      // clear all owned cells of this player
+      try{
+        for (let i=0;i<GRID_TOTAL;i++){ if (simOwners[i] === victimPi){ simOwners[i] = -1; const ce = simGridCells[i]; if (ce){ ce.style.background = ''; ce.style.boxShadow = 'none'; } } }
+      }catch(e){}
+      // reset territory count
+      try{ simTerritory[victimPi] = 0; }catch(e){}
+      // mark as eliminated in order for any UI logic
+      try{ order[victimPi].eliminated = true; }catch(e){}
+      // dim the player pill if present
+      try{ const pill = getPlayerPillByName(order[victimPi].name, order[victimPi].color); if (pill){ pill.classList.add('eliminated'); pill.style.opacity = '0.45'; } }catch(e){}
+      // small particle burst at head location in killer color
+      try{ if (typeof killerPi === 'number' && killerPi >= 0 && headPos != null && headPos >= 0 && simGridCells[headPos]){ const r = simGridCells[headPos].getBoundingClientRect(); emitParticlesAtPage(r.left + r.width/2, r.top + r.height/2, order[killerPi].color, 28, 40, 900, 1); } }catch(e){}
+      try{ updateHeadStyles(); }catch(e){}
+    }
+
+    function triggerBomb(pi, idx){ // only trigger if active cube present at idx
+      if (activeCubeIndex !== idx) return; removeActiveCube(); // compute affected cells (chebyshev radius)
+      const {x,y} = idxToXY(idx); const affected = [];
+      for (let dx = -CUBE_RADIUS; dx <= CUBE_RADIUS; dx++){
+        for (let dy = -CUBE_RADIUS; dy <= CUBE_RADIUS; dy++){
+          const nx = x + dx, ny = y + dy; if (!inBounds(nx,ny)) continue; const dist = Math.max(Math.abs(dx), Math.abs(dy)); if (dist <= CUBE_RADIUS){ const ni = xyToIdx(nx,ny); affected.push(ni); }
+        }
+      }
+      // eliminate any players whose head is inside the affected area (except the triggering player)
+      try{
+        for (let pp=0; pp<simHeads.length; pp++){
+          if (pp === pi) continue;
+          const h = simHeads[pp]; if (h == null || h < 0) continue; if (affected.indexOf(h) !== -1){ try{ eliminatePlayer(pp, pi); }catch(e){} }
+        }
+      }catch(e){}
+      // takeover affected cells
+      for (const ai of affected){ try{ takeoverCell(ai, pi); }catch(e){} }
+      // visual explosion: emit particles and ring
+      try{ emitParticlesAlongCells(affected, order[pi].color); }catch(e){}
+      try{
+        const overlay = document.createElement('div'); overlay.className = 'explosion-overlay'; document.body.appendChild(overlay);
+        const rect = simGridCells[idx] ? simGridCells[idx].getBoundingClientRect() : {left: window.innerWidth/2, top: window.innerHeight/2, width: 20, height: 20};
+        const ring = document.createElement('div'); ring.className = 'explosion-ring'; ring.style.left = (rect.left + rect.width/2) + 'px'; ring.style.top = (rect.top + rect.height/2) + 'px'; ring.style.background = order[pi].color; ring.style.width = '24px'; ring.style.height = '24px'; overlay.appendChild(ring);
+        // compute final size based on cell size and radius
+        const cellW = rect.width || (window.innerWidth / GRID_COLS); const finalSize = (CUBE_RADIUS * 2 + 1) * cellW * 1.05; setTimeout(()=>{ ring.style.transform = `translate(-50%,-50%) scale(${finalSize/24})`; ring.style.opacity = '0.9'; }, 20);
+        setTimeout(()=>{ try{ if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay); }catch(e){} }, 700);
+        // pulse affected cells
+        for (const ai of affected){ const ce = simGridCells[ai]; if (!ce) continue; ce.classList.add('explosion-hit'); setTimeout(()=>{ try{ ce.classList.remove('explosion-hit'); }catch(e){} }, 700); }
+      }catch(e){}
+      // schedule next cube spawn
+      scheduleNextCubeSpawn();
+    }
+
+    function playerCanMove(pi){
+      const pos = simHeads[pi]; if (pos == null || pos < 0) return false;
+      const path = bfsFindNearestEmpty(pos, pi);
+      if (path && path.length > 1) return true;
+      const {x,y} = idxToXY(pos);
+      const n4 = [[1,0],[-1,0],[0,1],[0,-1]];
+      for (const [dx,dy] of n4){ const nx=x+dx, ny=y+dy; if (!inBounds(nx,ny)) continue; const ni = xyToIdx(nx,ny); if (simOwners[ni] === -1) return true; }
+      return false;
+    }
+
+    function spawnHeadParticles(pi){
+      // only spawn for players that can still move
+      try{ if (!playerCanMove(pi)) return; }catch(e){ }
+      const pos = simHeads[pi]; if (pos == null || pos < 0) return;
+      const cell = simGridCells[pos]; if (!cell) return;
+      const rect = cell.getBoundingClientRect(); const xPx = rect.left + rect.width/2; const yPx = rect.top + rect.height/2;
+      if (Math.random() < 0.12) emitParticlesAtPage(xPx, yPx, order[pi].color, 6, 26, 700, 0.28);
+    }
+
+    function updateHeadStyles(){
+      if (!simGridCells) return;
+      for (let i=0;i<GRID_TOTAL;i++){
+        const cell = simGridCells[i]; if (!cell) continue;
+        if (simOwners[i] >= 0) cell.style.boxShadow = 'inset 0 0 2px rgba(0,0,0,0.6)'; else cell.style.boxShadow = 'none';
+      }
+      for (let p=0;p<simHeads.length;p++){
+        const h = simHeads[p]; if (h == null || h < 0) continue; const cell = simGridCells[h]; if (!cell) continue;
+        cell.style.boxShadow = 'inset 0 0 2px rgba(0,0,0,0.6), 0 0 0 2px rgba(255,255,255,0.9)';
+        try{ spawnHeadParticles(p); }catch(e){}
+      }
+    }
+
+    function getReachableEmptyBool(){
+      const reach = new Uint8Array(GRID_TOTAL);
+      const q = [];
+      for (let x=0;x<GRID_COLS;x++){
+        const top = xyToIdx(x,0); const bot = xyToIdx(x,GRID_ROWS-1);
+        if (simOwners[top] === -1){ reach[top]=1; q.push(top); }
+        if (simOwners[bot] === -1 && bot !== top){ reach[bot]=1; q.push(bot); }
+      }
+      for (let y=1;y<GRID_ROWS-1;y++){
+        const left = xyToIdx(0,y); const right = xyToIdx(GRID_COLS-1,y);
+        if (simOwners[left] === -1){ reach[left]=1; q.push(left); }
+        if (simOwners[right] === -1 && right !== left){ reach[right]=1; q.push(right); }
+      }
+      const nbs = [[1,0],[-1,0],[0,1],[0,-1]];
+      for (let qi=0; qi<q.length; qi++){
+        const cur = q[qi]; const {x,y} = idxToXY(cur);
+        for (const [dx,dy] of nbs){ const nx = x+dx, ny = y+dy; if (!inBounds(nx,ny)) continue; const ni = xyToIdx(nx,ny); if (reach[ni]) continue; if (simOwners[ni] === -1){ reach[ni]=1; q.push(ni); } }
+      }
+      return reach;
+    }
+
+    function chooseTargetForStrategy(pi, pos, strat, depth){
+      depth = (typeof depth === 'number') ? depth : 0;
+      if (depth > 8) return -1; // recursion guard
+      const {x,y} = idxToXY(pos);
+      const n4Dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+      const neighbors4 = n4Dirs.map(([dx,dy])=> ({x:x+dx,y:y+dy,dx,dy})).filter(p=>inBounds(p.x,p.y)).map(p=>xyToIdx(p.x,p.y));
+
+      function free(i){ return simOwners[i] === -1; }
+      function pickFirstFree(list){ for (const idx of list) if (free(idx)) return idx; return -1; }
+
+      // BFS helper: find path to any of the goal indices, allowing traversal over empty or own cells.
+      function bfsFindPathToGoalsLocal(startIdx, playerIndex, goals, preferFlip){
+        const goalSet = new Uint8Array(GRID_TOTAL);
+        for (const g of goals) if (typeof g === 'number' && g >= 0 && g < GRID_TOTAL) goalSet[g] = 1;
+        const q = [startIdx];
+        const seen = new Uint8Array(GRID_TOTAL);
+        const parent = new Int32Array(GRID_TOTAL);
+        for (let i=0;i<GRID_TOTAL;i++) parent[i] = -1;
+        seen[startIdx] = 1;
+        const hDirs = [[1,0],[-1,0],[0,1],[0,-1]];
+        const vDirs = [[0,1],[0,-1],[1,0],[-1,0]];
+        while(q.length){
+          const cur = q.shift();
+          if (goalSet[cur]){ const path=[cur]; let p=parent[cur]; while(p !== -1){ path.unshift(p); p = parent[p]; } return path; }
+          const {x:cx,y:cy} = idxToXY(cur);
+          const nbs = preferFlip ? hDirs : vDirs;
+          for (const [dx,dy] of nbs){ const nx = cx+dx, ny = cy+dy; if (!inBounds(nx,ny)) continue; const ni = xyToIdx(nx,ny); if (seen[ni]) continue; if (simOwners[ni] !== -1 && simOwners[ni] !== playerIndex) continue; seen[ni]=1; parent[ni]=cur; q.push(ni); }
+        }
+        return null;
+      }
+
+      switch(strat){
+        case 'SPIRALE': {
+          // Square spiral: follow concentric square rings around spawn, move one step along ring (no teleport)
+          if (!order[pi].spawnRings || !order[pi].spawnRings.length){
+            const head = simHeads[pi];
+            const center = head == null ? { x: Math.floor(GRID_COLS/2), y: Math.floor(GRID_ROWS/2) } : idxToXY(head);
+            order[pi].spawnRings = generateConcentricRings(center.x, center.y);
+            order[pi].spawnRingIndex = 0; order[pi].spawnRingPos = 0; order[pi].spawnRingDir = 1;
+          }
+          const rings = order[pi].spawnRings;
+
+          function findPosInRings(idx){
+            for (let r=0;r<rings.length;r++){ const ring = rings[r]; const p = ring.indexOf(idx); if (p !== -1) return { r, p }; }
+            return null;
+          }
+
+          const cur = findPosInRings(pos);
+          if (cur){ order[pi].spawnRingIndex = cur.r; order[pi].spawnRingPos = cur.p; }
+
+          const preferFlip = !!(order[pi] && order[pi].dir && order[pi].dir.flip);
+
+          // Try rings starting from current ring, orbiting to next free/own positions
+          for (let offset=0; offset<rings.length; offset++){
+            const ringIdx = (order[pi].spawnRingIndex + offset) % rings.length;
+            const ring = rings[ringIdx]; if (!ring || !ring.length) continue;
+            const ringLen = ring.length;
+            // prefer immediate adjacent cell on this ring
+            for (const nb of neighbors4){ if (ring.indexOf(nb) !== -1 && simOwners[nb] === -1){ order[pi].spawnRingIndex = ringIdx; order[pi].spawnRingPos = ring.indexOf(nb); return nb; } }
+            // attempt to pathfind to the next orbit position on this ring (move one step along path)
+            const startPos = (ringIdx === order[pi].spawnRingIndex) ? order[pi].spawnRingPos : 0;
+            for (let s=1; s<=ringLen; s++){
+              const posIdx = (startPos + s * order[pi].spawnRingDir + ringLen) % ringLen;
+              const target = ring[posIdx];
+              if (simOwners[target] === -1 || simOwners[target] === pi){
+                const path = bfsFindPathToGoalsLocal(pos, pi, [target], preferFlip);
+                if (path && path.length > 1){ order[pi].spawnRingIndex = ringIdx; order[pi].spawnRingPos = posIdx; return path[1]; }
+              }
+            }
+            // fallback: path to any free cell on the ring
+            const freeCells = ring.filter(i=> simOwners[i] === -1);
+            if (freeCells.length){ const pathAny = bfsFindPathToGoalsLocal(pos, pi, freeCells, preferFlip); if (pathAny && pathAny.length > 1){ order[pi].spawnRingIndex = ringIdx; order[pi].spawnRingPos = ring.indexOf(pathAny[pathAny.length-1]) || 0; return pathAny[1]; } }
+          }
+          // nothing found on rings: fallback to nearest empty
+          const p2 = bfsFindNearestEmpty(pos, pi); if (p2 && p2.length > 1) return p2[1];
+          return pickFirstFree(neighbors4);
+        }
+
+        case 'GUERRIER': {
+          // smarter chaser: prefer paths that both reach the enemy and leave options
+          function computeReachableArea(startIdx, playerIndex, limit=200){
+            if (startIdx == null || startIdx < 0) return 0;
+            const seen = new Uint8Array(GRID_TOTAL);
+            const q = [startIdx]; seen[startIdx]=1; let cnt=0;
+            const n4 = [[1,0],[-1,0],[0,1],[0,-1]];
+            for (let qi=0; qi<q.length && cnt < limit; qi++){
+              const cur = q[qi]; cnt++;
+              const {x:cx,y:cy} = idxToXY(cur);
+              for (const [dx,dy] of n4){ const nx = cx+dx, ny = cy+dy; if (!inBounds(nx,ny)) continue; const ni = xyToIdx(nx,ny); if (seen[ni]) continue; if (simOwners[ni] === -1 || simOwners[ni] === playerIndex){ seen[ni]=1; q.push(ni); } }
+            }
+            return cnt;
+          }
+
+          let best = null;
+          for (let j=0;j<simHeads.length;j++){
+            if (j === pi) continue;
+            const h = simHeads[j]; if (h == null) continue;
+            const goals = [];
+            const {x:tx,y:ty} = idxToXY(h);
+            const nbs = [[1,0],[-1,0],[0,1],[0,-1]];
+            for (const [dx,dy] of nbs){ const nx = tx+dx, ny = ty+dy; if (!inBounds(nx,ny)) continue; const ni = xyToIdx(nx,ny); if (simOwners[ni] === -1 || simOwners[ni] === pi) goals.push(ni); }
+            if (simOwners[h] === -1 || simOwners[h] === pi) goals.push(h);
+            if (goals.length === 0) continue;
+            const preferFlip = !!(order[pi] && order[pi].dir && order[pi].dir.flip);
+            const path = bfsFindPathToGoalsLocal(pos, pi, goals, preferFlip);
+            if (!path) continue;
+            const next = (path.length > 1) ? path[1] : path[0];
+            const reach = computeReachableArea(next, pi, 200);
+            const score = path.length - (reach * 0.25); // lower score better (short + open)
+            if (!best || score < best.score){ best = {path, score, reach, enemy: j}; }
+          }
+
+          if (best && best.path && best.path.length > 1){
+            const nextIdx = best.path[1];
+            // if the immediate next cell looks like a dead-end (low reach), try a feint: step to an alternative neighbor that gives a better long-term score
+            if (best.reach < 8){
+              const enemy = best.enemy; const h = simHeads[enemy]; const goals = [];
+              if (h != null){ const {x:tx,y:ty} = idxToXY(h); for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const nx = tx+dx, ny = ty+dy; if (!inBounds(nx,ny)) continue; const ni = xyToIdx(nx,ny); if (simOwners[ni] === -1 || simOwners[ni] === pi) goals.push(ni); } if (simOwners[h] === -1 || simOwners[h] === pi) goals.push(h); }
+              let bestFeint = null;
+              for (const cand of neighbors4.filter(i=> free(i))){
+                const pathNb = bfsFindPathToGoalsLocal(cand, pi, goals, !!(order[pi] && order[pi].dir && order[pi].dir.flip));
+                if (!pathNb) continue;
+                const reachNb = computeReachableArea(cand, pi, 200);
+                const scoreNb = pathNb.length - (reachNb * 0.25);
+                if (!bestFeint || scoreNb < bestFeint.score) bestFeint = {cand, pathNb, scoreNb, reachNb};
+              }
+              if (bestFeint && bestFeint.score < best.score - 0.5){ // only feint if clearly better
+                if (!order[pi].dir) order[pi].dir = {dx:1,dy:0,flip:0}; order[pi].dir.flip = order[pi].dir.flip?0:1;
+                return bestFeint.cand;
+              }
+            }
+            if (!order[pi].dir) order[pi].dir = {dx:1,dy:0,flip:0}; order[pi].dir.flip = order[pi].dir.flip?0:1;
+            return nextIdx;
+          }
+          return pickFirstFree(neighbors4);
+        }
+
+        case 'GOURMAND': {
+          // compact growth: prefer adjacent free orthogonal cell that maximizes contact with own cells
+          const cand = neighbors4.filter(free);
+          if (cand.length){
+            // compute centroid of owned cells to favour compact, deterministic growth
+            let sumx=0,sumy=0,count=0;
+            for (let i=0;i<GRID_TOTAL;i++){ if (simOwners[i] === pi){ const p = idxToXY(i); sumx += p.x; sumy += p.y; count++; } }
+            const centroidX = count ? (sumx/count) : null;
+            const centroidY = count ? (sumy/count) : null;
+            let best=-1, bestScore=-Infinity;
+            for (const cidx of cand){ const {x:cx,y:cy} = idxToXY(cidx); let ownAdj=0, enemyAdj=0; for (const [dx,dy] of n4Dirs){ const nx=cx+dx, ny=cy+dy; if (!inBounds(nx,ny)) continue; const ni = xyToIdx(nx,ny); if (simOwners[ni] === pi) ownAdj++; else if (simOwners[ni] !== -1) enemyAdj++; }
+              let score = ownAdj * 100 - enemyAdj * 10;
+              if (centroidX !== null){ const d = Math.hypot(cx-centroidX, cy-centroidY); score -= Math.round(d); }
+              if (score > bestScore || (score === bestScore && (best === -1 || cidx < best))){ bestScore = score; best = cidx; }
+            }
+            if (best !== -1) return best;
+          }
+          // detect encirclement: many enemy neighbors nearby
+          let enemyCount=0; for (const nb of neighbors4){ if (simOwners[nb] !== -1 && simOwners[nb] !== pi) enemyCount++; }
+          if (enemyCount >= 2){ const path = bfsFindNearestEmpty(pos, pi); if (path && path.length>1) return path[1]; }
+          // else try nearest empty via BFS
+          const path2 = bfsFindNearestEmpty(pos, pi); if (path2 && path2.length>1) return path2[1];
+          return pickFirstFree(neighbors4);
+        }
+
+        case 'BRIQUE': {
+          const dirs = [[1,0],[0,1],[-1,0],[0,-1]];
+          // initialize to head towards nearest wall once
+          if (!order[pi].dir || !order[pi].dir.brickInit){
+            const distLeft = x; const distRight = GRID_COLS - 1 - x; const distTop = y; const distBottom = GRID_ROWS - 1 - y;
+            const minDist = Math.min(distLeft, distRight, distTop, distBottom);
+            let chosen;
+            if (minDist === distLeft) chosen = [-1,0]; else if (minDist === distRight) chosen = [1,0]; else if (minDist === distTop) chosen = [0,-1]; else chosen = [0,1];
+            order[pi].dir = {dx: chosen[0], dy: chosen[1], brickInit: true};
+          }
+          const cur = order[pi].dir || {dx:1,dy:0}; let curIdx = dirs.findIndex(d=>d[0]===cur.dx && d[1]===cur.dy); if (curIdx<0) curIdx=0;
+          // follow wall: try forward, then rotate clockwise until a free cell
+          for (let k=0;k<4;k++){ const cand = dirs[(curIdx + k) % 4]; const nx = x + cand[0], ny = y + cand[1]; if (inBounds(nx,ny) && free(xyToIdx(nx,ny))){ order[pi].dir = {dx:cand[0], dy:cand[1], brickInit:true}; return xyToIdx(nx,ny); } }
+          return -1;
+        }
+
+        case 'LASER': {
+          // Strict diagonal movement: try to maintain a (dx,dy) diagonal and bounce on collisions.
+          if (!order[pi].dir) order[pi].dir = {dx: (Math.random()<0.5?1:-1), dy: (Math.random()<0.5?1:-1), phase: 0};
+          let dx = order[pi].dir.dx || 1, dy = order[pi].dir.dy || 1;
+          if (dx === 0) dx = order[pi].dir.dx = 1;
+          if (dy === 0) dy = order[pi].dir.dy = 1;
+          let phase = (typeof order[pi].dir.phase === 'number') ? order[pi].dir.phase : 0;
+
+          function canMoveDelta(mx, my){ const nx = x + mx, ny = y + my; if (!inBounds(nx,ny)) return false; return free(xyToIdx(nx,ny)); }
+
+          // candidate diagonals: prefer current, then reflect on X, then Y, then both
+          const candidates = [ {dx,dy}, {dx:-dx,dy}, {dx,dy:-dy}, {dx:-dx,dy:-dy} ];
+
+          // First: prefer a candidate where both steps (first+second) are available (guarantees a full diagonal move over two ticks)
+          for (const cand of candidates){
+            for (const usePhase of [phase, 1-phase]){
+              const first = (usePhase === 0) ? {mx: cand.dx, my: 0} : {mx: 0, my: cand.dy};
+              const second = (usePhase === 0) ? {mx: 0, my: cand.dy} : {mx: cand.dx, my: 0};
+              const nx1 = x + first.mx, ny1 = y + first.my;
+              if (!inBounds(nx1, ny1)) continue;
+              if (!free(xyToIdx(nx1, ny1))) continue;
+              const nx2 = nx1 + second.mx, ny2 = ny1 + second.my;
+              if (inBounds(nx2, ny2) && free(xyToIdx(nx2, ny2))){
+                // commit to this diagonal and take first step
+                order[pi].dir.dx = cand.dx; order[pi].dir.dy = cand.dy; order[pi].dir.phase = 1 - usePhase;
+                return xyToIdx(nx1, ny1);
+              }
+            }
+          }
+
+          // Second: accept a candidate where at least the immediate first step is free (better than hugging walls)
+          for (const cand of candidates){
+            for (const usePhase of [phase, 1-phase]){
+              const first = (usePhase === 0) ? {mx: cand.dx, my: 0} : {mx: 0, my: cand.dy};
+              const nx1 = x + first.mx, ny1 = y + first.my;
+              if (!inBounds(nx1, ny1)) continue;
+              if (!free(xyToIdx(nx1, ny1))) continue;
+              order[pi].dir.dx = cand.dx; order[pi].dir.dy = cand.dy; order[pi].dir.phase = 1 - usePhase;
+              return xyToIdx(nx1, ny1);
+            }
+          }
+
+          // None of the diagonal-oriented moves are possible; do not hug wall. Return -1 (no move).
+          return -1;
+        }
+
+        case 'ALEATOIRE': default: {
+          const shuffled = neighbors4.slice().sort(()=>Math.random()-0.5); return pickFirstFree(shuffled);
+        }
+
+        case 'STRATEGE': {
+          const top = getRankingIndices()[0];
+          if (top != null && top !== pi && order[top] && order[top].chosenCard){
+            const tstr = order[top].chosenCard.title.toUpperCase();
+            if (tstr === 'STRATEGE' || tstr === 'D-B-E-L') return pickFirstFree(neighbors4);
+            return chooseTargetForStrategy(pi, pos, tstr, depth+1);
+          }
+          return pickFirstFree(neighbors4);
+        }
+
+        case 'DROIT': {
+          const cur = order[pi].dir || {dx:1,dy:0}; const nd = {dx:cur.dx,dy:cur.dy}; const nx1 = x+nd.dx, ny1 = y+nd.dy; if (inBounds(nx1,ny1) && free(xyToIdx(nx1,ny1))){ return xyToIdx(nx1,ny1); } // try rotate right
+          const tryDirs = [[0,1],[-1,0],[0,-1],[1,0]]; for(const d of tryDirs){ const nx2 = x+d[0], ny2 = y+d[1]; if(inBounds(nx2,ny2) && free(xyToIdx(nx2,ny2))){ order[pi].dir = {dx:d[0],dy:d[1]}; return xyToIdx(nx2,ny2); } } return -1;
+        }
+
+        case 'TIMIDE': {
+          // flee nearest player head (Manhattan)
+          let nearest = -1, bestD = Infinity; for (let j=0;j<simHeads.length;j++){ if (j===pi) continue; const h = simHeads[j]; if (h==null) continue; const hx=h%GRID_COLS, hy=Math.floor(h/GRID_COLS); const d = Math.abs(hx-x)+Math.abs(hy-y); if (d < bestD){ bestD=d; nearest=j; } }
+          if (nearest===-1) return pickFirstFree(neighbors4);
+          const hpos = simHeads[nearest]; const hx=hpos%GRID_COLS, hy=Math.floor(hpos/GRID_COLS);
+          const bestList = neighbors4.slice().sort((a,b)=>{ const ax=a%GRID_COLS, ay=Math.floor(a/GRID_COLS); const bx=b%GRID_COLS, by=Math.floor(b/GRID_COLS); const ad = Math.abs(ax-hx)+Math.abs(ay-hy); const bd = Math.abs(bx-hx)+Math.abs(by-hy); return bd - ad; });
+          return pickFirstFree(bestList);
+        }
+
+        case 'D-B-E-L': {
+          const arr = getRankingIndices(); const last = arr[arr.length-1];
+          if (last != null && last !== pi && order[last] && order[last].chosenCard){
+            const tstr = order[last].chosenCard.title.toUpperCase();
+            if (tstr === 'D-B-E-L' || tstr === 'STRATEGE') return pickFirstFree(neighbors4);
+            return chooseTargetForStrategy(pi, pos, tstr, depth+1);
+          }
+          return pickFirstFree(neighbors4);
+        }
+
+        case 'CENTRE': {
+          // Centre: orbit and fill concentric rings around map center
+          const cx = Math.floor(GRID_COLS/2), cy = Math.floor(GRID_ROWS/2);
+          if (!order[pi].centerRings || !order[pi].centerRings.length){ order[pi].centerRings = generateConcentricRings(cx, cy); order[pi].centerRingIndex = 0; order[pi].centerRingPos = 0; order[pi].centerOrbitDir = 1; }
+          const rings = order[pi].centerRings;
+          const preferFlip = !!(order[pi] && order[pi].dir && order[pi].dir.flip);
+          // search rings starting from current ring index outward, prefer adjacent ring cells then pathfind to nearest ring cell
+          for (let offset=0; offset<rings.length; offset++){
+            const ringIdx = (order[pi].centerRingIndex + offset) % rings.length;
+            const ring = rings[ringIdx]; if (!ring || !ring.length) continue;
+            // find free cells on this ring
+            const freeCells = [];
+            for (const ridx of ring) if (simOwners[ridx] === -1) freeCells.push(ridx);
+            if (!freeCells.length) continue;
+            // prefer adjacent free cell on the ring
+            for (const nb of neighbors4){ if (simOwners[nb] === -1 && ring.indexOf(nb) !== -1) { order[pi].centerRingIndex = ringIdx; order[pi].centerRingPos = ring.indexOf(nb); return nb; } }
+            // try to pick next position around the ring (to orbit) if any
+            const ringLen = ring.length;
+            for (let s=0; s<ringLen; s++){
+              const posIdx = (order[pi].centerRingPos + s * order[pi].centerOrbitDir + ringLen) % ringLen;
+              const idx = ring[posIdx]; if (simOwners[idx] === -1){ // pathfind to this ring cell
+                const path = bfsFindPathToGoalsLocal(pos, pi, [idx], preferFlip);
+                if (path && path.length > 1){ order[pi].centerRingIndex = ringIdx; order[pi].centerRingPos = posIdx; order[pi].centerRingPos = (order[pi].centerRingPos + 1) % ringLen; return path[1]; }
+              }
+            }
+            // fallback: pathfind to any free cell in ring
+            const pathAny = bfsFindPathToGoalsLocal(pos, pi, freeCells, preferFlip);
+            if (pathAny && pathAny.length > 1){ order[pi].centerRingIndex = ringIdx; return pathAny[1]; }
+          }
+          // nothing found in rings, fallback to nearest empty
+          const p2 = bfsFindNearestEmpty(pos, pi); if (p2 && p2.length > 1) return p2[1];
+          return pickFirstFree(neighbors4);
+        }
+
+        case 'KAMIKAZE': {
+          // chase the strongest enemy (most territory)
+          let strongest = -1, maxT = -1; for (let j=0;j<simTerritory.length;j++){ if (j===pi) continue; if (simTerritory[j] > maxT){ maxT = simTerritory[j]; strongest = j; } }
+          if (strongest === -1) return pickFirstFree(neighbors4);
+          const hpos = simHeads[strongest]; if (hpos == null) return pickFirstFree(neighbors4);
+          const goalsK = [];
+          const {x:txk, y:tyk} = idxToXY(hpos);
+          const n4k = [[1,0],[-1,0],[0,1],[0,-1]];
+          for (const [dx,dy] of n4k){ const nx = txk+dx, ny = tyk+dy; if (!inBounds(nx,ny)) continue; const ni = xyToIdx(nx,ny); if (simOwners[ni] === -1 || simOwners[ni] === pi) goalsK.push(ni); }
+          if (simOwners[hpos] === -1 || simOwners[hpos] === pi) goalsK.push(hpos);
+          const pathK = bfsFindPathToGoalsLocal(pos, pi, goalsK, !!(order[pi] && order[pi].dir && order[pi].dir.flip));
+          if (pathK && pathK.length > 1){ return pathK[1]; }
+          return pickFirstFree(neighbors4);
+        }
+
+        case 'FOU': {
+          // switch to a random strategy every 25 moves
+          const moves = order[pi].moves || 0;
+          if (!order[pi].fouState) order[pi].fouState = { lastBucket: -1, cur: null };
+          const bucket = Math.floor(moves / 25);
+          if (order[pi].fouState.lastBucket !== bucket || !order[pi].fouState.cur){
+            const choices = EX_TITLES.filter(t=> t !== 'FOU');
+            order[pi].fouState.cur = choices[Math.floor(Math.random()*choices.length)];
+            order[pi].fouState.lastBucket = bucket;
+          }
+          return chooseTargetForStrategy(pi, pos, order[pi].fouState.cur, depth+1);
+        }
+
+        case 'PARANO': {
+          // alternate between TIMIDE and GUERRIER every 25 moves
+          const movesP = order[pi].moves || 0; const bucketP = Math.floor(movesP / 25);
+          const pick = (bucketP % 2 === 0) ? 'TIMIDE' : 'GUERRIER';
+          return chooseTargetForStrategy(pi, pos, pick, depth+1);
+        }
+
+        case 'NOMADE': {
+          // choose a random free target, reach it, then choose another
+          if (!order[pi].nomadTarget || simOwners[order[pi].nomadTarget] !== -1){
+            const freeIdx = [];
+            for (let i=0;i<GRID_TOTAL;i++) if (simOwners[i] === -1) freeIdx.push(i);
+            if (!freeIdx.length) return pickFirstFree(neighbors4);
+            order[pi].nomadTarget = freeIdx[Math.floor(Math.random()*freeIdx.length)];
+          }
+          const pathN = bfsFindPathToGoalsLocal(pos, pi, [order[pi].nomadTarget], !!(order[pi] && order[pi].dir && order[pi].dir.flip));
+          if (pathN && pathN.length > 1) return pathN[1];
+          // unreachable -> pick new next tick
+          order[pi].nomadTarget = null; return pickFirstFree(neighbors4);
+        }
+
+        case 'COLMATAGE': {
+          // look for empty components fully enclosed by this player's territory and go fill them
+          const seenC = new Uint8Array(GRID_TOTAL);
+          const n4c = [[1,0],[-1,0],[0,1],[0,-1]];
+          const holeGoals = [];
+          for (let i=0;i<GRID_TOTAL;i++){
+            if (simOwners[i] !== -1 || seenC[i]) continue;
+            const comp = []; const q = [i]; seenC[i] = 1; let touchesBorder = false;
+            while(q.length){ const cur = q.pop(); comp.push(cur); const {x:cx,y:cy} = idxToXY(cur); if (cx===0 || cy===0 || cx===GRID_COLS-1 || cy===GRID_ROWS-1) touchesBorder = true; for (const [dx,dy] of n4c){ const nx = cx+dx, ny = cy+dy; if (!inBounds(nx,ny)) continue; const ni = xyToIdx(nx,ny); if (simOwners[ni] === -1 && !seenC[ni]){ seenC[ni]=1; q.push(ni); } } }
+            if (touchesBorder) continue;
+            const boundaryOwners = new Set();
+            for (const cidx of comp){ const {x:cx,y:cy} = idxToXY(cidx); for (const [dx,dy] of n4c){ const nx = cx+dx, ny = cy+dy; if (!inBounds(nx,ny)) continue; const ni = xyToIdx(nx,ny); if (simOwners[ni] !== -1) boundaryOwners.add(simOwners[ni]); } }
+            if (boundaryOwners.size === 1 && boundaryOwners.has(pi)){
+              holeGoals.push(...comp);
+            }
+          }
+          if (holeGoals.length){ const pathH = bfsFindPathToGoalsLocal(pos, pi, holeGoals, !!(order[pi] && order[pi].dir && order[pi].dir.flip)); if (pathH && pathH.length > 1) return pathH[1]; }
+          const p3 = bfsFindNearestEmpty(pos, pi); if (p3 && p3.length > 1) return p3[1];
+          return pickFirstFree(neighbors4);
+        }
+
+        case 'TRY HARD': {
+          let weakest = -1, minT = Infinity; for (let j=0;j<simTerritory.length;j++){ if (j===pi) continue; if (simTerritory[j] < minT){ minT = simTerritory[j]; weakest = j; } }
+          if (weakest===-1) return pickFirstFree(neighbors4);
+          const hpos = simHeads[weakest]; if (hpos == null) return pickFirstFree(neighbors4);
+          const goals = [];
+          const {x:tx2,y:ty2} = idxToXY(hpos);
+          const n4 = [[1,0],[-1,0],[0,1],[0,-1]];
+          for (const [dx,dy] of n4){ const nx = tx2+dx, ny = ty2+dy; if (!inBounds(nx,ny)) continue; const ni = xyToIdx(nx,ny); if (simOwners[ni] === -1 || simOwners[ni] === pi) goals.push(ni); }
+          if (simOwners[hpos] === -1 || simOwners[hpos] === pi) goals.push(hpos);
+          const path = bfsFindPathToGoalsLocal(pos, pi, goals, !!(order[pi] && order[pi].dir && order[pi].dir.flip));
+          if (path && path.length > 1){ if (!order[pi].dir) order[pi].dir = {dx:1,dy:0,flip:0}; order[pi].dir.flip = order[pi].dir.flip?0:1; return path[1]; }
+          return pickFirstFree(neighbors4);
+        }
+
+        case 'FRONTIERE': {
+          // Seek corners and hug boundaries. If adjacent to enemy, prefer to move to free cell that keeps adjacency to that enemy.
+          const n4 = [[1,0],[-1,0],[0,1],[0,-1]];
+          // detect adjacent enemy owners
+          const adjacentEnemies = new Set(); for (const nb of neighbors4){ if (simOwners[nb] !== -1 && simOwners[nb] !== pi) adjacentEnemies.add(simOwners[nb]); }
+          const freeNeighbors = neighbors4.filter(free);
+          if (adjacentEnemies.size > 0 && freeNeighbors.length){
+            let best=-1, bestScore=-1;
+            for (const cand of freeNeighbors){ const {x:cx,y:cy} = idxToXY(cand); let score=0; for (const [dx,dy] of n4){ const nx=cx+dx, ny=cy+dy; if(!inBounds(nx,ny)) continue; const ni=xyToIdx(nx,ny); if (adjacentEnemies.has(simOwners[ni])) score++; } if (score>bestScore){ bestScore=score; best=cand; } }
+            if (best !== -1) return best;
+          }
+          // move towards nearest corner
+          const corners = [{x:0,y:0},{x:GRID_COLS-1,y:0},{x:GRID_COLS-1,y:GRID_ROWS-1},{x:0,y:GRID_ROWS-1}];
+          let bestC=null, bestDist=Infinity; for (const c of corners){ const d = Math.abs(c.x-x)+Math.abs(c.y-y); if (d < bestDist){ bestDist=d; bestC=c; } }
+          if (bestC){ const dx = Math.sign(bestC.x - x), dy = Math.sign(bestC.y - y); const tryOrder = []; if (dx!==0) tryOrder.push(xyToIdx(x+dx,y)); if (dy!==0) tryOrder.push(xyToIdx(x,y+dy)); tryOrder.push(...freeNeighbors); return pickFirstFree(tryOrder); }
+          return pickFirstFree(neighbors4);
+        }
+      }
+    }
+
+    function getRankingIndices(){ const arr = simTerritory.map((t,i)=>({i,t})); arr.sort((a,b)=>b.t - a.t); return arr.map(x=>x.i); }
+
+    function updateRankingUI(){ if (!rankEl) return; const totalOwned = simTerritory.reduce((a,b)=>a+b,0); for (let i=0;i<order.length;i++){ const pct = Math.round((simTerritory[i]/GRID_TOTAL)*100); if (rankRows[i] && rankRows[i].percentEl) rankRows[i].percentEl.textContent = `${pct}%`; }
+      // reorder rows by percent
+      const rows = Array.from(rankEl.querySelectorAll('[data-player-index]'));
+      const header = rankEl.querySelector('h3'); const speedWrap = rankEl.querySelector('[data-speed-wrap]');
+      const sorted = Array.from(rows).sort((a,b)=>{ const ai = parseInt(a.dataset.playerIndex,10); const bi = parseInt(b.dataset.playerIndex,10); return simTerritory[bi] - simTerritory[ai]; });
+      // remove existing player rows
+      rows.forEach(r=> r.parentNode && r.parentNode.removeChild(r));
+      // append sorted under header
+      sorted.forEach(r=> rankEl.appendChild(r));
+      // ensure speedWrap stays at bottom
+      if (speedWrap) rankEl.appendChild(speedWrap);
+    }
+
+    function bfsFindNearestEmpty(startIdx, playerIndex){
+      const q=[startIdx]; const seen = new Uint8Array(GRID_TOTAL); const parent = new Int32Array(GRID_TOTAL);
+      for (let i=0;i<GRID_TOTAL;i++) parent[i] = -1;
+      seen[startIdx]=1;
+      const nbs = [[1,0],[-1,0],[0,1],[0,-1]];
+      while(q.length){
+        const cur = q.shift(); const {x,y} = idxToXY(cur);
+        for (const [dx,dy] of nbs){ const nx=x+dx, ny=y+dy; if (!inBounds(nx,ny)) continue; const ni = xyToIdx(nx,ny); if (seen[ni]) continue; // walkable if empty or owned by same player
+          if (simOwners[ni] !== -1 && simOwners[ni] !== playerIndex) continue; seen[ni] = 1; parent[ni] = cur; if (simOwners[ni] === -1) { // found
+              const path = [ni]; let p=cur; while(p !== -1 && p !== startIdx){ path.unshift(p); p = parent[p]; } path.unshift(startIdx); return path; }
+          q.push(ni);
+        }
+      }
+      return null;
+    }
+
+    // Claim enclosed regions (empty components that don't touch border) if their boundary owners are exclusively `pi`.
+    function claimEnclosedRegions(pi){
+      const seen = new Uint8Array(GRID_TOTAL);
+      const n4 = [[1,0],[-1,0],[0,1],[0,-1]];
+      for (let i=0;i<GRID_TOTAL;i++){
+        if (simOwners[i] !== -1) continue;
+        if (seen[i]) continue;
+        // BFS component
+        const comp = [];
+        const q = [i]; seen[i] = 1; let touchesBorder = false;
+        while(q.length){ const cur = q.pop(); comp.push(cur); const {x:cx,y:cy} = idxToXY(cur); if (cx===0 || cy===0 || cx===GRID_COLS-1 || cy===GRID_ROWS-1) touchesBorder = true; for (const [dx,dy] of n4){ const nx = cx+dx, ny = cy+dy; if (!inBounds(nx,ny)) continue; const ni = xyToIdx(nx,ny); if (simOwners[ni] === -1 && !seen[ni]){ seen[ni]=1; q.push(ni); } } }
+        if (touchesBorder) continue;
+        // compute boundary owners
+        const boundaryOwners = new Set();
+        for (const cidx of comp){ const {x:cx,y:cy} = idxToXY(cidx); for (const [dx,dy] of n4){ const nx = cx+dx, ny = cy+dy; if (!inBounds(nx,ny)) continue; const ni = xyToIdx(nx,ny); if (simOwners[ni] !== -1) boundaryOwners.add(simOwners[ni]); } }
+        // if boundaryOwners contains only this player, claim comp
+        if (boundaryOwners.size === 1 && boundaryOwners.has(pi)){
+          // if an active cube exists inside this component, remove it silently
+          try{ if (typeof activeCubeIndex !== 'undefined' && activeCubeIndex >= 0 && comp.indexOf(activeCubeIndex) !== -1){ removeActiveCube(); } }catch(e){}
+          for (const cidx of comp) claimCell(cidx, pi);
+          try{ emitParticlesAlongCells(comp, order[pi].color); }catch(e){}
+          // short flick effect on the filled cells
+          try{
+            for (const cidx of comp){ const ce = simGridCells[cidx]; if (!ce) continue; ce.classList.add('cell-flick'); }
+            setTimeout(()=>{ for (const cidx of comp){ const ce = simGridCells[cidx]; if (!ce) continue; ce.classList.remove('cell-flick'); } }, 260);
+          }catch(e){}
+        }
+      }
+    }
+
+    // Count players that still have at least one reachable empty cell (can move)
+    function countActivePlayers(){ let cnt=0; for (let p=0;p<simHeads.length;p++){ const pos = simHeads[p]; if (pos == null || pos < 0) continue; const path = bfsFindNearestEmpty(pos, p); if (path && path.length>1) cnt++; else { // check adjacent free
+          const {x,y} = idxToXY(pos); const n4 = [[1,0],[-1,0],[0,1],[0,-1]]; for (const [dx,dy] of n4){ const nx=x+dx, ny=y+dy; if (!inBounds(nx,ny)) continue; const ni = xyToIdx(nx,ny); if (simOwners[ni] === -1){ cnt++; break; } } } } return cnt; }
+
+    function decoratePlayerBarFinalRanks(){ const bar = document.querySelector('.player-bar'); if (!bar) return; const pills = Array.from(bar.querySelectorAll('.player-pill')); const ranks = getRankingIndices(); for (let r=0;r<ranks.length;r++){ const pi = ranks[r]; const p = order[pi]; // find pill by name
+        const pill = getPlayerPillByName(p.name, p.color);
+        if (!pill) continue;
+        // ensure pill can contain absolute badges
+        if (!pill.style.position || pill.style.position === '') pill.style.position = 'relative';
+        let badge = pill.querySelector('.final-rank'); if (!badge){ badge = document.createElement('div'); badge.className = 'final-rank'; Object.assign(badge.style,{ position:'absolute', right:'-8px', top:'-6px', background:'rgba(0,0,0,0.6)', color:'#fff', padding:'2px 6px', borderRadius:'8px', fontWeight:'900', fontSize:'0.85rem' }); pill.appendChild(badge); }
+        badge.textContent = `#${r+1}`;
+        // color the pill border and glow according to rank (like game-10)
+        try{
+          const rank = r + 1;
+          const rankColor = rank === 1 ? '#ffd700' : rank === 2 ? '#c0c0c0' : rank === 3 ? '#cd7f32' : '#8a2be2';
+          pill.style.border = `1px solid ${rankColor}`;
+          pill.style.boxShadow = `0 0 0 2px ${rankColor}`;
+          pill.style.background = 'rgba(255,255,255,0.13)';
+          // update AC bubble position slightly lower
+          let ac = pill.querySelector('.ac-badge'); if (!ac){ ac = document.createElement('span'); ac.className = 'ac-badge'; ac.style.display = 'inline-block'; ac.style.marginTop = '2px'; ac.textContent = ''; pill.appendChild(ac); }else{ ac.style.display = 'inline-block'; ac.style.marginTop = '2px'; }
+          // call setACText if available to ensure correct AC text
+          if (typeof setACText === 'function') setACText(pill, rank, ranks.length);
+        }catch(e){}
+        if (enableMarioMode){ let m = pill.querySelector('.mario-badge'); if (!m){ m = document.createElement('span'); m.className='mario-badge'; m.textContent = '🎖️'; m.style.marginLeft='6px'; pill.appendChild(m); } }
+        // also update AC text if available (commun/game-players.js exposes setACText)
+        try{ if (typeof setACText === 'function'){ setACText(pill, r+1, ranks.length); } }catch(e){}
+      }
+    }
+
+    function getPlayerPillByName(name, color){
+      const bar = document.querySelector('.player-bar'); if (!bar) return null;
+      const pills = Array.from(bar.querySelectorAll('.player-pill'));
+      const normalize = s => (s||'').toString().trim().toLowerCase();
+      const target = normalize(name);
+      function extractNameFromPill(pill){
+        const d = pill.dataset && pill.dataset.playerName; if (d) return normalize(d);
+        // prefer an explicit name span (not the player-circle)
+        try{
+          const nameSpan = pill.querySelector('span:not(.player-circle)'); if (nameSpan && nameSpan.textContent) return normalize(nameSpan.textContent.replace(/\(.*\)$/,'').trim());
+        }catch(e){}
+        // fallback: remove any pill-title text from content
+        let txt = (pill.textContent || '').trim();
+        try{ const titleEl = pill.querySelector('.pill-title'); if (titleEl && titleEl.textContent) txt = txt.replace(titleEl.textContent, '').trim(); }catch(e){}
+        if (!txt) return '';
+        const lines = txt.split(/\n/).map(l=>l.trim()).filter(Boolean);
+        let first = lines.length ? lines[0] : txt;
+        first = first.replace(/\(.*\)$/,'').trim();
+        return normalize(first);
+      }
+      function colorToRgbTuple(c){ if (!c) return null; c = c.trim(); if (c[0] === '#'){
+          const hex = c.replace('#',''); if (hex.length === 3){ const r = parseInt(hex[0]+hex[0],16); const g = parseInt(hex[1]+hex[1],16); const b = parseInt(hex[2]+hex[2],16); return [r,g,b]; }
+          if (hex.length >= 6){ const r = parseInt(hex.slice(0,2),16); const g = parseInt(hex.slice(2,4),16); const b = parseInt(hex.slice(4,6),16); return [r,g,b]; }
+          return null;
+        }
+        const m = c.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i); if (m) return [parseInt(m[1],10),parseInt(m[2],10),parseInt(m[3],10)]; return null; }
+        function pillBorderColorMatches(pill, colorStr){ if (!colorStr) return false; try{ const cs = window.getComputedStyle(pill); let bc = cs.borderColor || cs.color || ''; // also check player-circle background
+          try{ const circle = pill.querySelector('.player-circle'); if (circle){ const ccs = window.getComputedStyle(circle); if (ccs && ccs.backgroundColor) bc = bc || ccs.backgroundColor; } }catch(e){}
+          const t1 = colorToRgbTuple(bc); const t2 = colorToRgbTuple(colorStr); if (t1 && t2) return t1[0]===t2[0] && t1[1]===t2[1] && t1[2]===t2[2]; return bc === colorStr; }catch(e){ return false; } }
+
+      // exact name matches
+      const exact = pills.filter(p => extractNameFromPill(p) === target);
+      if (exact.length === 1) return exact[0];
+      if (exact.length > 1){ if (color){ const byColor = exact.find(p => pillBorderColorMatches(p, color)); if (byColor) return byColor; } return exact[0]; }
+
+      // contains match
+      const contains = pills.filter(p => extractNameFromPill(p).indexOf(target) !== -1);
+      if (contains.length === 1) return contains[0];
+      if (contains.length > 1){ if (color){ const byColor = contains.find(p => pillBorderColorMatches(p, color)); if (byColor) return byColor; } return contains[0]; }
+
+      // fallback by color only
+      if (color){ const byColorOnly = pills.find(p => pillBorderColorMatches(p, color)); if (byColorOnly) return byColorOnly; }
+      return null;
+    }
+
+    function showEndScreen(){
+      window.PourtyMiniGame?.finish(); const overlay = document.createElement('div'); Object.assign(overlay.style,{ position:'fixed',left:0,top:0,right:0,bottom:0,display:'flex',alignItems:'center',justifyContent:'center',zIndex:100030,background:'rgba(0,0,0,0.7)' }); const box = document.createElement('div'); Object.assign(box.style,{ background:'#071225', color:'#fff', padding:'18px', borderRadius:'12px', width:'420px', maxHeight:'80%', overflow:'auto', boxShadow:'0 12px 40px rgba(0,0,0,0.6)' }); const title = document.createElement('h2'); title.textContent='Classement final'; title.style.margin='0 0 10px 0'; box.appendChild(title);
+      const list = document.createElement('div'); const ranks = getRankingIndices(); for (let r=0;r<ranks.length;r++){ const pi = ranks[r]; const p = order[pi]; const row = document.createElement('div'); Object.assign(row.style,{ display:'flex',justifyContent:'space-between',padding:'8px 6px',borderBottom:'1px solid rgba(255,255,255,0.03)'}); const left = document.createElement('div'); left.innerHTML = `<strong>${r+1}. ${p.name}</strong> <span style="opacity:0.8">(${p.chosenCard ? p.chosenCard.title : '—'})</span>`; const right = document.createElement('div'); const pct = Math.round((simTerritory[pi]/GRID_TOTAL)*100); right.textContent = `${pct}%`; row.appendChild(left); row.appendChild(right); list.appendChild(row); }
+      box.appendChild(list);
+      const btnClose = document.createElement('button'); btnClose.textContent = 'Fermer'; Object.assign(btnClose.style,{ marginTop:'12px', padding:'8px 10px', borderRadius:'8px', background:'#ff6b6b', color:'#fff', border:'none', fontWeight:'800', marginRight:'8px' }); btnClose.addEventListener('click', ()=>{ window.location.href = '../index.html'; }); box.appendChild(btnClose);
+      overlay.appendChild(box); document.body.appendChild(overlay); }
+
+
+    function finishRound(){
+      clearTimer();
+      statusEl.textContent = 'Tous les joueurs ont choisi.';
+      statusEl.style.color = '#fff';
+      centerEl.innerHTML = '';
+      const ctr = document.querySelector('.controls'); if (ctr) ctr.style.display = 'none'; // keep player bar visible
+      // hide the order display
+      if (orderEl) orderEl.style.display = 'none';
+
+      // Create a GRID_COLS x GRID_ROWS grid and place one colored square per player, spread out
+      const cols = GRID_COLS, rows = GRID_ROWS;
+      const cellSize = 6; // px per square (reduced)
+      const gapSize = 2; // px gap between squares
+
+      const grid = document.createElement('div');
+      grid.id = 'captureGrid';
+      grid.style.display = 'grid';
+      grid.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
+      grid.style.gridAutoRows = `${cellSize}px`;
+      grid.style.gap = `${gapSize}px`;
+      grid.style.justifyContent = 'center';
+      grid.style.marginTop = '12px';
+      grid.style.marginLeft = 'auto';
+      grid.style.marginRight = 'auto';
+      grid.style.width = 'fit-content';
+
+      const total = cols * rows;
+      for (let i = 0; i < total; i++){
+        const cell = document.createElement('div');
+        cell.className = 'grid-cell';
+        cell.style.width = `${cellSize}px`;
+        cell.style.height = `${cellSize}px`;
+        cell.style.background = 'rgba(255,255,255,0.04)';
+        cell.style.borderRadius = '1px';
+        grid.appendChild(cell);
+      }
+
+      // Use precomputed positions for player counts 2..6 to maximize spacing
+      const predefined = {
+        2: [{x:10,y:50},{x:90,y:50}],
+        3: [{x:50,y:12},{x:12,y:82},{x:88,y:82}],
+        4: [{x:12,y:12},{x:88,y:12},{x:12,y:88},{x:88,y:88}],
+        5: [{x:50,y:8},{x:86,y:34},{x:66,y:84},{x:34,y:84},{x:14,y:34}],
+        6: [{x:50,y:8},{x:84,y:28},{x:84,y:72},{x:50,y:92},{x:16,y:72},{x:16,y:28}]
+      };
+      const chosen = [];
+      const pcount = order.length;
+      if (predefined[pcount]){
+        for (const pos of predefined[pcount]){
+          // pos.x/pos.y are percentages (0-100) -> convert to grid coords
+          const x = Math.max(0, Math.min(cols-1, Math.round(pos.x/100 * (cols-1))));
+          const y = Math.max(0, Math.min(rows-1, Math.round(pos.y/100 * (rows-1))));
+          chosen.push(y * cols + x);
+        }
+      } else {
+        // fallback: place around circle
+        const centerX = Math.floor(cols/2);
+        const centerY = Math.floor(rows/2);
+        for (let i = 0; i < pcount; i++){
+          const angle = (i / pcount) * Math.PI * 2;
+          const r = Math.floor(Math.min(cols, rows) * 0.4);
+          const x = Math.floor(centerX + r * Math.cos(angle));
+          const y = Math.floor(centerY + r * Math.sin(angle));
+          chosen.push(Math.max(0, Math.min(total-1, y*cols + x)));
+        }
+      }
+      // ensure uniqueness (fallback to next free cell if collision)
+      const used = new Set();
+      const finalChosen = [];
+      for (let i = 0; i < chosen.length; i++){
+        let idx = chosen[i];
+        if (used.has(idx)){
+          for (let d = 0; d < total; d++){
+            const cand = (idx + d) % total;
+            if (!used.has(cand)){ idx = cand; break; }
+          }
+        }
+        used.add(idx);
+        finalChosen.push(idx);
+      }
+      // assign chosen positions to players
+      for (let i = 0; i < order.length; i++){
+        const idx = finalChosen[i];
+        const cell = grid.children[idx];
+        if (!cell) continue;
+        const p = order[i];
+        cell.style.background = p.color;
+        cell.title = p.name + (p.chosenCard ? ' — ' + p.chosenCard.title : '');
+        cell.style.boxShadow = 'inset 0 0 2px rgba(0,0,0,0.6)';
+      }
+
+      // build a container so the grid stays centered while we position the ranking to the right
+      const container = document.createElement('div');
+      container.style.position = 'relative';
+      container.style.width = '100%';
+      container.style.marginTop = '12px';
+      container.appendChild(grid);
+
+      // Create ranking panel to the right of the centered grid
+      const rank = document.createElement('div');
+      rank.id = 'rankingPanel';
+      rank.style.width = '260px';
+      rank.style.position = 'absolute';
+      rank.style.top = '0';
+      rank.style.background = 'rgba(255,255,255,0.03)';
+      rank.style.border = '1px solid rgba(255,255,255,0.04)';
+      rank.style.borderRadius = '10px';
+      rank.style.padding = '10px';
+      rank.style.color = '#fff';
+      rank.style.boxShadow = '0 8px 30px rgba(0,0,0,0.5)';
+      rank.style.maxHeight = '520px';
+      rank.style.overflow = 'auto';
+
+      const rtitle = document.createElement('h3'); rtitle.textContent = 'CLASSEMENT'; rtitle.style.margin = '0 0 8px 0'; rtitle.style.fontSize = '1rem'; rank.appendChild(rtitle);
+
+      // list players with chosen strategy title in parentheses and 0%
+      order.forEach((p, idx)=>{
+        const row = document.createElement('div'); row.dataset.playerIndex = idx;
+        row.style.display = 'flex';
+        row.style.justifyContent = 'space-between';
+        row.style.alignItems = 'center';
+        row.style.padding = '6px 4px';
+        row.style.borderBottom = '1px solid rgba(255,255,255,0.02)';
+        const left = document.createElement('div'); left.style.display = 'flex'; left.style.gap = '8px'; left.style.alignItems='center';
+        const dot = document.createElement('span'); dot.style.width='10px'; dot.style.height='10px'; dot.style.background=p.color; dot.style.borderRadius='2px'; dot.style.display='inline-block'; dot.style.boxShadow='inset 0 0 2px rgba(0,0,0,0.6)';
+        const strat = p.chosenCard ? p.chosenCard.title : '—';
+        const name = document.createElement('div'); name.innerHTML = `${p.name} <span style="opacity:0.8">(${strat})</span>`; name.style.fontWeight='700'; name.style.fontSize='0.95rem';
+        left.appendChild(dot); left.appendChild(name);
+        const right = document.createElement('div'); right.style.fontWeight='900'; const pct = document.createElement('span'); pct.className='percent'; pct.textContent='0%'; right.appendChild(pct);
+        row.appendChild(left); row.appendChild(right);
+        rank.appendChild(row);
+      });
+
+      // speed slider at bottom
+      const speedWrap = document.createElement('div'); speedWrap.dataset.speedWrap = '1'; speedWrap.style.marginTop = '8px'; speedWrap.style.display='flex'; speedWrap.style.flexDirection='column';
+      const speedLabel = document.createElement('label'); speedLabel.textContent = 'Vitesse'; speedLabel.style.fontWeight='800'; speedLabel.style.marginBottom='6px';
+      const speedInput = document.createElement('input'); speedInput.type='range'; speedInput.min='1'; speedInput.max='40'; speedInput.value='10'; speedInput.style.width='100%';
+      speedWrap.appendChild(speedLabel); speedWrap.appendChild(speedInput); rank.appendChild(speedWrap);
+
+      container.appendChild(rank);
+      statusEl.parentNode.insertBefore(container, statusEl.nextSibling);
+
+      // position ranking to the right of the centered grid after layout
+      requestAnimationFrame(()=>{
+        const gridRect = grid.getBoundingClientRect();
+        const halfGrid = gridRect.width/2;
+        const spacing = 18;
+        rank.style.left = `calc(50% + ${halfGrid + spacing}px)`;
+        // setup simulation structures, render heads and start countdown
+        setupSimulation(grid, finalChosen);
+        updateHeadStyles();
+        showCountdownAndStart();
+      });
+    }
+
+    // init
+    renderOrder(); announceOrder();
+
+      // hidden strategy chooser button (bottom-left)
+      (function addHiddenStrategyButton(){
+        const btn = document.createElement('button'); btn.id = 'hiddenStrategyBtn'; btn.title = 'Afficher stratégies';
+        Object.assign(btn.style, { position: 'fixed', left: '8px', bottom: '8px', width: '18px', height: '18px', padding: '0', borderRadius: '6px', background: 'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.04)', color:'#fff', fontSize:'10px', opacity:0.001, zIndex:100050, cursor:'pointer' });
+        document.body.appendChild(btn);
+        const panel = document.createElement('div'); panel.id='strategyPanel'; Object.assign(panel.style,{ position:'fixed', left:'8px', bottom:'32px', width:'260px', maxHeight:'360px', overflow:'auto', background:'rgba(6,8,18,0.95)', border:'1px solid rgba(255,255,255,0.04)', padding:'8px', borderRadius:'8px', color:'#fff', zIndex:100051, display:'none' });
+        const title = document.createElement('div'); title.textContent = 'Stratégies'; title.style.fontWeight='900'; title.style.marginBottom='8px'; panel.appendChild(title);
+        EX_TITLES.forEach((t,i)=>{ const row = document.createElement('div'); row.style.display='flex'; row.style.justifyContent='space-between'; row.style.alignItems='center'; row.style.padding='6px 4px'; row.style.borderBottom='1px solid rgba(255,255,255,0.02)'; const left = document.createElement('div'); left.style.display='flex'; left.style.gap='8px'; left.style.alignItems='center'; const dot = document.createElement('span'); dot.style.width='10px'; dot.style.height='10px'; dot.style.background=EX_COLORS[i]; dot.style.display='inline-block'; dot.style.borderRadius='2px'; const name = document.createElement('div'); name.textContent = t; name.style.fontWeight='700'; left.appendChild(dot); left.appendChild(name); const choose = document.createElement('button'); choose.textContent='Choisir'; choose.style.padding='6px 8px'; choose.style.border='none'; choose.style.borderRadius='6px'; choose.style.cursor='pointer'; choose.dataset.strategy = t; choose.addEventListener('click', ()=>{ applyStrategyToCurrentPlayer(t); panel.style.display='none'; }); row.appendChild(left); row.appendChild(choose); panel.appendChild(row); });
+        document.body.appendChild(panel);
+        btn.addEventListener('click', ()=>{ panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; panel.scrollTop = 0; });
+      })();
+
+      function applyStrategyToCurrentPlayer(strategyTitle){ if (!order || order.length === 0) return; const p = order[currentIdx]; if (!p) return; // create a fake card and assign to player
+        const idx = EX_TITLES.indexOf(strategyTitle); const color = EX_COLORS[idx] || '#fff'; const desc = EX_DESCS[idx] || ''; const card = { id: `forced-${strategyTitle}-${Date.now()}`, title: strategyTitle, desc: desc, color: color };
+        p.chosen = true; p.chosenCard = card; annotatePlayerPillWithChoice(p);
+        // if round is ongoing, fast-forward to next player
+        const next = getNextUnchosenIndex(currentIdx+1); if (next === -1) finishRound(); else startTurn(next);
+      }
+
+  })();
+  </script>
+</body>
+</html>

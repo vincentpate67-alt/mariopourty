@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <script src="../../party-payout.js"></script>
+<script src="../../board/board-minigame-bridge.js"></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Aboubafruits</title>
+  <link rel="stylesheet" href="../../style.css" />
+  <style>
+    body{background:#081028;color:#fff;font-family:Segoe UI,Roboto,Arial;margin:0;padding:18px}
+    main{max-width:980px;margin:8px auto;text-align:center}
+    h1{margin:8px 0 12px;font-size:2.4rem}
+    #status{min-height:34px;margin-bottom:12px;font-weight:900;font-size:1.4rem}
+    .player-order{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:8px 0}
+    .player-chip{padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);font-weight:800}
+    .player-chip.selected{background:rgba(107,192,255,0.16);border-color:#6bc0ff}
+    .player-order.hidden{display:none}
+    .turn-area{display:flex;flex-direction:column;align-items:center;gap:16px;margin-top:18px;position:relative;}
+    .fruit-card{position:relative;width:280px;height:280px;display:flex;align-items:center;justify-content:center;overflow:visible}
+    #crackLayer{position:absolute;inset:0;pointer-events:none;z-index:2;}
+    #scorePopLayer{position:absolute;inset:0;pointer-events:none;z-index:3;overflow:visible;}
+    .score-pop{position:absolute;top:50%;left:50%;font-size:1.6rem;font-weight:900;color:#ff5b5b;text-shadow:0 0 16px rgba(255,80,80,0.8);opacity:0;transform:translate(-50%, -50%) scale(0.9);animation:score-rise 920ms linear forwards;}
+    @keyframes score-rise{
+      0%{opacity:0;transform:translate(-50%, -50%) scale(0.8);} 
+      10%{opacity:1;transform:translate(-50%, -50%) scale(1);} 
+      65%{opacity:1;} 
+      100%{opacity:0;transform:translate(calc(-50% + var(--pop-x, 0px)), calc(-50% + var(--pop-y, -18px) - 66px)) scale(1.08);} 
+    }
+    .crack-shard{position:absolute;width:110px;opacity:.95;pointer-events:none;transform-origin:center center;}
+    .crack-shard.explode{animation:crack-pop .8s ease-out forwards;}
+    @keyframes crack-pop{
+      0%{opacity:1;transform:translate(0,0) rotate(var(--crack-rotate,0deg)) scale(1);}
+      50%{opacity:1;transform:translate(var(--crack-move-x,0px),var(--crack-move-y,0px)) rotate(var(--crack-rotate,0deg)) scale(1.05);}
+      100%{opacity:0;transform:translate(calc(var(--crack-move-x,0px)*1.4),calc(var(--crack-move-y,0px)*1.4)) rotate(var(--crack-rotate,0deg)) scale(1.1);}
+    }
+    #fruitImage{width:220px;max-width:220px;height:auto;display:block;object-fit:contain;filter:drop-shadow(0 24px 56px rgba(0,0,0,0.26));z-index:1;transform-origin:center center;}
+    #fruitImage.explode{animation:fruit-explode .56s ease-out forwards;}
+    @keyframes fruit-explode{0%{transform:scale(1) rotate(0deg);opacity:1;filter:drop-shadow(0 24px 56px rgba(255,255,255,0.35));}
+      30%{transform:scale(1.6) rotate(6deg);opacity:1;filter:drop-shadow(0 0 38px rgba(255,200,50,0.8));}
+      60%{transform:scale(2.2) rotate(16deg);opacity:.8;filter:drop-shadow(0 0 60px rgba(255,140,0,0.55));}
+      100%{transform:scale(2.8) rotate(28deg);opacity:0;filter:drop-shadow(0 0 90px rgba(255,90,0,0.35));}}
+    .hit-flash{position:fixed;inset:0;background:rgba(255,64,64,0.16);opacity:0;pointer-events:none;transition:opacity .08s ease;z-index:9999;}
+    .hit-flash.active{opacity:1;}
+    #boomOverlay{position:fixed;inset:0;display:flex;justify-content:center;align-items:center;background:rgba(0,0,0,0.78);color:#fff;font-size:clamp(4rem,9vw,8rem);font-weight:900;letter-spacing:0.05em;opacity:0;pointer-events:none;transition:opacity .2s ease;z-index:10002;text-shadow:0 0 30px rgba(255,255,255,0.65);}
+    #boomOverlay.visible{opacity:1;}
+    .shake{animation:shake 0.18s ease-in-out;}
+    @keyframes shake {0%{transform:translate(0,0)}25%{transform:translate(-6px,0)}50%{transform:translate(5px,0)}75%{transform:translate(-3px,0)}100%{transform:translate(0,0)}}
+    .punch{position:fixed;right:-220px;top:50%;transform:translateY(-50%) scale(0.95);width:180px;max-width:25vw;opacity:0;z-index:10001;pointer-events:none;display:block;filter:drop-shadow(0 18px 36px rgba(0,0,0,0.4));}
+    .punch.active{animation:punch-slide .72s cubic-bezier(0.7,0,0.3,1) forwards;}
+    @keyframes punch-slide{0%{right:-220px;opacity:0;transform:translateY(-50%) scale(0.95);}15%{opacity:1;}45%{right:calc(50% - 90px);opacity:1;transform:translateY(-50%) scale(1);}55%{right:calc(50% - 90px);opacity:1;transform:translateY(-50%) scale(1);}100%{right:-260px;opacity:0;transform:translateY(-50%) scale(0.95);} }
+    .timer-row{display:flex;align-items:center;gap:12px;width:100%;max-width:560px;margin-top:6px}
+    .action-row{display:flex;gap:12px;justify-content:center;align-items:center;margin-top:10px;flex-wrap:wrap}
+    .action-row.hidden{display:none !important;}
+    .roulette-area{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:16px;width:100%;max-width:320px;transition:opacity .2s ease;}
+    .roulette-area.hidden{opacity:0;height:0;overflow:hidden;pointer-events:none;}
+    .roulette-indicator{font-size:1.6rem;text-shadow:0 0 12px rgba(255,255,255,0.3);}
+    .wheel-frame{position:relative;width:260px;height:260px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at center, rgba(255,255,255,0.08), rgba(255,255,255,0.02));box-shadow:0 0 0 3px rgba(255,255,255,0.08);}
+    .roulette-wheel{position:absolute;inset:12px;width:236px;height:236px;border-radius:50%;background:conic-gradient(
+        #ff6b6b 0deg 108deg,
+        #ffb86b 108deg 234deg,
+        #6bc0ff 234deg 324deg,
+        #9b5cff 324deg 360deg
+      );
+      transform: rotate(0deg);
+    }
+    .roulette-labels{position:absolute;inset:0;pointer-events:none;}
+    .roulette-label{position:absolute;top:50%;left:50%;color:#071a3a;font-size:.78rem;font-weight:900;text-align:center;line-height:1.2;width:92px;pointer-events:none;text-shadow:0 0 2px rgba(255,255,255,0.7);background:rgba(255,255,255,0.88);border-radius:10px;padding:4px 6px;transform:translate(-50%, -50%);}
+    .roulette-result{min-height:28px;font-weight:900;color:#fff;text-transform:uppercase;letter-spacing:.04em;}
+    button#rouletteBtn{background:#f8de69 !important;color:#071a3a !important;}
+    button#launchRouletteBtn{background:#49d849 !important;color:#071a3a !important;}
+    button#closeRouletteBtn{background:#ff5c67 !important;color:#fff !important;min-width:44px;font-size:1.2rem;}
+    #wheelLabel{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-weight:900;color:#071a3a;font-size:1rem;pointer-events:none;}
+    #timerSlider{flex:1;width:100%;appearance:none;-webkit-appearance:none;background:linear-gradient(90deg, rgba(107,192,255,0.95) var(--slider-percent,100%), rgba(255,255,255,0.12) var(--slider-percent,100%));background-repeat:no-repeat;height:10px;cursor:default;border-radius:999px;}
+    #timerSlider::-webkit-slider-runnable-track{height:10px;border-radius:999px;background:transparent;border:none;}
+    #timerSlider::-webkit-slider-thumb{margin-top:-4px;}
+    #timerSlider::-moz-range-track{height:10px;border-radius:999px;background:transparent;}
+    #timerSlider::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#6bc0ff;border:3px solid rgba(255,255,255,0.92);box-shadow:0 0 0 6px rgba(107,192,255,0.18);margin-top:-4px;}
+    #timerSlider::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#6bc0ff;border:3px solid rgba(255,255,255,0.92);box-shadow:0 0 0 6px rgba(107,192,255,0.18);}
+    .timer-value{min-width:86px;font-weight:900;color:#a8d9ff;text-align:right}
+    .action-button{min-width:160px;background:#6bc0ff;color:#071a3a;border:none;border-radius:10px;box-shadow:0 12px 22px rgba(107,192,255,0.18);padding:12px 18px;font-weight:900;cursor:pointer;transition:transform .2s ease,box-shadow .2s ease}
+    .action-button:hover{transform:translateY(-1px);box-shadow:0 16px 28px rgba(107,192,255,0.28)}
+    .action-button:active{transform:translateY(0);}
+    .return-btn{margin-top:12px;padding:10px 14px;border-radius:10px;background:#ff776d;color:#fff;border:none;font-weight:700;cursor:pointer;}
+    .player-chip.current{background:var(--glow-inner, rgba(107,192,255,0.08));border:2px solid var(--glow-border, rgba(107,192,255,0.65));box-shadow:0 0 36px 20px var(--glow-main, rgba(107,192,255,0.18));position:relative;}
+    .player-chip.current::before{content:'';position:absolute;inset:0;pointer-events:none;border-radius:12px;background:radial-gradient(circle at center, var(--glow-main, rgba(107,192,255,0.20)) 0%, var(--glow-faint, rgba(107,192,255,0.05)) 35%, transparent 75%);filter:blur(16px);opacity:0.86;}
+    .player-bar { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); width: min(96vw, 920px); display: flex; justify-content: space-between; align-items: center; gap: 10px; z-index: 999; }
+    .player-pill { position: relative; flex: 1 1 auto; min-width: 120px; background: rgba(15, 24, 46, 0.95); border: 1px solid rgba(255,255,255,0.28); border-radius: 10px; padding: 16px 12px 8px; display:flex; align-items:center; gap:10px; color:#f7fbff; font-weight:700; }
+    .player-circle { width: 16px; height: 16px; border-radius:50%; border:1px solid rgba(255,255,255,0.45); }
+    .player-score { margin-left:auto; min-width:36px; text-align:center; font-size:0.88rem; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.14); border-radius:999px; padding:5px 10px; color:#fff; }
+    .player-bar-placeholder{height:84px}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Aboubafruits</h1>
+    <div id="status">Chargement des joueurs...</div>
+    <div id="order" class="player-order hidden"></div>
+
+    <div id="turnArea" class="turn-area hidden">
+      <div class="hit-flash" id="hitFlash"></div>
+      <div class="fruit-card">
+        <div id="crackLayer"></div>
+        <div id="scorePopLayer"></div>
+        <img id="fruitImage" src="" alt="Fruit" />
+      </div>
+      <img id="punchImage" class="punch" src="assets/poing.png" alt="Poing" />
+      <div class="timer-row">
+        <input id="timerSlider" type="range" min="0" max="15" step="0.01" value="15" disabled />
+        <div id="timeLabel" class="timer-value">15.00s</div>
+      </div>
+      <div class="action-row">
+        <button id="hitBtn" class="big-btn action-button">Frapper</button>
+        <button id="rouletteBtn" class="big-btn action-button roulette-button">Roulette</button>
+      </div>
+      <div id="rouletteArea" class="roulette-area hidden">
+        <div class="roulette-indicator">▼</div>
+      <div class="wheel-frame">
+        <div id="rouletteWheel" class="roulette-wheel">
+          <div class="roulette-label pass">Passe son tour 30%</div>
+          <div class="roulette-label twohits">2 Coups 35%</div>
+          <div class="roulette-label threehits">3 Coups 25%</div>
+          <div class="roulette-label eliminated">Éliminé 10%</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;justify-content:center;width:100%;flex-wrap:wrap;">
+        <button id="launchRouletteBtn" class="big-btn action-button roulette-launch">LANCER</button>
+        <button id="closeRouletteBtn" class="big-btn action-button roulette-back">↩️</button>
+      </div>
+      <div id="rouletteResult" class="roulette-result"></div>
+      </div>
+    </div>
+  </main>
+
+  <div style="width:100%;max-width:920px;margin:0 auto;padding-top:14px">
+    <script src="../commun/game-players.js"></script>
+  </div>
+  <div class="player-bar-placeholder"></div>
+
+  <script>
+  (function(){
+    const stored = JSON.parse(localStorage.getItem('mini-Jeux-host-players') || '[]');
+    const statusEl = document.getElementById('status');
+    const orderEl = document.getElementById('order');
+    const turnArea = document.getElementById('turnArea');
+    const fruitImage = document.getElementById('fruitImage');
+    const punchImage = document.getElementById('punchImage');
+    const hitFlash = document.getElementById('hitFlash');
+    const timerSlider = document.getElementById('timerSlider');
+    const timeLabel = document.getElementById('timeLabel');
+    const hitBtn = document.getElementById('hitBtn');
+    const crackLayer = document.getElementById('crackLayer');
+    const scorePopLayer = document.getElementById('scorePopLayer');
+
+    const fruitFiles = ['pomme.png', 'ananas.png','pastèque.png', 'kiwi.png', 'banane.png', 'orange.png', 'fraise.png', 'framboise.png'];
+    const crackImages = ['crack1.png', 'crack2.png'];
+    const MAX_CRACKS = 3;
+    const TIMER_DURATION = 15.0;
+    let players = [];
+    let order = [];
+    let previewInterval = null;
+    let previewCount = 0;
+    let timerInterval = null;
+    let remainingTime = TIMER_DURATION;
+    let activeIndex = 0;
+    let turnInProgress = false;
+    let hitInProgress = false;
+    let punchActionInProgress = false;
+    let crackCount = 0;
+    let eliminationCounter = 0;
+    let rouletteMode = false;
+    let rouletteSpinInProgress = false;
+    let pendingExtraHits = 1;
+    let preRouletteRemainingTime = TIMER_DURATION;
+    let pendingRouletteOutcome = null;
+    let currentWheelRotation = 0;
+    const wheelLabelData = [
+      { selector: '.roulette-label.pass', angle: 54 },
+      { selector: '.roulette-label.twohits', angle: 171 },
+      { selector: '.roulette-label.threehits', angle: 279 },
+      { selector: '.roulette-label.eliminated', angle: 342 }
+    ];
+    const rouletteCenterAngles = {
+      pass: 54,
+      '2hits': 171,
+      '3hits': 279,
+      eliminated: 342
+    };
+    const rouletteLabelRadius = 82;
+
+    if (!stored.length){ statusEl.textContent = 'Aucun joueur enregistré.'; return; }
+
+    players = stored.map(p => ({ name: p.name, color: p.color || '#8ac6ff', score: 0, alive: true, eliminatedAt: null }));
+
+    function shuffle(array){ return array.slice().sort(() => Math.random() - 0.5); }
+
+    function renderOrder(list){
+      orderEl.innerHTML = '';
+      if (!list.length){
+        orderEl.classList.add('hidden');
+        return;
+      }
+      orderEl.classList.remove('hidden');
+      list.forEach((player, index) => {
+        const chip = document.createElement('div');
+        chip.className = 'player-chip' + (index === activeIndex ? ' current' : '');
+        chip.style.borderColor = player.color;
+        if (index === activeIndex) {
+          chip.style.setProperty('--glow-main', hexToRgba(player.color, 0.30));
+          chip.style.setProperty('--glow-faint', hexToRgba(player.color, 0.10));
+          chip.style.setProperty('--glow-border', hexToRgba(player.color, 0.75));
+          chip.style.setProperty('--glow-inner', hexToRgba(player.color, 0.10));
+          chip.style.background = hexToRgba(player.color, 0.08);
+        }
+        chip.textContent = `${index + 1}. ${player.name}`;
+        orderEl.appendChild(chip);
+      });
+    }
+
+    function hexToRgba(hex, alpha){
+      const clean = hex.replace('#','');
+      const bigint = parseInt(clean, 16);
+      const r = (bigint >> 16) & 255;
+      const g = (bigint >> 8) & 255;
+      const b = bigint & 255;
+      return `rgba(${r},${g},${b},${alpha})`;
+    }
+
+    function decoratePlayerScores(){
+      const pills = document.querySelectorAll('.player-bar .player-pill');
+      pills.forEach((pill) => {
+        if (pill.querySelector('.player-score')) return;
+        const nameSpan = pill.querySelector('span:not(.player-circle)');
+        const name = nameSpan ? nameSpan.textContent.trim() : null;
+        if (!name) return;
+        const player = players.find((p) => p.name === name);
+        if (!player) return;
+        const scoreBadge = document.createElement('span');
+        scoreBadge.className = 'player-score';
+        scoreBadge.dataset.playerName = name;
+        scoreBadge.textContent = String(player.score);
+        pill.appendChild(scoreBadge);
+      });
+    }
+
+    function incrementPlayerScore(player){
+      if (!player) return;
+      player.score = (player.score || 0) + 1;
+      const badge = document.querySelector(`.player-score[data-player-name="${CSS.escape(player.name)}"]`);
+      if (badge) badge.textContent = String(player.score);
+    }
+
+    function updatePlayerBarRanking(sorted){
+      const pills = document.querySelectorAll('.player-bar .player-pill');
+      pills.forEach((pill) => {
+        const name = pill.querySelector('span:not(.player-circle)')?.textContent?.trim();
+        if (!name) return;
+        const entry = sorted.find((p) => p.name === name);
+        let badge = pill.querySelector('.rank-badge');
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'rank-badge';
+          badge.style.marginLeft = 'auto';
+          badge.style.fontWeight = '900';
+          badge.style.fontSize = '0.85rem';
+          badge.style.padding = '2px 6px';
+          badge.style.borderRadius = '99px';
+          badge.style.background = 'rgba(255,255,255,0.8)';
+          badge.style.color = '#000';
+          pill.appendChild(badge);
+        }
+        if (!entry) {
+          badge.textContent = '';
+          pill.style.border = '1px solid rgba(255,255,255,0.28)';
+          pill.style.boxShadow = 'none';
+          pill.style.background = 'rgba(15,24,46,0.95)';
+        } else {
+          const rank = sorted.findIndex((p) => p.name === name) + 1;
+          const rankColor = rank === 1 ? '#ffd700' : rank === 2 ? '#c0c0c0' : rank === 3 ? '#cd7f32' : '#8a2be2';
+          badge.textContent = `#${rank}`;
+          pill.style.border = `1px solid ${rankColor}`;
+          pill.style.boxShadow = `0 0 0 2px ${rankColor}`;
+          pill.style.background = 'rgba(255,255,255,0.13)';
+          if (typeof setACText === 'function') setACText(pill, rank, sorted.length);
+        }
+      });
+    }
+
+    function openRoulette(){
+      if (!turnInProgress || rouletteSpinInProgress) return;
+      rouletteMode = true;
+      clearInterval(timerInterval);
+      timerInterval = null;
+      preRouletteRemainingTime = remainingTime;
+      document.getElementById('fruitImage').parentNode.classList.add('hidden');
+      document.querySelector('.timer-row').classList.add('hidden');
+      document.querySelector('.action-row').classList.add('hidden');
+      document.getElementById('rouletteArea').classList.remove('hidden');
+      hitBtn.disabled = true;
+      document.getElementById('launchRouletteBtn').disabled = false;
+      document.getElementById('closeRouletteBtn').disabled = false;
+      document.getElementById('rouletteResult').textContent = '';
+    }
+
+    function closeRoulette(){
+      rouletteMode = false;
+      document.getElementById('fruitImage').parentNode.classList.remove('hidden');
+      document.querySelector('.timer-row').classList.remove('hidden');
+      document.querySelector('.action-row').classList.remove('hidden');
+      document.getElementById('rouletteArea').classList.add('hidden');
+      const needsFreshTimer = pendingRouletteOutcome === 'pass';
+      if (pendingRouletteOutcome) {
+        applyPendingRouletteOutcome();
+      }
+      remainingTime = needsFreshTimer ? TIMER_DURATION : preRouletteRemainingTime;
+      updateTimerUI();
+      if (turnInProgress && !timerInterval && remainingTime > 0) {
+        startTimer();
+      }
+    }
+
+    function getRouletteOutcome(){
+      const r = Math.random();
+      if (r < 0.30) return 'pass';
+      if (r < 0.65) return '2hits';
+      if (r < 0.90) return '3hits';
+      return 'eliminated';
+    }
+
+    function resolveRouletteResult(outcome){
+      const resultLabel = outcome === 'pass' ? 'Passe son tour' : outcome === '2hits' ? '2 Coups' : outcome === '3hits' ? '3 Coups' : 'Éliminé';
+      const resultEl = document.getElementById('rouletteResult');
+      resultEl.textContent = `${resultLabel}`;
+      pendingRouletteOutcome = outcome;
+      rouletteSpinInProgress = false;
+      document.getElementById('launchRouletteBtn').disabled = true;
+      document.getElementById('closeRouletteBtn').disabled = false;
+      if (outcome === 'pass') {
+        pendingExtraHits = 1;
+        statusEl.textContent = 'Résultat : passe son tour';
+        statusEl.style.color = '#ffe066';
+      } else if (outcome === '2hits' || outcome === '3hits') {
+        pendingExtraHits = outcome === '2hits' ? 2 : 3;
+        statusEl.textContent = `Résultat : ${resultLabel}`;
+        statusEl.style.color = '#71e35f';
+        turnInProgress = true;
+      } else if (outcome === 'eliminated') {
+        pendingExtraHits = 1;
+        statusEl.textContent = 'Résultat : éliminé';
+        statusEl.style.color = '#ff6b6b';
+        turnInProgress = true;
+      }
+    }
+
+    function spinRoulette(){
+      if (!rouletteMode || rouletteSpinInProgress) return;
+      const outcome = getRouletteOutcome();
+      const targetAngle = rouletteCenterAngles[outcome] || 0;
+      const spins = 5;
+      const extra = Math.random() * 18 - 9;
+      const finalAngle = 360 * spins + (360 - targetAngle) + extra;
+      rouletteSpinInProgress = true;
+      document.getElementById('launchRouletteBtn').disabled = true;
+      document.getElementById('closeRouletteBtn').disabled = true;
+      animateWheelTo(finalAngle, 2200, () => {
+        const outcomeResult = outcome;
+        currentWheelRotation = finalAngle % 360;
+        resolveRouletteResult(outcomeResult);
+      });
+    }
+
+    function startTimer(){
+      clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        remainingTime = Math.max(0, remainingTime - 0.05);
+        updateTimerUI();
+        if (remainingTime <= 0) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+          handleHit(true);
+        }
+      }, 50);
+    }
+
+    function setWheelRotation(angle){
+      currentWheelRotation = angle % 360;
+      const wheel = document.getElementById('rouletteWheel');
+      wheel.style.transform = `rotate(${currentWheelRotation}deg)`;
+      document.querySelectorAll('.roulette-label').forEach((label) => {
+        const x = Number(label.dataset.x || 0);
+        const y = Number(label.dataset.y || 0);
+        label.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px) rotate(${-currentWheelRotation}deg)`;
+      });
+    }
+
+    function animateWheelTo(finalAngle, duration, callback){
+      const startAngle = currentWheelRotation;
+      const delta = finalAngle - startAngle;
+      const startTime = performance.now();
+      function step(now){
+        const t = Math.min(1, (now - startTime) / duration);
+        const eased = 1 - Math.pow(1 - t, 3);
+        setWheelRotation(startAngle + delta * eased);
+        if (t < 1) {
+          requestAnimationFrame(step);
+        } else {
+          callback && callback();
+        }
+      }
+      requestAnimationFrame(step);
+    }
+
+    function initRouletteLabels(){
+      wheelLabelData.forEach((item) => {
+        const label = document.querySelector(item.selector);
+        if (!label) return;
+        const rad = item.angle * Math.PI / 180;
+        const x = Math.sin(rad) * rouletteLabelRadius;
+        const y = -Math.cos(rad) * rouletteLabelRadius;
+        label.dataset.x = x;
+        label.dataset.y = y;
+        label.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px) rotate(0deg)`;
+      });
+    }
+
+    function applyPendingRouletteOutcome(){
+      if (!pendingRouletteOutcome) return;
+      const outcome = pendingRouletteOutcome;
+      pendingRouletteOutcome = null;
+      if (outcome === 'pass') {
+        activeIndex += 1;
+        if (activeIndex >= order.length) activeIndex = 0;
+        renderOrder(order);
+        setPunchStartPosition();
+        remainingTime = TIMER_DURATION;
+        updateTimerUI();
+        statusEl.textContent = `Tour de ${order[activeIndex].name}`;
+        statusEl.style.color = order[activeIndex].color;
+        turnInProgress = true;
+        hitBtn.disabled = false;
+        startTimer();
+        return;
+      }
+      if (outcome === 'eliminated') {
+        explodeFruit();
+        return;
+      }
+      if (outcome === '2hits' || outcome === '3hits') {
+        statusEl.textContent = `Tour de ${order[activeIndex].name} - ${pendingExtraHits} coups disponible(s)`;
+        statusEl.style.color = order[activeIndex].color;
+        turnInProgress = true;
+        hitBtn.disabled = false;
+      }
+    }
+
+    function applyHits(count, isTimeout = false){
+      if (!turnInProgress) return;
+      hitBtn.disabled = true;
+      if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+      const player = order[activeIndex];
+      const actualHits = Math.max(0, Math.min(count, fruitDurability - fruitHits));
+      if (actualHits <= 0) {
+        endTurn();
+        return;
+      }
+
+      let appliedHits = 0;
+      function runNextHit(){
+        if (!turnInProgress) return;
+        if (appliedHits >= actualHits) {
+          endTurn();
+          return;
+        }
+
+        appliedHits += 1;
+        fruitHits += 1;
+        incrementPlayerScore(player);
+        updateCracks();
+        pendingCrackReveal = true;
+        console.log(`${isTimeout ? 'Timeout' : 'Coup'} ${fruitHits}/${fruitDurability}`);
+
+        if (fruitHits >= fruitDurability) {
+          turnInProgress = false;
+          hitInProgress = false;
+          explodeFruit();
+          return;
+        }
+
+        if (appliedHits < actualHits) {
+          triggerPunchAnimation(runNextHit);
+        } else {
+          endTurn();
+        }
+      }
+
+      triggerPunchAnimation(runNextHit);
+      pendingExtraHits = 1;
+    }
+
+    function endGame(){
+      window.PourtyMiniGame?.finish();
+      hitBtn.disabled = true;
+      turnArea.classList.add('hidden');
+      orderEl.style.display = 'none';
+      const sorted = players.slice().sort((a,b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        if (a.alive !== b.alive) return a.alive ? -1 : 1;
+        if (!a.alive && !b.alive) return (b.eliminatedAt || 0) - (a.eliminatedAt || 0);
+        return 0;
+      });
+      const winner = sorted[0];
+      statusEl.textContent = winner ? `${winner.name} a gagné!` : 'Fin du jeu';
+      statusEl.style.color = winner ? winner.color : '#ffffff';
+      const board = document.createElement('div');
+      board.id = 'endLeaderboard';
+      board.style.marginTop = '12px';
+      board.style.maxWidth = '720px';
+      board.style.marginLeft = 'auto';
+      board.style.marginRight = 'auto';
+      const title = document.createElement('h3');
+      title.textContent = 'CLASSEMENT';
+      title.style.margin = '0 0 8px 0';
+      board.appendChild(title);
+      sorted.forEach((p, idx) => {
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.justifyContent = 'space-between';
+        row.style.padding = '8px';
+        row.style.borderBottom = '1px solid rgba(255,255,255,0.04)';
+        row.innerHTML = `<div>#${idx+1} ${p.name}</div><div style="font-weight:900">${p.score} pts${p.alive ? ' (Survivant)' : ''}</div>`;
+        board.appendChild(row);
+      });
+      statusEl.parentNode.insertBefore(board, statusEl.nextSibling);
+      setTimeout(() => {
+        updatePlayerBarRanking(sorted);
+        document.querySelectorAll('.player-pill .player-score').forEach((el) => { el.style.display = 'none'; });
+      }, 120);
+      const ret = document.createElement('button');
+      ret.className = 'return-btn';
+      ret.textContent = 'Retour';
+      ret.addEventListener('click', () => window.location.href = '../../index.html');
+      board.appendChild(ret);
+    }
+
+    window.addEventListener('load', () => {
+      decoratePlayerScores();
+      initRouletteLabels();
+    });
+
+    function startOrderAnimation(){
+      statusEl.textContent = 'Ordre aléatoire...';
+      previewInterval = setInterval(() => {
+        const randomName = players[Math.floor(Math.random() * players.length)].name;
+        statusEl.textContent = `Ordre aléatoire... ${randomName}`;
+        previewCount += 1;
+        if (previewCount >= 18) {
+          clearInterval(previewInterval);
+          finalizeOrder();
+        }
+      }, 80);
+    }
+
+    function finalizeOrder(){
+      order = shuffle(players.slice());
+      activeIndex = 0;
+      statusEl.textContent = 'Ordre des joueurs défini !';
+      renderOrder(order);
+      setTimeout(initializeTurnSystem, 1000);
+    }
+
+    function initializeTurnSystem(){
+      spawnFruit();
+      turnArea.classList.remove('hidden');
+      setPunchStartPosition();
+      startTurn();
+    }
+
+    let currentFruit = null;
+    let fruitDurability = 0;
+    let fruitHits = 0;
+    let punchCallbackQueue = [];
+    let crackThresholds = [];
+    let targetCracks = 0;
+    let pendingCrackReveal = false;
+    let crackShowTimer = null;
+    const boomOverlay = document.createElement('div');
+    boomOverlay.id = 'boomOverlay';
+    boomOverlay.textContent = 'BOOM 💥';
+    document.body.appendChild(boomOverlay);
+
+    const crackPositions = [
+      { top: '16%', left: '22%', width: '98px', rotate: '-16deg' },
+      { top: '32%', left: '54%', width: '110px', rotate: '8deg' },
+      { top: '58%', left: '32%', width: '106px', rotate: '4deg' }
+    ];
+
+    function calculateCrackThresholds(max){
+      if (max <= 3) {
+        return [1, Math.min(2, max), max];
+      }
+      const thresholds = [
+        Math.max(1, Math.round((0.20 + Math.random() * 0.14) * max)),
+        Math.max(1, Math.round((0.40 + Math.random() * 0.20) * max)),
+        Math.max(1, Math.round((0.65 + Math.random() * 0.20) * max))
+      ];
+      thresholds[1] = Math.max(thresholds[1], thresholds[0] + 1);
+      thresholds[2] = Math.max(thresholds[2], thresholds[1] + 1);
+      thresholds[2] = Math.min(thresholds[2], max);
+      if (thresholds[2] <= thresholds[1]) {
+        thresholds[2] = Math.min(max, thresholds[1] + 1);
+      }
+      return thresholds;
+    }
+
+    function spawnFruit(){
+      currentFruit = fruitFiles[Math.floor(Math.random() * (fruitFiles.length))];
+      fruitDurability = Math.floor(Math.random() * (order.length * 3)) + 1;
+      crackThresholds = calculateCrackThresholds(fruitDurability);
+      fruitHits = 0;
+      crackCount = 0;
+      targetCracks = 0;
+      crackLayer.innerHTML = '';
+      fruitImage.src = `assets/${encodeURI(currentFruit)}`;
+      fruitImage.alt = currentFruit.replace('.png', '');
+      console.log(`Nouveau fruit ${currentFruit} - coups max ${fruitDurability} (${order.length} joueurs vivants)`);
+      console.log(`Seuils fissures : ${crackThresholds.join(', ')}`);
+    }
+
+    function setPunchStartPosition(){
+      punchImage.style.right = '-220px';
+      punchImage.style.opacity = '0';
+      punchImage.style.left = '';
+      const fruitRect = fruitImage.getBoundingClientRect();
+      if (fruitRect.height) {
+        punchImage.style.top = `${fruitRect.top + fruitRect.height / 2}px`;
+      }
+    }
+
+    function startTurn(){
+      if (activeIndex >= order.length) {
+        pauseGame();
+        return;
+      }
+      pendingExtraHits = 1;
+      hitInProgress = false;
+      renderOrder(order);
+      const player = order[activeIndex];
+      statusEl.textContent = `Tour de ${player.name}`;
+      statusEl.style.color = player.color;
+      hitBtn.disabled = false;
+      turnInProgress = true;
+      remainingTime = TIMER_DURATION;
+      updateTimerUI();
+      startTimer();
+    }
+
+    function updateTimerUI(){
+      timerSlider.value = remainingTime;
+      const percent = (remainingTime / TIMER_DURATION) * 100;
+      timerSlider.style.background = `linear-gradient(90deg, rgba(107,192,255,0.95) ${percent}%, rgba(255,255,255,0.12) ${percent}%)`;
+      timeLabel.textContent = `${remainingTime.toFixed(2)}s`;
+    }
+
+    function addCrack(){
+      if (crackCount >= MAX_CRACKS) return;
+      const crackSrc = crackImages[Math.floor(Math.random() * crackImages.length)];
+      const crack = document.createElement('img');
+      crack.src = `assets/${crackSrc}`;
+      crack.alt = 'Fissure';
+      crack.className = 'crack-shard';
+      const position = crackPositions[crackCount];
+      crack.style.top = position.top;
+      crack.style.left = position.left;
+      crack.style.width = position.width;
+      crack.style.transform = `rotate(${position.rotate})`;
+      crack.style.setProperty('--crack-rotate', position.rotate);
+      crack.style.setProperty('--crack-move-x', `${Math.round((Math.random() * 24) - 12)}px`);
+      crack.style.setProperty('--crack-move-y', `${Math.round((Math.random() * 20) - 10)}px`);
+      crackLayer.appendChild(crack);
+      crackCount += 1;
+    }
+
+    function updateCracks(){
+      targetCracks = crackThresholds.filter((threshold) => fruitHits >= threshold).length;
+    }
+
+    function showPendingCracks(){
+      if (crackShowTimer) {
+        clearTimeout(crackShowTimer);
+        crackShowTimer = null;
+      }
+      if (targetCracks <= crackCount) return;
+      crackShowTimer = setTimeout(() => {
+        while (crackCount < targetCracks) {
+          addCrack();
+        }
+        crackShowTimer = null;
+      }, 360);
+    }
+
+    function renderExplosionCracks(){
+      const visibleCracks = Math.max(2, Math.min(MAX_CRACKS, targetCracks || 2));
+      while (crackCount < visibleCracks) {
+        addCrack();
+      }
+    }
+
+    function endTurn(){
+      if (!turnInProgress) return;
+      turnInProgress = false;
+      hitInProgress = false;
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+      hitBtn.disabled = true;
+      activeIndex += 1;
+      if (activeIndex >= order.length) {
+        activeIndex = 0;
+      }
+      setTimeout(() => {
+        if (order.length === 0) {
+          pauseGame();
+          return;
+        }
+        renderOrder(order);
+        startTurn();
+      }, 260);
+    }
+
+    function handleHit(isTimeout = false){
+      if (!turnInProgress || hitInProgress) return;
+      hitInProgress = true;
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+      applyHits(isTimeout ? 1 : pendingExtraHits, isTimeout);
+    }
+
+    function explodeFruit(){
+      fruitHits = fruitDurability;
+      const eliminated = order.splice(activeIndex, 1)[0];
+      eliminated.alive = false;
+      eliminated.eliminatedAt = ++eliminationCounter;
+      console.log(`Fruit explosé ! ${eliminated.name} est éliminé.`);
+      const remaining = order.length;
+      const impactDelay = 360;
+      statusEl.textContent = 'BOOM 💥';
+      statusEl.style.color = '#ffffff';
+      setTimeout(() => {
+        boomOverlay.classList.add('visible');
+        renderExplosionCracks();
+        fruitImage.classList.add('shake');
+        fruitImage.classList.add('explode');
+        crackLayer.querySelectorAll('.crack-shard').forEach((crack) => crack.classList.add('explode'));
+      }, impactDelay);
+      setTimeout(() => {
+        boomOverlay.classList.remove('visible');
+      }, impactDelay + 2000);
+      setTimeout(() => {
+        fruitImage.classList.remove('shake');
+        fruitImage.classList.remove('explode');
+      }, impactDelay + 2200);
+      setTimeout(() => {
+        punchImage.classList.remove('active');
+      }, 720);
+      setTimeout(() => {
+        if (remaining <= 1) {
+          statusEl.textContent = remaining === 1 ? `Gagnant : ${order[0].name}` : 'Plus de joueurs en jeu.';
+          statusEl.style.color = '#ffffff';
+          turnArea.classList.add('hidden');
+          hitBtn.disabled = true;
+          endGame();
+          return;
+        }
+        if (activeIndex >= order.length) {
+          activeIndex = 0;
+        }
+        renderOrder(order);
+        spawnFruit();
+        setPunchStartPosition();
+        statusEl.textContent = `Prochain joueur : ${order[activeIndex].name}`;
+        statusEl.style.color = order[activeIndex].color;
+        startTurn();
+      }, impactDelay + 2000 + 50);
+    }
+
+    function triggerPunchAnimation(callback){
+      if (typeof callback === 'function') {
+        punchCallbackQueue.push(callback);
+      }
+      if (punchActionInProgress) return;
+
+      punchActionInProgress = true;
+      setPunchStartPosition();
+      punchImage.classList.add('active');
+      const animationDuration = 720;
+      const impactDelay = 360;
+      const impactDuration = 120;
+      setTimeout(() => {
+        fruitImage.classList.add('shake');
+        hitFlash.classList.add('active');
+        const pop = document.createElement('div');
+        pop.className = 'score-pop';
+        pop.textContent = '+1';
+        const driftX = Math.round(Math.random() * 48 - 24);
+        const driftY = Math.round(Math.random() * 24 - 12);
+        pop.style.setProperty('--pop-x', `${driftX}px`);
+        pop.style.setProperty('--pop-y', `${driftY}px`);
+        scorePopLayer.appendChild(pop);
+        setTimeout(() => pop.remove(), 920);
+        if (pendingCrackReveal) {
+          while (crackCount < targetCracks) {
+            addCrack();
+          }
+          pendingCrackReveal = false;
+        }
+      }, impactDelay);
+      setTimeout(() => {
+        hitFlash.classList.remove('active');
+        fruitImage.classList.remove('shake');
+      }, impactDelay + impactDuration);
+      setTimeout(() => {
+        punchImage.classList.remove('active');
+      }, animationDuration + 20);
+      setTimeout(() => {
+        punchActionInProgress = false;
+        const next = punchCallbackQueue.shift();
+        if (typeof next === 'function') {
+          next();
+        }
+        if (punchCallbackQueue.length) {
+          triggerPunchAnimation();
+        }
+      }, animationDuration + 30);
+    }
+
+    function pauseGame(){
+      clearInterval(timerInterval);
+      turnArea.classList.add('hidden');
+      hitBtn.disabled = true;
+      statusEl.textContent = 'Tous les joueurs ont joué. Le jeu est en pause.';
+      statusEl.style.color = '#ffffff';
+    }
+
+    hitBtn.addEventListener('click', () => {
+      if (!turnInProgress || rouletteMode) return;
+      hitBtn.disabled = true;
+      clearInterval(timerInterval);
+      timerInterval = null;
+      handleHit(false);
+    });
+
+    document.getElementById('rouletteBtn').addEventListener('click', () => {
+      if (rouletteMode) {
+        closeRoulette();
+      } else {
+        openRoulette();
+      }
+    });
+
+    document.getElementById('launchRouletteBtn').addEventListener('click', () => {
+      spinRoulette();
+    });
+
+    document.getElementById('closeRouletteBtn').addEventListener('click', () => {
+      if (rouletteMode) closeRoulette();
+    });
+
+    renderOrder([]);
+    startOrderAnimation();
+  })();
+  </script>
+</body>
+</html>

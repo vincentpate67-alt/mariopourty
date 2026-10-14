@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-40 -40 80 80" fill="none">
+  <defs>
+    <linearGradient id="metal" x1="-24" y1="-34" x2="26" y2="34" gradientUnits="userSpaceOnUse"><stop stop-color="#e1e8f1"/><stop offset=".38" stop-color="#8999ad"/><stop offset=".65" stop-color="#455269"/><stop offset="1" stop-color="#a4b3c6"/></linearGradient>
+    <linearGradient id="cross" x1="0" y1="-24" x2="0" y2="24" gradientUnits="userSpaceOnUse"><stop stop-color="#c5d0de" stop-opacity=".85"/><stop offset="1" stop-color="#56667d" stop-opacity=".9"/></linearGradient>
+  </defs>
+  <circle r="33" cy="2" stroke="#030a18" stroke-width="9" opacity=".55"/>
+  <path d="M-22-22 22 22M22-22-22 22" stroke="#111b2a" stroke-width="9" stroke-linecap="round"/>
+  <path d="M-22-22 22 22M22-22-22 22" stroke="url(#cross)" stroke-width="5" stroke-linecap="round"/>
+  <circle r="32" stroke="#101a2c" stroke-width="9"/>
+  <circle r="32" stroke="url(#metal)" stroke-width="5"/>
+  <circle r="27.5" stroke="#d4deec" stroke-opacity=".38"/>
+  <path d="M-7-33h14M33-7V7M7 33H-7M-33 7V-7" stroke="#e4ecf7" stroke-width="2" stroke-linecap="round"/>
+  <g fill="#26344b" stroke="#b7c5d8" stroke-width="1.2"><rect x="-27" y="-27" width="9" height="9" rx="2"/><rect x="18" y="-27" width="9" height="9" rx="2"/><rect x="-27" y="18" width="9" height="9" rx="2"/><rect x="18" y="18" width="9" height="9" rx="2"/></g>
+  <path d="M-24-22.5h3m42 0h3m-48 45h3m42 0h3" stroke="#e4ecf7" stroke-width="1.5" stroke-linecap="round"/>
+  <circle r="5" fill="#22314a" stroke="#becbdb" stroke-width="1.5"/><circle r="1.5" fill="#e8effa"/>
+</svg>

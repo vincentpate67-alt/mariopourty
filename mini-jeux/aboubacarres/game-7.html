@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <script src="../../party-payout.js"></script>
+<script src="../../board/board-minigame-bridge.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aboubacarrés</title>
+  <link rel="stylesheet" href="../../style.css" />
+  <style>
+    body{background:#0b1230;min-height:100vh;color:#fff;font-family:Segoe UI,Roboto,Ubuntu,sans-serif;margin:0;padding:0;}
+    main{width:100%;max-width:1080px;margin:28px auto 120px;padding:20px;text-align:center;}
+    h1{font-size:2.4rem;margin-bottom:12px;color:#f4f8ff;}
+    #status{margin:14px 0;font-size:1.2rem;min-height:30px;}
+    .player-order{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:16px 0;}
+    .player-chip{padding:10px 12px;border-radius:14px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.18);font-weight:700;min-width:110px;}
+    .player-chip.active{box-shadow:0 0 0 2px rgba(160,220,255,0.45);border-color:#75c8ff;background:rgba(255,255,255,0.18);}
+    #play-area{position:relative;width:min(100%,1080px);margin:18px auto;padding:0 12px;}
+    #arena-wrapper{width:min(520px,100%);margin:0 auto;display:flex;justify-content:center;align-items:center;}
+    .arena{position:relative;width:100%;max-width:520px;aspect-ratio:1/1;border:4px solid rgba(255,255,255,0.26);border-radius:24px;background:radial-gradient(circle at top left, rgba(125,170,255,0.14), transparent 30%),radial-gradient(circle at bottom right, rgba(255,255,255,0.12), transparent 36%),rgba(14,20,51,0.92);box-shadow:0 16px 40px rgba(0,0,0,0.35);cursor:crosshair;margin:0 auto;}
+    .player-block{position:absolute;width:64px;height:64px;border-radius:14px;border:2px solid rgba(255,255,255,0.4);display:flex;align-items:center;justify-content:center;font-size:0.9rem;font-weight:800;color:#111;text-shadow:0 1px 0 rgba(255,255,255,0.65);}
+    .settings-panel{display:none;width:100%;max-width:920px;padding:18px;box-sizing:border-box;border:1px solid rgba(255,255,255,0.18);border-radius:18px;background:rgba(15,22,47,0.92);box-shadow:0 20px 40px rgba(0,0,0,0.25);}
+    .settings-panel.active{display:block;}
+    .settings-panel h2{margin:0 0 14px;font-size:1.2rem;color:#f4f8ff;}
+    .setting-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;}
+    .setting-row label{font-size:0.95rem;color:#d9e4ff;flex:1;}
+    .setting-row input[type=range]{flex:1;accent-color:#6bc0ff;}
+    .settings-panel input[type=range]{-webkit-appearance:none;width:100%;height:6px;background:rgba(255,255,255,0.16);border-radius:999px;outline:none;}
+    .settings-panel input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#6bc0ff;cursor:pointer;box-shadow:0 0 0 4px rgba(107,192,255,0.24);}
+    .setting-row span{min-width:40px;text-align:right;color:#cbd8ff;font-weight:700;}
+    .item-panel{display:none;position:absolute;top:65px;left:50%;transform:translateX(calc(-50% - 380px));width:220px;max-width:220px;}
+    .item-panel.active{display:block;}
+    .item-selector{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0;align-content:start;}
+    .settings-controls{display:grid;gap:20px;min-width:360px;}
+    .item-card{position:relative;cursor:pointer;border:1px solid rgba(255,255,255,0.18);border-radius:18px;overflow:hidden;background:rgba(255,255,255,0.05);min-height:120px;display:flex;align-items:center;justify-content:center;transition:transform .2s ease,border-color .2s ease;}
+    .item-card:hover{transform:translateY(-2px);border-color:rgba(107,192,255,0.45);}
+    .item-card img{max-width:64px;max-height:64px;pointer-events:none;}
+    .item-counter{position:absolute;left:8px;top:8px;background:rgba(0,0,0,0.55);border-radius:10px;padding:3px 6px;font-size:0.75rem;font-weight:700;color:#fff;}
+    .item-count{position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,0.55);border-radius:12px;padding:4px 8px;font-size:0.85rem;font-weight:700;color:#fff;}
+    .item-split{position:absolute;inset:0;display:flex;opacity:0;transition:opacity .2s ease;}
+    .item-card:hover .item-split{opacity:1;}
+    .item-split span{flex:1;display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:900;color:#fff;pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,0.35);}
+    .item-split .minus{background:rgba(216,61,61,0.72);}
+    .item-split .plus{background:rgba(92,194,100,0.72);}
+    #ready-btn{margin-top:22px;width:100%;padding:14px 16px;font-size:1rem;font-weight:700;border:none;border-radius:12px;background:#6bc0ff;color:#071a3a;cursor:pointer;display:block;}
+    #arena{margin:0 auto;}
+    #settings-panel{position:absolute;top:0;left:50%;transform:translateX(calc(260px + 18px));width:min(420px, calc(100vw - 560px - 36px));max-width:420px;}
+    .impact-particle{position:absolute;width:10px;height:10px;border-radius:999px;pointer-events:none;opacity:0;animation:impact 0.45s ease-out forwards;}
+    @keyframes impact {0%{opacity:1;transform:translate(-50%,-50%) scale(1);}100%{opacity:0;transform:translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.2);}}
+    .item-shadow{position:absolute;width:72px;height:24px;border-radius:50%;background:rgba(0,0,0,0.38);transform:translate(-50%,-50%) scale(0.1);opacity:0;pointer-events:none;filter:blur(6px);transition:transform 1.2s ease,opacity 1.2s ease;}
+    .game-item{position:absolute;left:0;top:0;transform:translate(-50%,-40px);opacity:0;transition:transform .45s cubic-bezier(.2,.9,.2,1),opacity .45s ease;pointer-events:none;}
+    .game-item img{width:44px;height:44px;display:block;border-radius:8px;}
+    .game-item.land{transform:translate(-50%,0);opacity:1;}
+    .game-item.blink{animation:blink .28s linear both;}
+    @keyframes blink{0%{opacity:1;transform:translate(-50%,-40px) scale(1);}50%{opacity:0.15;transform:translate(-50%,-40px) scale(1.08);}100%{opacity:0;transform:translate(-50%,-40px) scale(1.12);}}
+    .player-block.frozen{box-shadow:0 0 10px rgba(120,170,255,0.85);filter:brightness(0.95) saturate(1.05);} 
+    .player-block.boosted{box-shadow:0 0 10px rgba(255,210,120,0.9);} 
+    .knife-icon{position:absolute;pointer-events:none;z-index:5;transform:translate(-50%,-50%);}
+    .player-block.bleed{animation:bleed .42s ease-out both;}
+    @keyframes bleed{0%{box-shadow:0 0 0 rgba(255,30,30,0);}50%{box-shadow:0 0 18px 6px rgba(255,30,30,0.95);}100%{box-shadow:0 0 4px 2px rgba(255,30,30,0.6);}}
+    .player-block.regen{animation:regen .42s ease-out both;}
+    @keyframes regen{0%{box-shadow:0 0 0 rgba(120,255,120,0);}50%{box-shadow:0 0 18px 6px rgba(120,255,120,0.9);}100%{box-shadow:0 0 4px 2px rgba(120,255,120,0.6);}}
+    .ranking-overlay{position:fixed;left:0;top:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;background:rgba(4,6,12,0.85);z-index:9999;padding:24px;box-sizing:border-box;}
+    .ranking-list{width:min(720px,90%);max-width:920px;background:transparent;padding:12px;}
+    .player-bar{display:flex;align-items:center;gap:12px;padding:10px;border-radius:12px;margin-bottom:8px;color:#071a3a;font-weight:800}
+    .player-bar .name{flex:1;color:#fff;font-weight:800}
+    .player-bar .badge{background:rgba(255,255,255,0.12);padding:6px 10px;border-radius:8px;font-weight:900}
+    .ranking-overlay .winner-text{font-size:3.2rem;font-weight:900;margin-bottom:12px}
+    .ranking-overlay .return-btn{margin-top:14px;padding:10px 16px;border-radius:10px;border:none;background:#6bc0ff;color:#071a3a;font-weight:800;cursor:pointer}
+    .zone-overlay{position:absolute;background:rgba(255,150,0,0.24);pointer-events:none;z-index:2;}
+    @media(max-width: 980px){#settings-panel{position:static;transform:none;width:100%;max-width:920px;margin:18px auto 0;}#item-panel{position:static;transform:none;width:100%;max-width:920px;margin:0 auto 18px;}}
+    @media(max-width: 6000px){main{padding:16px;}.settings-panel{width:170%;}}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Aboubacarrés</h1>
+    <div id="status">Chargement des joueurs...</div>
+    <div id="order" class="player-order"></div>
+    <div id="play-area">
+      <div id="item-panel" class="item-panel">
+        <div class="item-selector">
+          <div class="item-card" data-item="pomme" data-count="1">
+            <div class="item-counter">1</div>
+            <img src="assets/pomme.png" alt="Pomme" />
+            <div class="item-count"><span>0%</span></div>
+            <div class="item-split"><span class="minus">−</span><span class="plus">+</span></div>
+          </div>
+          <div class="item-card" data-item="flocon" data-count="1">
+            <div class="item-counter">1</div>
+            <img src="assets/flocon.png" alt="Flocon" />
+            <div class="item-count"><span>0%</span></div>
+            <div class="item-split"><span class="minus">−</span><span class="plus">+</span></div>
+          </div>
+          <div class="item-card" data-item="boost" data-count="1">
+            <div class="item-counter">1</div>
+            <img src="assets/boost.png" alt="Boost" />
+            <div class="item-count"><span>0%</span></div>
+            <div class="item-split"><span class="minus">−</span><span class="plus">+</span></div>
+          </div>
+          <div class="item-card" data-item="vie" data-count="1">
+            <div class="item-counter">1</div>
+            <img src="assets/vie.png" alt="Vie" />
+            <div class="item-count"><span>0%</span></div>
+            <div class="item-split"><span class="minus">−</span><span class="plus">+</span></div>
+          </div>
+          <div class="item-card" data-item="piege" data-count="1">
+            <div class="item-counter">1</div>
+            <img src="assets/piege.png" alt="Piège" />
+            <div class="item-count"><span>0%</span></div>
+            <div class="item-split"><span class="minus">−</span><span class="plus">+</span></div>
+          </div>
+          <div class="item-card" data-item="couteau" data-count="1">
+            <div class="item-counter">1</div>
+            <img src="assets/couteau.png" alt="Couteau" />
+            <div class="item-count"><span>0%</span></div>
+            <div class="item-split"><span class="minus">−</span><span class="plus">+</span></div>
+          </div>
+        </div>
+      </div>
+      <div id="arena-wrapper"><div id="arena" class="arena"></div></div>
+      <div id="settings-panel" class="settings-panel">
+        <h2>Paramètres</h2>
+        <div class="settings-controls">
+          <div class="setting-row">
+            <label for="hp-control">PV des joueurs</label>
+            <span id="hp-value">3</span>
+          </div>
+          <input type="range" id="hp-control" min="1" max="5" value="3" />
+            <div class="setting-row">
+              <label for="speed-control">Vitesse</label>
+              <span id="speed-value">5</span>
+            </div>
+            <input type="range" id="speed-control" min="1" max="10" value="5" />
+            <div class="setting-row">
+              <label for="zone-control">Temps avant zone</label>
+              <span id="zone-value">30</span>
+            </div>
+            <input type="range" id="zone-control" min="15" max="60" value="30" />
+            <div class="setting-row">
+              <label for="item-delay-control">Temps avant objet</label>
+              <span id="item-delay-value">5</span>
+            </div>
+            <input type="range" id="item-delay-control" min="3" max="15" value="5" />
+            <div class="setting-row">
+              <label for="size-control">Taille des joueurs</label>
+              <span id="size-value">3</span>
+            </div>
+            <input type="range" id="size-control" min="1" max="5" value="3" />
+            <div class="setting-row">
+              <label for="gold-knife-toggle">Couteau en or</label>
+              <input type="checkbox" id="gold-knife-toggle" />
+            </div>
+          </div>
+        </div>
+        <button id="ready-btn">Prêt</button>
+      </div>
+    </div>
+  </main>
+  <script src="../commun/game-players.js"></script>
+  <script>
+(function(){
+  const playerList = JSON.parse(localStorage.getItem('mini-Jeux-host-players') || '[]');
+  const statusEl = document.getElementById('status');
+  const orderEl = document.getElementById('order');
+  const arena = document.getElementById('arena');
+  const settingsPanel = document.getElementById('settings-panel');
+  const itemPanel = document.getElementById('item-panel');
+  const hpControl = document.getElementById('hp-control');
+  const speedControl = document.getElementById('speed-control');
+  const zoneControl = document.getElementById('zone-control');
+  const itemDelayControl = document.getElementById('item-delay-control');
+  const sizeControl = document.getElementById('size-control');
+  const goldKnifeToggle = document.getElementById('gold-knife-toggle');
+  const hpValue = document.getElementById('hp-value');
+  const speedValue = document.getElementById('speed-value');
+  const zoneValue = document.getElementById('zone-value');
+  const itemDelayValue = document.getElementById('item-delay-value');
+  const sizeValue = document.getElementById('size-value');
+  const itemCards = Array.from(document.querySelectorAll('.item-card'));
+  const readyBtn = document.getElementById('ready-btn');
+  // cacher le bouton Prêt au démarrage
+  readyBtn.style.display = 'none';
+
+  const squareSize = 64;
+  let activePlayers = [];
+  let currentSize = 32 + Number(sizeControl.value) * 10;
+  let currentSpeedScale = Number(speedControl.value);
+  let itemDelay = Number(itemDelayControl.value);
+  let currentIdx = 0;
+  let placedRects = [];
+  let movingPlayers = [];
+  let animationId = null;
+  // global timers for item spawn and zone
+  let itemSpawnIntervalId = null;
+  let zoneTimeoutId = null;
+  let zoneAnimationId = null;
+  let zoneOverlayElements = [];
+  let safeZone = null;
+  let items = [];
+  let eliminated = [];
+  let idCounter = 1;
+
+  function findFreeSpotNear(x, y, size, minDist) {
+    const rect = arena.getBoundingClientRect();
+    const attempts = 40;
+    for (let i = 0; i < attempts; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius =  (playerRandomRadius =  (size + minDist) + Math.random() * (Math.max(rect.width, rect.height) / 6));
+      const nx = x + Math.cos(angle) * radius;
+      const ny = y + Math.sin(angle) * radius;
+      if (nx < 0 || ny < 0 || nx + size > rect.width || ny + size > rect.height) continue;
+      const tooClose = movingPlayers.some(p => {
+        const px = p.x + p.size / 2;
+        const py = p.y + p.size / 2;
+        return Math.hypot(nx - px, ny - py) < (p.size / 2 + minDist + size / 2);
+      });
+      if (!tooClose) return { x: nx, y: ny };
+    }
+    return null;
+  }
+
+  function setStatus(text, color) {
+    statusEl.textContent = text;
+    statusEl.style.color = color || '#e0f4ff';
+  }
+
+  function shuffle(arr) {
+    return arr.slice().sort(() => Math.random() - 0.5);
+  }
+
+  function renderOrder() {
+    orderEl.innerHTML = '';
+    activePlayers.forEach((player, idx) => {
+      const chip = document.createElement('div');
+      chip.className = 'player-chip' + (idx === currentIdx ? ' active' : '');
+      chip.style.borderColor = player.color || '#fff';
+      chip.style.background = idx === currentIdx ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.12)';
+      chip.textContent = `${player.name}`;
+      orderEl.appendChild(chip);
+    });
+  }
+
+  function announceOrder() {
+    let step = 0;
+    const preview = setInterval(() => {
+      const randomName = playerList[Math.floor(Math.random()*playerList.length)].name;
+      setStatus(`Ordre aléatoire... ${randomName}`);
+      step += 1;
+      if (step >= 20) {
+        clearInterval(preview);
+        setStatus(`Ordre fixé : ${activePlayers.map(p => p.name).join(' → ')}`);
+        renderOrder();
+        setTimeout(() => startPlacement(), 900);
+      }
+    }, 80);
+  }
+
+  function getArenaPosition(event) {
+    const rect = arena.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    return { x, y, arenaWidth: rect.width, arenaHeight: rect.height };
+  }
+
+  function isValidPosition(x, y, width, height, size) {
+    const gap = 12;
+    if (x - size / 2 < 0 || y - size / 2 < 0 || x + size / 2 > width || y + size / 2 > height) {
+      return false;
+    }
+    const left = x - size / 2;
+    const top = y - size / 2;
+    return !placedRects.some(rect => {
+      return !(left + size + gap <= rect.x || rect.x + rect.size + gap <= left || top + size + gap <= rect.y || rect.y + rect.size + gap <= top);
+    });
+  }
+
+  function placeCurrentPlayer(event) {
+    if (currentIdx >= activePlayers.length) return;
+    const { x, y, arenaWidth, arenaHeight } = getArenaPosition(event);
+    const size = currentSize;
+    if (!isValidPosition(x, y, arenaWidth, arenaHeight, size)) {
+      setStatus(`Impossible de placer ici, choisis un autre emplacement.`, '#ffb957');
+      return;
+    }
+
+    const player = activePlayers[currentIdx];
+    const left = x - size / 2;
+    const top = y - size / 2;
+    const block = document.createElement('div');
+    block.className = 'player-block';
+    block.style.width = `${size}px`;
+    block.style.height = `${size}px`;
+    block.style.lineHeight = `${size}px`;
+    block.style.left = `${left}px`;
+    block.style.top = `${top}px`;
+    block.style.background = player.color || '#8ac6ff';
+    block.style.borderRadius = `${Math.max(12, size * 0.2)}px`;
+    // afficher les PV sur le carré
+    const initialHp = Number(hpControl.value);
+    block.textContent = initialHp;
+    arena.appendChild(block);
+
+    placedRects.push({ x: left, y: top, size });
+    const speed = 1.3 + currentSpeedScale * 0.15;
+    const direction = [[-1,-1],[1,-1],[-1,1],[1,1]][Math.floor(Math.random()*4)];
+    const id = 'p-' + (idCounter++);
+    movingPlayers.push({
+      id,
+      name: player.name,
+      x: left,
+      y: top,
+      size,
+      dx: direction[0] * speed,
+      dy: direction[1] * speed,
+      baseSpeed: speed,
+      dirX: direction[0],
+      dirY: direction[1],
+      speedMultiplier: 1,
+      effects: {},
+      color: player.color || '#8ac6ff',
+      el: block,
+      hp: initialHp,
+      hasKnife: false,
+      knifeEl: null,
+      isClone: false,
+      ownerId: null
+    });
+    currentIdx += 1;
+
+    if (currentIdx < activePlayers.length) {
+      renderOrder();
+      setStatus(`Place ${activePlayers[currentIdx].name} dans l'arène.`, activePlayers[currentIdx].color);
+    } else {
+      renderOrder();
+      setStatus('Tous les joueurs sont placés. Ajuste les paramètres et clique sur Prêt.', '#a5ff9f');
+      settingsPanel.classList.add('active');
+      itemPanel.classList.add('active');
+      // afficher le bouton Prêt
+      readyBtn.style.display = 'block';
+      arena.removeEventListener('click', placeCurrentPlayer);
+    }
+  }
+
+  function startPlacement() {
+    renderOrder();
+    setStatus(`Place ${activePlayers[currentIdx].name} dans l'arène.`, activePlayers[currentIdx].color);
+    arena.addEventListener('click', placeCurrentPlayer);
+  }
+
+  function updatePlacedSizes() {
+    movingPlayers.forEach(player => {
+      const left = player.x;
+      const top = player.y;
+      player.size = currentSize;
+      player.x = Math.max(0, Math.min(left, arena.clientWidth - player.size));
+      player.y = Math.max(0, Math.min(top, arena.clientHeight - player.size));
+      player.el.style.width = `${player.size}px`;
+      player.el.style.height = `${player.size}px`;
+      player.el.style.lineHeight = `${player.size}px`;
+      player.el.style.left = `${player.x}px`;
+      player.el.style.top = `${player.y}px`;
+      player.el.style.borderRadius = `${Math.max(12, player.size * 0.2)}px`;
+      if (player.knifeEl) {
+        player.knifeEl.style.width = `${player.size}px`;
+        player.knifeEl.style.height = `${player.size}px`;
+        player.knifeEl.style.left = `${player.x + player.size + 10}px`;
+        player.knifeEl.style.top = `${player.y + player.size / 2}px`;
+      }
+    });
+    placedRects = movingPlayers.map(p => ({ x: p.x, y: p.y, size: p.size }));
+  }
+
+  // update HP numbers displayed on player blocks
+  function updatePlayerHPDisplays() {
+    movingPlayers.forEach(p => {
+      if (p.isClone) return;
+      p.hp = Number(hpControl.value);
+      if (p.el) p.el.textContent = p.hp;
+    });
+  }
+
+  function updateMovingSpeed() {
+    const speed = 1.3 + Number(speedControl.value) * 0.25;
+    movingPlayers.forEach(player => {
+      player.baseSpeed = speed;
+      let mag = Math.hypot(player.dx || 0, player.dy || 0);
+      if (mag > 0) {
+        player.dirX = player.dx / mag;
+        player.dirY = player.dy / mag;
+      }
+      const mult = player.speedMultiplier || 1;
+      player.dx = (player.dirX || 1) * player.baseSpeed * mult;
+      player.dy = (player.dirY || 0) * player.baseSpeed * mult;
+    });
+  }
+
+  hpControl.addEventListener('input', () => { hpValue.textContent = hpControl.value; updatePlayerHPDisplays(); });
+  speedControl.addEventListener('input', () => {
+    speedValue.textContent = speedControl.value;
+    currentSpeedScale = Number(speedControl.value);
+    if (animationId !== null) updateMovingSpeed();
+  });
+  zoneControl.addEventListener('input', () => zoneValue.textContent = zoneControl.value);
+  itemDelayControl.addEventListener('input', () => {
+    itemDelayValue.textContent = itemDelayControl.value;
+    itemDelay = Number(itemDelayControl.value);
+  });
+  sizeControl.addEventListener('input', () => {
+    sizeValue.textContent = sizeControl.value;
+    currentSize = 32 + Number(sizeControl.value) * 10;
+    updatePlacedSizes();
+  });
+
+  const itemCounts = {
+    pomme: 1,
+    flocon: 1,
+    boost: 1,
+    vie: 1,
+    piege: 1,
+    couteau: 1
+  };
+
+  function weightedRandomItem() {
+    const entries = Object.entries(itemCounts);
+    const total = entries.reduce((s, [, v]) => s + v, 0);
+    if (total <= 0) return null;
+    let r = Math.random() * total;
+    for (let i = 0; i < entries.length; i += 1) {
+      const [name, weight] = entries[i];
+      if (r < weight) return name;
+      r -= weight;
+    }
+    return entries[entries.length - 1][0];
+  }
+
+  function spawnItem() {
+    const itemName = weightedRandomItem();
+    if (!itemName) return;
+    const rect = arena.getBoundingClientRect();
+    let attempts = 0;
+    const spawnX = safeZone ? Math.max(safeZone.x + 24, 0) : 0;
+    const spawnY = safeZone ? Math.max(safeZone.y + 24, 0) : 0;
+    const spawnW = safeZone ? Math.max(0, safeZone.width - 48) : rect.width;
+    const spawnH = safeZone ? Math.max(0, safeZone.height - 44) : rect.height;
+    if (safeZone && (spawnW <= 0 || spawnH <= 0)) return;
+    while (attempts < 40) {
+      attempts += 1;
+      const x = spawnX + Math.random() * spawnW;
+      const y = spawnY + Math.random() * spawnH;
+      const tooClose = movingPlayers.some(p => {
+        const px = p.x + p.size / 2;
+        const py = p.y + p.size / 2;
+        return Math.hypot(x - px, y - py) < (p.size / 2 + 80);
+      });
+      if (tooClose) continue;
+
+      const shadow = document.createElement('div');
+      shadow.className = 'item-shadow';
+      shadow.style.left = `${x}px`;
+      shadow.style.top = `${y + 12}px`;
+      arena.appendChild(shadow);
+      requestAnimationFrame(() => {
+        shadow.style.transform = 'translate(-50%,-50%) scale(1.4)';
+        shadow.style.opacity = '0.9';
+      });
+
+      setTimeout(() => {
+        shadow.remove();
+        const el = document.createElement('div');
+        el.className = 'game-item';
+        el.style.left = `${x}px`;
+        el.style.top = `${y - 20}px`;
+        const img = document.createElement('img');
+        img.src = `assets/${itemName}.png`;
+        img.alt = itemName;
+        el.appendChild(img);
+        const itemId = 'it-' + (idCounter++);
+        el.dataset.itemName = itemName;
+        el.dataset.itemId = itemId;
+        arena.appendChild(el);
+        requestAnimationFrame(() => el.classList.add('land'));
+        const removeTimer = setTimeout(() => { removeItemWithBlink(el); }, 25000);
+        items.push({ id: itemId, el, name: itemName, x, y, removeTimer });
+      }, 1500);
+
+      break;
+    }
+  }
+  
+  // spawn a single golden knife (couteau_or) at a random safe spot
+  function spawnGoldKnife() {
+    const rect = arena.getBoundingClientRect();
+    let attempts = 0;
+    while (attempts < 40) {
+      attempts += 1;
+      const x = 20 + Math.random() * Math.max(0, rect.width - 40);
+      const y = 20 + Math.random() * Math.max(0, rect.height - 40);
+      const tooClose = movingPlayers.some(p => {
+        const px = p.x + p.size / 2;
+        const py = p.y + p.size / 2;
+        return Math.hypot(x - px, y - py) < (p.size / 2 + 80);
+      });
+      if (tooClose) continue;
+
+      const shadow = document.createElement('div');
+      shadow.className = 'item-shadow';
+      shadow.style.left = `${x}px`;
+      shadow.style.top = `${y + 12}px`;
+      arena.appendChild(shadow);
+      requestAnimationFrame(() => {
+        shadow.style.transform = 'translate(-50%,-50%) scale(1.4)';
+        shadow.style.opacity = '0.9';
+      });
+
+      setTimeout(() => {
+        if (shadow.parentNode) shadow.remove();
+        const el = document.createElement('div');
+        el.className = 'game-item';
+        el.style.left = `${x}px`;
+        el.style.top = `${y - 20}px`;
+        const img = document.createElement('img');
+        img.src = 'assets/couteau_or.png';
+        img.alt = 'couteau_or';
+        el.appendChild(img);
+        const itemId = 'it-' + (idCounter++);
+        el.dataset.itemName = 'couteau_or';
+        el.dataset.itemId = itemId;
+        arena.appendChild(el);
+        requestAnimationFrame(() => el.classList.add('land'));
+        const removeTimer = setTimeout(() => { removeItemWithBlink(el); }, 25000);
+        items.push({ id: itemId, el, name: 'couteau_or', x, y, removeTimer });
+      }, 1500);
+
+      break;
+    }
+  }
+
+  function startZoneShrink() {
+    const rect = arena.getBoundingClientRect();
+    const arenaW = rect.width;
+    const arenaH = rect.height;
+    const finalSafe = 260; // bigger final safe zone
+    const targetInsetX = Math.max(0, (arenaW - finalSafe) / 2);
+    const targetInsetY = Math.max(0, (arenaH - finalSafe) / 2);
+    const duration = 45000; // 45s very slow
+    const start = performance.now();
+
+    zoneOverlayElements.forEach(el => el.remove());
+    zoneOverlayElements = [];
+    const overlayTop = document.createElement('div');
+    const overlayBottom = document.createElement('div');
+    const overlayLeft = document.createElement('div');
+    const overlayRight = document.createElement('div');
+    [overlayTop, overlayBottom, overlayLeft, overlayRight].forEach(el => {
+      el.className = 'zone-overlay';
+      arena.appendChild(el);
+      zoneOverlayElements.push(el);
+    });
+
+    function cleanupItemsInOrangeZone() {
+      if (!safeZone) return;
+      const arenaRect = arena.getBoundingClientRect();
+      for (let i = items.length - 1; i >= 0; i--) {
+        const it = items[i];
+        if (!it.el) { items.splice(i,1); continue; }
+        const rect = it.el.getBoundingClientRect();
+        const itemRect = {
+          left: rect.left - arenaRect.left,
+          top: rect.top - arenaRect.top,
+          right: rect.right - arenaRect.left,
+          bottom: rect.bottom - arenaRect.top,
+        };
+        const outsideSafe = itemRect.right <= safeZone.x ||
+          itemRect.left >= safeZone.x + safeZone.width ||
+          itemRect.bottom <= safeZone.y ||
+          itemRect.top >= safeZone.y + safeZone.height;
+        if (outsideSafe) removeItemWithBlink(it.el);
+      }
+    }
+
+    function updateOverlays(insetX, insetY) {
+      const safeWidth = Math.max(0, arenaW - insetX * 2);
+      const safeHeight = Math.max(0, arenaH - insetY * 2);
+      safeZone = { x: insetX, y: insetY, width: safeWidth, height: safeHeight };
+
+      overlayTop.style.left = '0px';
+      overlayTop.style.top = '0px';
+      overlayTop.style.width = '100%';
+      overlayTop.style.height = `${insetY}px`;
+
+      overlayBottom.style.left = '0px';
+      overlayBottom.style.top = `${insetY + safeHeight}px`;
+      overlayBottom.style.width = '100%';
+      overlayBottom.style.height = `${Math.max(0, arenaH - (insetY + safeHeight))}px`;
+
+      overlayLeft.style.left = '0px';
+      overlayLeft.style.top = `${insetY}px`;
+      overlayLeft.style.width = `${insetX}px`;
+      overlayLeft.style.height = `${safeHeight}px`;
+
+      overlayRight.style.left = `${insetX + safeWidth}px`;
+      overlayRight.style.top = `${insetY}px`;
+      overlayRight.style.width = `${Math.max(0, arenaW - (insetX + safeWidth))}px`;
+      overlayRight.style.height = `${safeHeight}px`;
+
+      cleanupItemsInOrangeZone();
+    }
+
+    function step(now) {
+      const t = Math.min(1, (now - start) / duration);
+      const insetX = targetInsetX * t;
+      const insetY = targetInsetY * t;
+      updateOverlays(insetX, insetY);
+      if (t < 1) zoneAnimationId = requestAnimationFrame(step);
+    }
+    zoneAnimationId = requestAnimationFrame(step);
+  }
+
+  // remove item with a short blink animation and clear timers
+  function removeItemWithBlink(el) {
+    if (!el) return;
+    if (el.classList.contains('blink')) return;
+    el.classList.add('blink');
+    const id = el.dataset && el.dataset.itemId;
+    if (id) {
+      const idx = items.findIndex(it => it.id === id);
+      if (idx !== -1) {
+        const it = items[idx];
+        if (it.removeTimer) clearTimeout(it.removeTimer);
+        items.splice(idx, 1);
+      }
+    }
+    setTimeout(() => { if (el.parentNode) el.remove(); }, 280);
+  }
+
+  function recalcSpeedMultiplier(player) {
+    let mult = 1;
+    if (player.effects) {
+      Object.keys(player.effects).forEach(k => {
+        mult *= (player.effects[k] && player.effects[k].mult) || 1;
+      });
+    }
+    player.speedMultiplier = mult;
+    const mag = Math.hypot(player.dx || 0, player.dy || 0) || 1;
+    player.dirX = (player.dx || player.dirX || 1) / mag;
+    player.dirY = (player.dy || player.dirY || 0) / mag;
+    player.dx = (player.dirX || 1) * (player.baseSpeed || mag) * player.speedMultiplier;
+    player.dy = (player.dirY || 0) * (player.baseSpeed || mag) * player.speedMultiplier;
+  }
+
+  function showBleed(player) {
+    if (!player || !player.el) return;
+    player.el.classList.add('bleed');
+    setTimeout(() => { if (player.el) player.el.classList.remove('bleed'); }, 420);
+  }
+
+  function showRegen(player) {
+    if (!player || !player.el) return;
+    player.el.classList.add('regen');
+    setTimeout(() => { if (player.el) player.el.classList.remove('regen'); }, 420);
+  }
+
+  function applyEffect(player, name, durationMs, mult, className) {
+    if (!player.effects) player.effects = {};
+    if (player.effects[name] && player.effects[name].timer) clearTimeout(player.effects[name].timer);
+    player.effects[name] = { mult, className };
+    if (className) player.el.classList.add(className);
+    recalcSpeedMultiplier(player);
+    player.effects[name].timer = setTimeout(() => {
+      removeEffect(player, name);
+    }, durationMs);
+  }
+
+  function removeEffect(player, name) {
+    if (!player.effects || !player.effects[name]) return;
+    const info = player.effects[name];
+    if (info.timer) clearTimeout(info.timer);
+    if (info.className) player.el.classList.remove(info.className);
+    delete player.effects[name];
+    recalcSpeedMultiplier(player);
+  }
+
+  // return array of alive colors (unique) based on movingPlayers
+  function getAliveColors() {
+    const colors = new Set();
+    movingPlayers.forEach(p => {
+      if (p.dead) return;
+      if (p.color) colors.add(p.color);
+    });
+    return Array.from(colors);
+  }
+
+  function countAliveColors() {
+    return getAliveColors().length;
+  }
+
+  function pickupItem(player, itemObj) {
+    const itemName = itemObj.name || (itemObj.el && itemObj.el.dataset && itemObj.el.dataset.itemName);
+    // handle knives specially: only pick if hands empty
+    if (itemName === 'couteau' || itemName === 'couteau_or') {
+      if (player.hasKnife) return false; // already holding a knife
+      // if golden knife was dropped, prevent dropper from immediate re-pickup
+      if (itemObj && itemObj.ownerDropId && itemObj.repickAllowedAt && itemObj.ownerDropId === player.id && Date.now() < itemObj.repickAllowedAt) return false;
+      // give knife
+      player.hasKnife = true;
+      player.knifeType = itemName === 'couteau_or' ? 'gold' : 'normal';
+      const img = document.createElement('img');
+      img.src = itemName === 'couteau_or' ? 'assets/couteau_or.png' : 'assets/couteau.png';
+      img.className = 'knife-icon';
+      img.style.width = `${player.size}px`;
+      img.style.height = `${player.size}px`;
+      // invert when held so left becomes right
+      img.style.transform = 'translate(-50%,-50%) scaleX(-1)';
+      arena.appendChild(img);
+      player.knifeEl = img;
+      setStatus(`${player.name} a récupéré ${itemName} !`);
+      return true;
+    }
+
+    // other items
+    if (itemName === 'pomme') {
+      const minDist = Math.max(40, player.size);
+      const spot = findFreeSpotNear(player.x + player.size / 2, player.y + player.size / 2, player.size, minDist);
+      if (spot) {
+        const cloneEl = document.createElement('div');
+        cloneEl.className = 'player-block';
+        cloneEl.style.width = `${player.size}px`;
+        cloneEl.style.height = `${player.size}px`;
+        cloneEl.style.lineHeight = `${player.size}px`;
+        cloneEl.style.left = `${spot.x}px`;
+        cloneEl.style.top = `${spot.y}px`;
+        cloneEl.style.background = player.color || '#8ac6ff';
+        cloneEl.style.borderRadius = `${Math.max(12, player.size * 0.2)}px`;
+        cloneEl.textContent = '1';
+        arena.appendChild(cloneEl);
+        const cid = 'p-' + (idCounter++);
+        movingPlayers.push({ id: cid, name: player.name + ' (clone)', x: spot.x, y: spot.y, size: player.size, dx: player.dx, dy: player.dy, baseSpeed: player.baseSpeed || 1, dirX: player.dirX, dirY: player.dirY, speedMultiplier: player.speedMultiplier || 1, effects: {}, color: player.color, el: cloneEl, hp: 1, isClone: true, ownerId: player.id, hasKnife: false, knifeEl: null });
+      }
+      setStatus(`${player.name} a récupéré ${itemName} !`);
+      return true;
+    } else if (itemName === 'flocon') {
+      applyEffect(player, 'snow', 10000, 0.1, 'frozen');
+      setStatus(`${player.name} a récupéré ${itemName} !`);
+      return true;
+    } else if (itemName === 'boost') {
+      applyEffect(player, 'boost', 5000, 1.5, 'boosted');
+      setStatus(`${player.name} a récupéré ${itemName} !`);
+      return true;
+    } else if (itemName === 'vie') {
+      player.hp += 1;
+      if (player.el) player.el.textContent = player.hp;
+      showRegen(player);
+      setStatus(`${player.name} a récupéré ${itemName} !`);
+      return true;
+    } else if (itemName === 'piege') {
+      player.hp -= 1;
+      if (player.el) player.el.textContent = player.hp;
+      showBleed(player);
+      setStatus(`${player.name} a récupéré ${itemName} !`);
+      if (player.hp <= 0) handleDeath(player);
+      return true;
+    }
+    return false;
+  }
+
+  function applyKnifeHit(attacker, victim) {
+    if (!attacker.hasKnife) return;
+    if (victim.isClone && victim.ownerId === attacker.id) return;
+    // inflict damage
+    victim.hp -= 1;
+    if (victim.el) victim.el.textContent = victim.hp;
+    showBleed(victim);
+    setStatus(`${attacker.name} a touché ${victim.name} avec un couteau !`);
+
+    const knifeType = attacker.knifeType || 'normal';
+    // remove knife from attacker
+    attacker.hasKnife = false;
+    if (attacker.knifeEl && attacker.knifeEl.parentNode) attacker.knifeEl.remove();
+    attacker.knifeEl = null;
+    attacker.knifeType = null;
+
+    // if it was a golden knife, drop it on the ground at attacker's position
+    if (knifeType === 'gold') {
+      const dropX = attacker.x + (attacker.size / 2);
+      const dropY = attacker.y + (attacker.size / 2);
+      // show a short shadow then reveal the golden knife after 0.5s
+      const dropShadow = document.createElement('div');
+      dropShadow.className = 'item-shadow';
+      dropShadow.style.left = `${dropX}px`;
+      dropShadow.style.top = `${dropY + 12}px`;
+      arena.appendChild(dropShadow);
+      requestAnimationFrame(() => {
+        dropShadow.style.transform = 'translate(-50%,-50%) scale(1.2)';
+        dropShadow.style.opacity = '0.8';
+      });
+
+      const repickDelay = 500; // 0.5s before it reappears / can be picked by dropper
+      const itemId = 'it-' + (idCounter++);
+      setTimeout(() => {
+        if (dropShadow.parentNode) dropShadow.remove();
+        const el = document.createElement('div');
+        el.className = 'game-item';
+        el.style.left = `${dropX}px`;
+        el.style.top = `${dropY - 20}px`;
+        const img = document.createElement('img');
+        img.src = 'assets/couteau_or.png';
+        img.alt = 'couteau_or';
+        el.appendChild(img);
+        el.dataset.itemName = 'couteau_or';
+        el.dataset.itemId = itemId;
+        arena.appendChild(el);
+        requestAnimationFrame(() => el.classList.add('land'));
+        const itemObj = { id: itemId, el, name: 'couteau_or', x: dropX, y: dropY, ownerDropId: attacker.id, repickAllowedAt: Date.now() + repickDelay };
+        itemObj.removeTimer = setTimeout(() => removeItemWithBlink(el), 25000);
+        items.push(itemObj);
+      }, repickDelay);
+    }
+
+    if (victim.hp <= 0) handleDeath(victim);
+  }
+
+  function handleDeath(player) {
+    if (!player || player.dead) return;
+    player.dead = true;
+    setStatus(`${player.name} est mort !`, '#ff6b6b');
+    // remove DOM elements
+    if (player.el && player.el.parentNode) player.el.remove();
+    if (player.knifeEl && player.knifeEl.parentNode) player.knifeEl.remove();
+
+    // do NOT remove clones when the original dies — clones remain alive
+
+    // Determine color group of this player
+    const color = player.color;
+
+    // Check whether any alive remain with this color
+    const anyAliveColor = movingPlayers.some(p => !p.dead && p.color === color);
+    if (!anyAliveColor) {
+      // find representative name for this color (prefer original in activePlayers)
+      const origPlayer = activePlayers.find(a => a.color === color);
+      const ownerName = origPlayer ? origPlayer.name : (player.name ? player.name.replace(/\s*\(clone\)$/, '') : 'Joueur');
+      if (!eliminated.find(e => e.color === color)) {
+        eliminated.push({ color, name: ownerName, when: Date.now() });
+      }
+    }
+
+    // if only one color remains, show ranking
+    if (countAliveColors() <= 1) {
+      showFinalRanking();
+    }
+  }
+
+  function showFinalRanking() {
+      window.PourtyMiniGame?.finish();
+    // stop timers
+    if (animationId) cancelAnimationFrame(animationId);
+    if (itemSpawnIntervalId) clearInterval(itemSpawnIntervalId);
+    if (zoneTimeoutId) clearTimeout(zoneTimeoutId);
+    if (zoneAnimationId) cancelAnimationFrame(zoneAnimationId);
+    // build ranking by color (exclude clones); winner = any remaining color
+    const aliveColors = getAliveColors();
+    const ranking = [];
+
+    // add alive colors first (usually only one at game end)
+    aliveColors.forEach(color => {
+      const rep = movingPlayers.find(p => !p.dead && p.color === color && !p.isClone) || movingPlayers.find(p => !p.dead && p.color === color);
+      const name = rep ? rep.name.replace(/\s*\(clone\)$/, '') : (activePlayers.find(a => a.color === color)?.name || 'Joueur');
+      ranking.push({ id: color, name, color });
+    });
+
+    // append eliminated colors in reverse chronological order, avoid duplicates
+    const elimCopy = eliminated.slice().reverse();
+    elimCopy.forEach(e => {
+      if (!ranking.find(r => r.color === e.color)) {
+        const color = e.color || (activePlayers.find(a => a.name === e.name) || {}).color || '#75c8ff';
+        ranking.push({ id: color, name: e.name, color });
+      }
+    });
+
+    // hide other UI elements (clean screen)
+    document.querySelectorAll('main > *').forEach(el => { el.style.display = 'none'; });
+
+    // status winner message
+    if (ranking.length > 0) {
+      setStatus(`${ranking[0].name} a gagné!`, '#a5ff9f');
+    }
+
+    // create centered overlay with big winner text and return button
+    if (ranking.length > 0) {
+      const overlay = document.createElement('div');
+      overlay.className = 'ranking-overlay';
+      const listWrap = document.createElement('div');
+      listWrap.className = 'ranking-list';
+      const winnerDiv = document.createElement('div');
+      winnerDiv.className = 'winner-text';
+      winnerDiv.textContent = `${ranking[0].name} a gagné!`;
+      winnerDiv.style.color = ranking[0].color || '#a5ff9f';
+      listWrap.appendChild(winnerDiv);
+      const ret = document.createElement('button');
+      ret.className = 'return-btn';
+      ret.textContent = 'Retour';
+      ret.addEventListener('click', () => { window.location.href = '../../index.html'; });
+      listWrap.appendChild(ret);
+      // remove the dark background: make overlay transparent so no black screen
+      overlay.style.background = 'transparent';
+      overlay.appendChild(listWrap);
+      document.body.appendChild(overlay);
+    }
+
+    // create or reuse a single player-bar at bottom
+    let bar = document.querySelector('.player-bar');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.className = 'player-bar';
+      document.querySelector('main').appendChild(bar);
+    }
+    bar.innerHTML = '';
+
+    // populate player-bar with pills (exclude clones by design)
+    ranking.forEach((p, idx) => {
+      const pill = document.createElement('div');
+      pill.className = 'player-pill';
+      pill.style.display = 'flex';
+      pill.style.alignItems = 'center';
+      pill.style.gap = '12px';
+      pill.style.padding = '8px 12px';
+      pill.style.borderRadius = '12px';
+      pill.style.marginBottom = '8px';
+
+      const rank = idx + 1;
+      const rankColor = rank === 1 ? '#ffd700' : rank === 2 ? '#c0c0c0' : rank === 3 ? '#cd7f32' : '#8a2be2';
+
+      pill.style.border = `1px solid ${rankColor}`;
+      pill.style.boxShadow = `0 0 0 2px ${rankColor}`;
+      pill.style.background = 'rgba(255,255,255,0.13)';
+
+      const rankBadge = document.createElement('span');
+      rankBadge.textContent = `#${rank}`;
+      rankBadge.style.fontWeight = '900';
+      rankBadge.style.marginRight = '8px';
+      rankBadge.style.color = '#fff';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = p.name;
+      nameSpan.style.color = '#fff';
+      nameSpan.style.flex = '1';
+
+      pill.appendChild(rankBadge);
+      pill.appendChild(nameSpan);
+
+      // use shared helper to set AC text (same logic as game-2)
+      if (typeof setACText === 'function') setACText(pill, rank, ranking.length);
+
+      bar.appendChild(pill);
+    });
+  }
+
+
+  function renderItemPercentages() {
+    const total = Object.values(itemCounts).reduce((sum, value) => sum + value, 0);
+    itemCards.forEach(card => {
+      const item = card.dataset.item;
+      const count = itemCounts[item];
+      const percent = total > 0 ? Math.round((count / total) * 100) : 0;
+      card.querySelector('.item-count span').textContent = `${percent}%`;
+      card.querySelector('.item-counter').textContent = `${count}`;
+    });
+  }
+
+  function adjustItemCount(item, delta) {
+    itemCounts[item] = Math.max(0, Math.min(100, itemCounts[item] + delta));
+    renderItemPercentages();
+  }
+
+  itemCards.forEach(card => {
+    card.addEventListener('click', event => {
+      const rect = card.getBoundingClientRect();
+      const isLeft = event.clientX - rect.left < rect.width / 2;
+      adjustItemCount(card.dataset.item, isLeft ? -1 : 1);
+    });
+  });
+
+  renderItemPercentages();
+
+  function createParticles(x, y, color) {
+    for (let i = 0; i < 8; i += 1) {
+      const particle = document.createElement('div');
+      particle.className = 'impact-particle';
+      particle.style.left = `${x}px`;
+      particle.style.top = `${y}px`;
+      particle.style.background = color;
+      particle.style.setProperty('--dx', `${(Math.random() - 0.5) * 90}px`);
+      particle.style.setProperty('--dy', `${(Math.random() - 0.5) * 90}px`);
+      arena.appendChild(particle);
+      setTimeout(() => particle.remove(), 450);
+    }
+  }
+
+  function bouncePlayers(playerA, playerB) {
+    const overlapX = (playerA.x + playerA.size / 2) - (playerB.x + playerB.size / 2);
+    const overlapY = (playerA.y + playerA.size / 2) - (playerB.y + playerB.size / 2);
+    if (Math.abs(overlapX) > Math.abs(overlapY)) {
+      playerA.dx *= -1;
+      playerB.dx *= -1;
+    } else {
+      playerA.dy *= -1;
+      playerB.dy *= -1;
+    }
+    playerA.x += playerA.dx;
+    playerA.y += playerA.dy;
+    playerB.x += playerB.dx;
+    playerB.y += playerB.dy;
+    createParticles(playerA.x + playerA.size / 2, playerA.y + playerA.size / 2, playerA.color);
+  }
+
+  function startMovement() {
+    settingsPanel.style.display = 'none';
+    itemPanel.classList.remove('active');
+    // lancer spawn d'objets périodique
+    if (itemSpawnIntervalId !== null) clearInterval(itemSpawnIntervalId);
+    itemSpawnIntervalId = setInterval(spawnItem, Math.max(500, itemDelay * 1000));
+    // lancer la zone après le délai réglé
+    if (zoneTimeoutId !== null) clearTimeout(zoneTimeoutId);
+    zoneTimeoutId = setTimeout(() => startZoneShrink(), Number(zoneControl.value) * 1000);
+    updateMovingSpeed();
+    // spawn golden knife at start if enabled
+    if (goldKnifeToggle && goldKnifeToggle.checked) {
+      spawnGoldKnife();
+    }
+    setStatus('Course lancée !', '#a5ff9f');
+    function animate() {
+      const rect = arena.getBoundingClientRect();
+      movingPlayers.forEach((player, index) => {
+        if (player.dead) return;
+        player.x += player.dx;
+        player.y += player.dy;
+
+        if (player.x <= 0 || player.x + player.size >= rect.width) {
+          player.dx *= -1;
+          player.x = Math.max(0, Math.min(player.x, rect.width - player.size));
+          createParticles(player.x + player.size / 2, player.y + player.size / 2, player.color);
+        }
+        if (player.y <= 0 || player.y + player.size >= rect.height) {
+          player.dy *= -1;
+          player.y = Math.max(0, Math.min(player.y, rect.height - player.size));
+          createParticles(player.x + player.size / 2, player.y + player.size / 2, player.color);
+        }
+
+        if (safeZone) {
+          if (player.x < safeZone.x) {
+            player.dx *= -1;
+            player.x = safeZone.x;
+            createParticles(player.x + player.size / 2, player.y + player.size / 2, player.color);
+          } else if (player.x + player.size > safeZone.x + safeZone.width) {
+            player.dx *= -1;
+            player.x = Math.max(safeZone.x, safeZone.x + safeZone.width - player.size);
+            createParticles(player.x + player.size / 2, player.y + player.size / 2, player.color);
+          }
+          if (player.y < safeZone.y) {
+            player.dy *= -1;
+            player.y = safeZone.y;
+            createParticles(player.x + player.size / 2, player.y + player.size / 2, player.color);
+          } else if (player.y + player.size > safeZone.y + safeZone.height) {
+            player.dy *= -1;
+            player.y = Math.max(safeZone.y, safeZone.y + safeZone.height - player.size);
+            createParticles(player.x + player.size / 2, player.y + player.size / 2, player.color);
+          }
+        }
+
+        // item collisions
+        for (let k = items.length - 1; k >= 0; k--) {
+          const it = items[k];
+          if (!it || !it.el) { items.splice(k, 1); continue; }
+          const iRect = it.el.getBoundingClientRect();
+          const ix = iRect.left - rect.left;
+          const iy = iRect.top - rect.top;
+          const iw = iRect.width;
+          const ih = iRect.height;
+          if (player.x < ix + iw && player.x + player.size > ix && player.y < iy + ih && player.y + player.size > iy) {
+            const picked = pickupItem(player, it);
+            if (picked) removeItemWithBlink(it.el);
+          }
+        }
+
+        for (let j = index + 1; j < movingPlayers.length; j += 1) {
+          const other = movingPlayers[j];
+          if (other.dead) continue;
+          if (player.x < other.x + other.size && player.x + player.size > other.x && player.y < other.y + other.size && player.y + player.size > other.y) {
+            // knife interactions
+            if (player.hasKnife) applyKnifeHit(player, other);
+            if (other.hasKnife) applyKnifeHit(other, player);
+            // bounce and normalize directions
+            bouncePlayers(player, other);
+            [player, other].forEach(pRef => {
+              const mag = Math.hypot(pRef.dx || 0, pRef.dy || 0);
+              if (mag > 0) {
+                pRef.dirX = pRef.dx / mag;
+                pRef.dirY = pRef.dy / mag;
+                pRef.dx = (pRef.dirX || 1) * (pRef.baseSpeed || mag) * (pRef.speedMultiplier || 1);
+                pRef.dy = (pRef.dirY || 0) * (pRef.baseSpeed || mag) * (pRef.speedMultiplier || 1);
+              }
+            });
+          }
+        }
+
+        // update player DOM
+        if (player.el) {
+          player.el.style.left = `${player.x}px`;
+          player.el.style.top = `${player.y}px`;
+          // knife icon follows player
+          if (player.hasKnife && player.knifeEl) {
+            player.knifeEl.style.left = `${player.x + player.size + 10}px`;
+            player.knifeEl.style.top = `${player.y + player.size / 2}px`;
+          }
+        }
+      });
+
+      // remove dead players from simulation
+      movingPlayers = movingPlayers.filter(p => !p.dead);
+
+      // check for end condition using color-based logic (colors grouped across clones)
+      if (countAliveColors() <= 1) {
+        showFinalRanking();
+        return;
+      }
+
+      animationId = requestAnimationFrame(animate);
+    }
+    animate();
+  }
+
+  readyBtn.addEventListener('click', () => {
+    if (movingPlayers.length === 0) {
+      setStatus('Place d’abord tous les joueurs avant de lancer.', '#ffb957');
+      return;
+    }
+    // masquer le bouton après clic
+    readyBtn.style.display = 'none';
+    startMovement();
+  });
+
+  if (!playerList.length) {
+    setStatus('Aucun joueur ; ajoutez des joueurs depuis l’accueil.');
+    return;
+  }
+
+  activePlayers = shuffle(playerList);
+  announceOrder();
+})();
+  </script>
+</body>
+</html>

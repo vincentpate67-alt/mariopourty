@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <script src="../../party-payout.js"></script>
+<script src="../../board/board-minigame-bridge.js"></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Aboublack-jack</title>
+  <link rel="stylesheet" href="../../style.css" />
+  <style>
+    body{background:#081028;color:#fff;font-family:Segoe UI,Roboto,Arial;margin:0;padding:20px;}
+    main{max-width:980px;margin:8px auto;text-align:center}
+    h1{margin:8px 0 12px;font-size:2rem}
+    #status{min-height:22px;margin-bottom:8px;color:#cfefff;font-size:1.25rem;font-weight:900;letter-spacing:0.2px}
+    .player-order{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:8px 0}
+    .player-chip{padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);font-weight:800;font-size:1rem}
+    .arena{position:relative;margin:14px auto;padding:14px;border-radius:12px;background:linear-gradient(180deg,#0c1730,#071026);box-shadow:0 8px 30px rgba(0,0,0,0.6);max-width:920px}
+    .table-top{display:flex;justify-content:center;gap:24px;align-items:flex-start;padding:20px}
+    .deck{width:100px;height:140px;border-radius:8px;background:#0b2240;border:2px solid rgba(255,255,255,0.06);position:relative}
+    .deck .label{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#9fc9ff;font-weight:900}
+    .dealer-area{flex:1;display:flex;flex-direction:column;align-items:center;gap:10px}
+    .player-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;padding:12px}
+    .player-card{background:rgba(255,255,255,0.03);border-radius:10px;padding:10px;min-height:80px;position:relative}
+    .player-name{font-weight:900}
+    .player-money{font-size:0.9rem;color:#dbe9ff;margin-top:6px}
+    .hand{display:flex;gap:6px;justify-content:center;margin-top:8px;min-height:56px}
+    .card{width:56px;height:80px;border-radius:6px;background:#0b1730;border:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff;transform-origin:center;backface-visibility:hidden}
+    .card.back{background:linear-gradient(180deg,#14314f,#0b2240)}
+    .controls{display:flex;gap:10px;justify-content:center;margin-top:12px}
+    .big-btn{padding:12px 18px;border-radius:10px;border:none;background:#6bc0ff;color:#071a3a;font-weight:900;cursor:pointer}
+    .big-btn.secondary{background:#ff9d5a;color:#1b0a00}
+    /* bet modal (centré et plus large) */
+    .bet-modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(6,12,30,0.98);padding:24px;border-radius:14px;border:1px solid rgba(255,255,255,0.06);z-index:1000;box-shadow:0 30px 90px rgba(0,0,0,0.6);width:min(720px,90%);max-width:720px}
+    .bet-row{display:flex;align-items:center;gap:10px;justify-content:center;margin-top:14px}
+    .bet-slider{width:60%}
+    .timer-bar{height:10px;background:rgba(255,255,255,0.08);border-radius:8px;overflow:hidden;margin-top:12px}
+    .timer-fill{height:100%;background:linear-gradient(90deg,#ffd76d,#ffb957);width:100%;transition:width .1s linear}
+    .hidden{display:none}
+    .arena.hidden{display:none}
+    .results{margin-top:14px}
+    .ranking{margin-top:12px}
+    /* player-bar styles copied from game-7 */
+    .player-bar{display:flex;align-items:center;gap:12px;padding:10px;border-radius:12px;margin-bottom:8px;color:#071a3a;font-weight:800}
+    .player-bar{position:fixed !important;bottom:12px;left:50%;transform:translateX(-50%);width:min(96vw,920px);z-index:999}
+    .player-bar .name{flex:1;color:#fff;font-weight:800}
+    .player-bar .badge{background:rgba(255,255,255,0.12);padding:6px 10px;border-radius:8px;font-weight:900}
+    .player-pill{display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:12px;background:rgba(255,255,255,0.06);font-weight:800;min-width:120px}
+    .ranking-list{width:min(720px,90%);max-width:920px;margin:0 auto;text-align:left;background:rgba(6,12,30,0.92);padding:16px;border-radius:12px}
+    .ranking-entries{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+    .return-btn{margin-top:14px;padding:10px 16px;border-radius:10px;border:none;background:#6bc0ff;color:#071a3a;font-weight:800;cursor:pointer;display:block;margin-left:auto}
+    .ranking-overlay{position:fixed;left:0;top:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;background:rgba(4,6,12,0.85);z-index:9999;padding:24px;box-sizing:border-box}
+    .ranking-list h2{margin:0;color:#eaf1ff;font-size:1.6rem}
+    /* bottom player action controls */
+    .player-action-controls{position:fixed;left:50%;bottom:86px;transform:translateX(-50%);display:flex;gap:12px;align-items:center;justify-content:center;z-index:10000}
+    .player-action-controls .timer-bar{width:260px}
+    .player-card.small-player-card{transform:scale(0.68);opacity:0.85;padding:6px;transition:transform .18s ease,opacity .18s ease}
+    .player-card.active-player-card{transform:scale(1.02);opacity:1;padding:14px;transition:transform .18s ease,opacity .18s ease}
+    .player-score{font-weight:800;color:#dbe9ff;margin-top:6px;font-size:0.95rem}
+    .hand .card{transition:width .12s ease,height .12s ease,font-size .12s ease}
+    /* simple animations */
+    .animate-move{transition:transform .6s cubic-bezier(.2,.9,.2,1),opacity .4s}
+    .flash-overlay{position:fixed;left:0;top:0;right:0;bottom:0;pointer-events:none;z-index:100000;opacity:0;transition:opacity .28s ease}
+    .flash-overlay.show{opacity:1}
+    .flash-overlay.red{background:rgba(255,40,40,0.12)}
+    .flash-overlay.green{background:rgba(64,200,96,0.12)}
+    .player-card.burst-red{box-shadow:0 0 60px rgba(255,30,30,0.45);transform:scale(1.02);transition:box-shadow .28s,transform .18s}
+    .player-card.burst-green{box-shadow:0 0 60px rgba(80,255,130,0.45);transform:scale(1.02);transition:box-shadow .28s,transform .18s}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Aboublack-jack</h1>
+    <div id="status">Chargement des joueurs...</div>
+    <div id="order" class="player-order"></div>
+    <div class="arena hidden">
+      <div class="table-top">
+        <div class="dealer-area">
+          <div id="dealer-name" style="font-weight:900;color:#ffd76d">Le Croupier</div>
+          <img id="dealer-img" src="assets/croupier.png" alt="Croupier" style="width:180px;height:auto;border-radius:12px;margin-top:8px;box-shadow:0 10px 20px rgba(0,0,0,0.45)" />
+          <div id="dealer-hand" class="hand"></div>
+          <div id="dealer-sum" style="color:#dbe9ff"></div>
+        </div>
+        <div class="deck" id="deck">
+          <div class="label">PAQUET</div>
+        </div>
+      </div>
+      <div id="players" class="player-list"></div>
+      <div class="results hidden" id="results"></div>
+    </div>
+
+    <div id="betModal" class="bet-modal hidden">
+      <div id="betText" style="font-weight:900;font-size:1.1rem"></div>
+      <div class="bet-row">
+        <input id="betSlider" class="bet-slider" type="range" min="1" max="100" value="50" />
+        <div id="betValue" style="width:52px;text-align:center;font-weight:900">50$</div>
+      </div>
+      <div id="betRemaining" style="margin-top:10px;color:#dbe9ff;font-weight:800;text-align:center">Il te restera 100$</div>
+      <div class="timer-bar"><div id="betFill" class="timer-fill"></div></div>
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:12px">
+        <button id="confirmBet" class="big-btn">Miser</button>
+      </div>
+    </div>
+  </main>
+  <div id="playerActionControls" class="player-action-controls hidden">
+    <div id="playerTimer" class="timer-bar" style="height:10px;background:rgba(255,255,255,0.08);border-radius:8px;overflow:hidden;">
+      <div id="playerTimerFill" class="timer-fill" style="height:100%;background:linear-gradient(90deg,#ffd76d,#ffb957);width:100%;transition:width .1s linear"></div>
+    </div>
+    <div id="playerActionButtons" style="display:flex;gap:8px;align-items:center;">
+      <button id="drawBtnGlobal" class="big-btn">Piocher</button>
+      <button id="standBtnGlobal" class="big-btn secondary">Se coucher</button>
+    </div>
+  </div>
+  <div id="finalRanking" class="hidden"></div>
+
+  <script src="../commun/game-players.js"></script>
+  <script>
+  (function(){
+    const playerList = JSON.parse(localStorage.getItem('mini-Jeux-host-players') || '[]');
+    const statusEl = document.getElementById('status');
+    const orderEl = document.getElementById('order');
+    const playersEl = document.getElementById('players');
+    const deckEl = document.getElementById('deck');
+    const betModal = document.getElementById('betModal');
+    const betText = document.getElementById('betText');
+    const betSlider = document.getElementById('betSlider');
+    const betValue = document.getElementById('betValue');
+    const betFill = document.getElementById('betFill');
+    const confirmBet = document.getElementById('confirmBet');
+    const dealerHandEl = document.getElementById('dealer-hand');
+    const dealerSumEl = document.getElementById('dealer-sum');
+    const finalRanking = document.getElementById('finalRanking');
+
+    if (!playerList.length) { statusEl.textContent = 'Aucun joueur enregistré.'; return; }
+
+    // game state
+    let players = playerList.map(p => ({ name: p.name, color: p.color || '#8ac6ff', money: 100, bet:0, hand:[], done:false, el:null }));
+    let order = shuffle(players.slice());
+    let deck = [];
+    let currentPhase = 'order';
+    let betIndex = 0;
+    let actionIndex = 0;
+
+    function shuffle(arr){ return arr.slice().sort(()=>Math.random()-0.5); }
+
+    function announceOrder(){
+      orderEl.innerHTML = '';
+      let step = 0;
+      const preview = setInterval(()=>{
+        orderEl.textContent = 'Ordre aléatoire... ' + playerList[Math.floor(Math.random()*playerList.length)].name;
+        step++; if (step>20){ clearInterval(preview); renderOrder(); setTimeout(()=>startBetting(),800); }
+      },80);
+    }
+
+    function renderOrder(){ orderEl.innerHTML=''; order.forEach((p,idx)=>{ const chip=document.createElement('div'); chip.className='player-chip'; chip.style.borderColor=p.color; chip.textContent=p.name; orderEl.appendChild(chip); }); }
+
+    function startBetting(){ statusEl.textContent='Phase de mise'; betIndex=0; showBetForCurrent(); }
+
+    function showBetForCurrent(){
+      const p = order[betIndex]; if(!p) { startTurns(); return; }
+      betText.textContent = `${p.name}, combien veux-tu miser ?`;
+      betSlider.max = Math.max(1, p.money);
+      betSlider.value = Math.min(p.money,50);
+      betValue.textContent = betSlider.value + '$';
+      const betRemainingEl = document.getElementById('betRemaining');
+      if (betRemainingEl) betRemainingEl.textContent = `Il te restera ${p.money - Number(betSlider.value)}$`;
+      betFill.style.width = '100%';
+      // show player's money in the UI while betting
+      renderPlayers();
+      updateMoneyVisibility(p);
+      betModal.classList.remove('hidden');
+      let timeLeft = 10; const start = Date.now();
+      const tId = setInterval(()=>{
+        const elapsed=(Date.now()-start)/1000; const rem=Math.max(0,10-elapsed);
+        betFill.style.width = (rem/10*100) + '%';
+        if(rem<=0){ clearInterval(tId); confirmBetAction(); }
+      },100);
+
+      function confirmBetAction(){ clearInterval(tId); const val = Math.max(1,Math.min(p.money,Number(betSlider.value))); p.bet = val; p.money -= val; betModal.classList.add('hidden'); betIndex++; renderPlayers(); setTimeout(()=>showBetForCurrent(),300); }
+
+      confirmBet.onclick = confirmBetAction;
+      betSlider.oninput = ()=>{ betValue.textContent = betSlider.value + '$'; if (betRemainingEl) betRemainingEl.textContent = `Il te restera ${p.money - Number(betSlider.value)}$`; };
+    }
+
+    function initDeck(){ deck = []; const suits=['♠','♥','♦','♣']; for(let r=1;r<=13;r++){ for(let s=0;s<4;s++){ let label = r===1?'A':r===11?'J':r===12?'Q':r===13?'K':String(r); let value = r===1?11:(r>=11?10:r); deck.push({label,value,suit:suits[s]}); } } deck = shuffle(deck); }
+
+    function drawCard(){ if(deck.length===0) initDeck(); return deck.pop(); }
+
+    function createCardEl(card){ const el=document.createElement('div'); el.className='card back'; el.textContent=''; el.dataset.label = card.label; el.dataset.value = card.value; el.dataset.suit = card.suit; return el; }
+
+    let currentActivePlayer = null;
+    let playerTurnTimerId = null;
+    function renderPlayers(){
+      playersEl.innerHTML = '';
+      order.forEach(p => {
+        const pc = document.createElement('div');
+        pc.className = 'player-card small-player-card';
+        pc.style.border = `1px solid ${p.color}`;
+
+        const name = document.createElement('div'); name.className = 'player-name'; name.textContent = p.name; pc.appendChild(name);
+
+        const scoreEl = document.createElement('div'); scoreEl.className = 'player-score'; scoreEl.style.display = 'none'; pc.appendChild(scoreEl);
+
+        const hand = document.createElement('div'); hand.className = 'hand'; pc.appendChild(hand);
+
+        p.el = { cardContainer: hand, scoreEl: scoreEl, root: pc };
+        playersEl.appendChild(pc);
+
+        // show existing cards
+        p.hand.forEach(c => {
+          const cel = document.createElement('div'); cel.className = 'card'; cel.textContent = c.label; p.el.cardContainer.appendChild(cel);
+        });
+
+        // adjust hand layout if any
+        if (p.hand && p.hand.length) updatePlayerHandUI(p);
+      });
+    }
+
+    function updateMoneyVisibility(activeP){
+      currentActivePlayer = activeP || null;
+      updatePlayerVisuals(activeP);
+    }
+
+    function updatePlayerHandUI(player){
+      if (!player || !player.el || !player.el.cardContainer) return;
+      const container = player.el.cardContainer;
+      const cards = Array.from(container.children);
+      const count = cards.length;
+      const gap = 6;
+      // measure available width — if container is hidden, use a fallback
+      let avail = container.clientWidth;
+      if (!avail || avail < 40) {
+        const rootRect = player.el.root.getBoundingClientRect();
+        avail = rootRect.width > 0 ? rootRect.width - 24 : 220;
+      }
+      let cardWidth = Math.floor((avail - gap * Math.max(0, count - 1)) / Math.max(1, count));
+      cardWidth = Math.max(28, Math.min(96, cardWidth));
+      cards.forEach(cel => {
+        cel.style.width = cardWidth + 'px';
+        cel.style.height = Math.max(40, Math.floor(cardWidth * 1.4)) + 'px';
+        cel.style.fontSize = Math.max(10, Math.floor(cardWidth / 4)) + 'px';
+      });
+      const pc = player.el.root;
+      if (count > 6) pc.style.minHeight = (80 + Math.floor(count / 6) * 48) + 'px';
+      else pc.style.minHeight = '';
+      // make active player's card wider when many cards
+      if (pc.classList.contains('active-player-card')){
+        pc.style.maxWidth = 'min(95vw, 1100px)';
+      } else {
+        pc.style.maxWidth = '';
+      }
+    }
+
+    function updatePlayerVisuals(activeP){
+      order.forEach(p => {
+        if (!p.el || !p.el.root) return;
+        const pc = p.el.root;
+        const isActive = activeP && p === activeP;
+        const val = handValue(p.hand);
+        if (isActive){
+          pc.classList.remove('small-player-card'); pc.classList.add('active-player-card');
+          // allow this player card to expand across the grid so it can show many cards
+          pc.style.gridColumn = '1 / -1';
+          if (p.el.cardContainer) p.el.cardContainer.style.display = 'flex';
+          if (p.el.scoreEl) { p.el.scoreEl.textContent = 'Score: ' + val; p.el.scoreEl.style.display = 'block'; }
+          updatePlayerHandUI(p);
+        } else {
+          pc.classList.remove('active-player-card'); pc.classList.add('small-player-card');
+          pc.style.gridColumn = '';
+          if (p.el.cardContainer) p.el.cardContainer.style.display = 'none';
+          if (p.hand && p.hand.length > 0 && val > 0){ p.el.scoreEl.textContent = 'Score: ' + val; p.el.scoreEl.style.display = 'block'; }
+          else if (p.el.scoreEl) p.el.scoreEl.style.display = 'none';
+        }
+      });
+    }
+
+    function startTurns(){ statusEl.textContent='Phase de jeu'; initDeck(); renderPlayers(); // afficher l'arène une fois que tout le monde a misé
+      const arenaEl = document.querySelector('.arena'); if(arenaEl) arenaEl.classList.remove('hidden');
+      actionIndex=0; currentPhase='turns'; nextPlayerTurn(); }
+
+    function nextPlayerTurn(){ if(actionIndex>=order.length){ dealerPlay(); return; } const p=order[actionIndex]; if(p.bet<=0){ actionIndex++; nextPlayerTurn(); return; } p.done=false; showActionControlsFor(p); }
+
+    function showActionControlsFor(player){
+      // clean previous per-player controls
+      document.querySelectorAll('.player-controls').forEach(e=>e.remove());
+      // afficher le tour dans le status
+      statusEl.textContent = `Au tour de ${player.name}`;
+      // show player's money only
+      renderPlayers(); updateMoneyVisibility(player);
+
+      const controlsWrap = document.getElementById('playerActionControls');
+      const drawBtn = document.getElementById('drawBtnGlobal');
+      const standBtn = document.getElementById('standBtnGlobal');
+      const timerFill = document.getElementById('playerTimerFill');
+      if (!controlsWrap || !drawBtn || !standBtn || !timerFill) return;
+
+      controlsWrap.classList.remove('hidden');
+      // reset timer
+      if (playerTurnTimerId) { clearInterval(playerTurnTimerId); playerTurnTimerId = null; }
+      const total = 25;
+      const start = Date.now();
+      timerFill.style.width = '100%';
+      playerTurnTimerId = setInterval(()=>{
+        const elapsed = (Date.now() - start) / 1000;
+        const rem = Math.max(0, total - elapsed);
+        timerFill.style.width = (rem / total * 100) + '%';
+        if (rem <= 0) {
+          clearInterval(playerTurnTimerId); playerTurnTimerId = null; doStand();
+        }
+      }, 100);
+
+      // actions
+      function doDraw(){
+        const card = drawCard();
+        // disable buttons briefly to avoid double clicks
+        drawBtn.disabled = true; standBtn.disabled = true;
+        animateCardToPlayer(card, player, ()=>{
+          player.hand.push(card);
+          updatePlayerHandUI(player);
+          // refresh visible score immediately
+          updatePlayerVisuals(player);
+          drawBtn.disabled = false; standBtn.disabled = false;
+          const val = handValue(player.hand);
+          if (val === 21){
+            // perfect 21: quick green flash
+            highlightPlayerCard(player, 'green');
+            flashBackground('green', 600);
+          } else if (val > 21) {
+            // bust: red flash and mark done
+            highlightPlayerCard(player, 'red');
+            flashBackground('red', 700);
+            player.done = true;
+            if (playerTurnTimerId) { clearInterval(playerTurnTimerId); playerTurnTimerId = null; }
+            controlsWrap.classList.add('hidden');
+            actionIndex++; nextPlayerTurn();
+          }
+        });
+      }
+
+      function doStand(){
+        player.done = true;
+        if (playerTurnTimerId) { clearInterval(playerTurnTimerId); playerTurnTimerId = null; }
+        controlsWrap.classList.add('hidden');
+        actionIndex++; nextPlayerTurn();
+      }
+
+      drawBtn.onclick = doDraw;
+      standBtn.onclick = doStand;
+    }
+
+    function animateCardToPlayer(card, player, cb){
+      const startRect = deckEl.getBoundingClientRect();
+      let targetRect = player.el.cardContainer.getBoundingClientRect();
+      if ((!targetRect || (!targetRect.width && !targetRect.height)) && player.el && player.el.root){
+        const rootRect = player.el.root.getBoundingClientRect();
+        targetRect = { left: rootRect.left + 20, top: rootRect.top + (rootRect.height/2 || 40), width: 40, height: 56 };
+      }
+      const cel = createCardEl(card);
+      cel.style.position='absolute'; cel.style.left = startRect.left+'px'; cel.style.top = startRect.top+'px'; cel.style.zIndex = 2000; document.body.appendChild(cel);
+      requestAnimationFrame(()=>{
+        cel.classList.add('animate-move');
+        cel.style.transform = `translate(${targetRect.left - startRect.left}px, ${targetRect.top - startRect.top}px) scale(0.9)`;
+        let finished = false;
+        const done = ()=>{
+          if (finished) return; finished = true;
+          cel.removeEventListener('transitionend', done);
+          const final = document.createElement('div'); final.className = 'card'; final.textContent = card.label; player.el.cardContainer.appendChild(final);
+          cel.remove();
+          cb && cb();
+        };
+        cel.addEventListener('transitionend', done);
+        // fallback
+        setTimeout(done, 900);
+      });
+    }
+
+    function handValue(hand){ let sum=0; let aces=0; hand.forEach(c=>{ sum += Number(c.value); if(Number(c.value)===11) aces++; }); while(sum>21 && aces>0){ sum -= 10; aces--; } return sum; }
+
+    function flashBackground(type, duration=600){
+      const overlay = document.createElement('div');
+      overlay.className = 'flash-overlay ' + (type === 'green' ? 'green' : 'red');
+      document.body.appendChild(overlay);
+      // trigger transition
+      requestAnimationFrame(()=> overlay.classList.add('show'));
+      setTimeout(()=>{ overlay.classList.remove('show'); setTimeout(()=> overlay.remove(), 380); }, duration);
+    }
+
+    function highlightPlayerCard(player, type, duration=700){
+      if (!player || !player.el || !player.el.root) return;
+      const cls = type === 'green' ? 'burst-green' : 'burst-red';
+      const el = player.el.root;
+      el.classList.add(cls);
+      setTimeout(()=> el.classList.remove(cls), duration);
+    }
+
+    function dealerPlay(){ statusEl.textContent='Le croupier joue...'; // retirer tout contrôle joueur affiché
+      document.querySelectorAll('.player-controls').forEach(e=>e.remove());
+      // dealer draws
+      const dealer = { hand:[], el: dealerHandEl };
+      function drawDealerStep(cb){ const card=drawCard(); animateCardToDealer(card, ()=>{ dealer.hand.push(card); dealerSumEl.textContent = 'Score: '+handValue(dealer.hand); cb && cb(); }); }
+      function playLoop(){ const v=handValue(dealer.hand); if(v<17){ setTimeout(()=> drawDealerStep(playLoop), 700); } else { resolveBets(dealer.hand); } }
+      // start with one card and loop
+      drawDealerStep(()=>{ setTimeout(()=> playLoop(), 400); });
+    }
+
+    function animateCardToDealer(card, cb){
+      const startRect = deckEl.getBoundingClientRect();
+      let targetRect = dealerHandEl.getBoundingClientRect();
+      // fallback to dealer image center if dealer-hand rect is zero (hidden or not laid out yet)
+      if (!targetRect || (!targetRect.width && !targetRect.height)){
+        const img = document.getElementById('dealer-img');
+        const imgRect = img ? img.getBoundingClientRect() : null;
+        if (imgRect && (imgRect.width || imgRect.height)) {
+          targetRect = { left: imgRect.left + (imgRect.width/2) - 28, top: imgRect.top + (imgRect.height/2) - 40, width: 56, height: 80 };
+        } else {
+          // final fallback: top-center of viewport near table
+          const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+          targetRect = { left: vw/2 - 40, top: 120, width: 56, height: 80 };
+        }
+      }
+      const cel = createCardEl(card);
+      cel.style.position='fixed'; cel.style.left = startRect.left+'px'; cel.style.top = startRect.top+'px'; cel.style.zIndex = 3000; document.body.appendChild(cel);
+      // ensure initial placement applied then animate
+      requestAnimationFrame(()=>{
+        // force reflow
+        void cel.offsetWidth;
+        cel.classList.add('animate-move');
+        cel.style.transform = `translate(${targetRect.left - startRect.left}px, ${targetRect.top - startRect.top}px) scale(0.95)`;
+        let finished = false;
+        const done = ()=>{
+          if (finished) return; finished = true;
+          cel.removeEventListener('transitionend', done);
+          const final = document.createElement('div'); final.className = 'card'; final.textContent = card.label; dealerHandEl.appendChild(final);
+          cel.remove();
+          cb && cb();
+        };
+        cel.addEventListener('transitionend', done);
+        setTimeout(done, 1000);
+      });
+    }
+
+    function resolveBets(dealerHand){
+      const dealerScore = handValue(dealerHand);
+      // resolution and collect per-player deltas for display
+      order.forEach(p=>{
+        const pScore = handValue(p.hand);
+        p._score = pScore;
+        const bet = p.bet || 0;
+        if (bet <= 0){ p._delta = 0; p.bet = 0; return; }
+        if (pScore > 21){
+          if (dealerScore > 21){
+            // both bust -> refund
+            p.money += bet;
+            p._delta = 0;
+          } else {
+            // lose -> lost bet
+            p._delta = -bet;
+          }
+        } else {
+          if (dealerScore > 21){ p.money += bet*2; p._delta = +bet; }
+          else if (pScore > dealerScore){ p.money += bet*2; p._delta = +bet; }
+          else if (pScore === dealerScore){ p.money += bet; p._delta = 0; }
+          else { p._delta = -bet; }
+        }
+        p.bet = 0;
+      });
+      showResults(dealerScore);
+    }
+
+    function showResults(dealerScore){
+      // show dealer score in status and small results area for a few seconds
+      statusEl.textContent = `Croupier: ${dealerScore}`;
+      const res = document.getElementById('results'); res.innerHTML = `Croupier: ${dealerScore}`; res.classList.remove('hidden');
+      // hide player action controls immediately
+      const controlsWrap = document.getElementById('playerActionControls'); if (controlsWrap) controlsWrap.classList.add('hidden');
+      const drawBtn = document.getElementById('drawBtnGlobal'); const standBtn = document.getElementById('standBtnGlobal');
+      if (drawBtn) drawBtn.disabled = true; if (standBtn) standBtn.disabled = true;
+
+      // wait 2.5s to let players see the dealer score, then show final overlay
+      setTimeout(()=>{
+        renderPlayers(); // refresh UI
+        const ranking = order.slice().sort((a,b)=>{
+          // primary: money desc
+          if (b.money !== a.money) return b.money - a.money;
+          const aScore = (typeof a._score !== 'undefined') ? a._score : handValue(a.hand);
+          const bScore = (typeof b._score !== 'undefined') ? b._score : handValue(b.hand);
+          const aBusted = aScore > 21;
+          const bBusted = bScore > 21;
+          // Always prefer non-busted (<=21) players before busted ones
+          if (aBusted !== bBusted) return aBusted ? 1 : -1;
+          // both same busted-status: closeness to 21 matters (smaller distance better)
+          const aDist = Math.abs(21 - aScore);
+          const bDist = Math.abs(21 - bScore);
+          if (aDist !== bDist) return aDist - bDist;
+          // fallback: higher raw score first, then name
+          if (bScore !== aScore) return bScore - aScore;
+          return a.name.localeCompare(b.name);
+        });
+        const overlay = document.createElement('div'); overlay.className = 'ranking-overlay';
+        const wrap = document.createElement('div'); wrap.className = 'ranking-list';
+        const title = document.createElement('h2'); title.textContent = 'CLASSEMENT'; wrap.appendChild(title);
+        const dealerLine = document.createElement('div'); dealerLine.style.marginTop = '8px'; dealerLine.style.marginBottom = '12px'; dealerLine.style.color = '#ffd76d'; dealerLine.style.fontWeight = '900'; dealerLine.textContent = `Le croupier a fait ${dealerScore}!`; wrap.appendChild(dealerLine);
+        const list = document.createElement('div'); list.className = 'ranking-entries';
+        ranking.forEach((p,idx)=>{
+          const rank = idx + 1;
+          const rankColor = rank === 1 ? '#ffd700' : rank === 2 ? '#c0c0c0' : rank === 3 ? '#cd7f32' : '#8a2be2';
+          const pill = document.createElement('div'); pill.className = 'player-pill';
+          pill.style.display = 'flex'; pill.style.alignItems = 'center'; pill.style.gap = '12px';
+          pill.style.padding = '8px 12px'; pill.style.borderRadius = '12px'; pill.style.marginBottom = '8px';
+          pill.style.background = 'rgba(255,255,255,0.13)'; pill.style.border = `1px solid ${rankColor}`;
+          pill.style.boxShadow = `0 0 0 2px ${rankColor}`; pill.style.position = 'relative'; pill.style.color = '#fff';
+          const rankBadge = document.createElement('span'); rankBadge.textContent = `#${rank}`; rankBadge.style.fontWeight = '900'; rankBadge.style.marginRight = '8px'; rankBadge.style.color = '#fff';
+          const nameSpan = document.createElement('span'); nameSpan.textContent = p.name; nameSpan.style.flex = '1';
+          // score
+          const scoreSpan = document.createElement('span'); scoreSpan.textContent = `Score: ${p._score ?? handValue(p.hand)}`; scoreSpan.style.marginLeft = '8px'; scoreSpan.style.opacity = '0.95';
+          // delta badge
+          const delta = Number(p._delta || 0);
+          const deltaBadge = document.createElement('div'); deltaBadge.style.fontWeight = '900'; deltaBadge.style.padding = '6px 10px'; deltaBadge.style.borderRadius = '8px';
+          if (delta > 0){ deltaBadge.textContent = `+${delta}$`; deltaBadge.style.color = '#064'; deltaBadge.style.background = 'rgba(64,200,96,0.09)'; }
+          else if (delta === 0){ deltaBadge.textContent = `+0$`; deltaBadge.style.color = '#fff'; deltaBadge.style.background = 'rgba(255,255,255,0.03)'; }
+          else { deltaBadge.textContent = `-${Math.abs(delta)}$`; deltaBadge.style.color = '#ff4c4c'; deltaBadge.style.background = 'rgba(255,60,60,0.06)'; }
+
+          pill.appendChild(rankBadge); pill.appendChild(nameSpan); pill.appendChild(scoreSpan); pill.appendChild(deltaBadge);
+          list.appendChild(pill);
+          if (typeof setACText === 'function') setACText(pill, rank, ranking.length);
+        });
+        wrap.appendChild(list);
+        const ret = document.createElement('button'); ret.className = 'return-btn'; ret.textContent = 'Retour'; ret.addEventListener('click', ()=>{ window.location.href = '../../index.html'; });
+        wrap.appendChild(ret);
+        overlay.appendChild(wrap);
+        document.body.appendChild(overlay);
+        // re-run AC badge application after overlay is in the DOM
+        if (typeof setACText === 'function'){
+          const pills = overlay.querySelectorAll('.player-pill');
+          pills.forEach((pill, idx) => setACText(pill, idx + 1, pills.length));
+        }
+        Array.from(document.body.children).forEach(el => { if (el !== overlay) el.style.display = 'none'; });
+        window.PourtyMiniGame?.finish();
+        if (ranking.length > 0) { statusEl.textContent = `${ranking[0].name} a gagné!`; statusEl.style.color = '#a5ff9f'; }
+      }, 2500);
+    }
+
+    // initialize
+    announceOrder();
+    // render players container initially
+    renderPlayers();
+
+  })();
+  </script>
+</body>
+</html>

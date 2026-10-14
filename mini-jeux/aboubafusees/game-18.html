@@ -1,0 +1,1419 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <script src="../../party-payout.js"></script>
+<script src="../../board/board-minigame-bridge.js"></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Aboubafusées</title>
+  <link rel="stylesheet" href="../../style.css" />
+  <style>
+    body {
+      min-height: 100vh;
+      margin: 0;
+      padding: 24px 18px 96px;
+      color: #f5f7ff;
+      font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+      background: linear-gradient(145deg, #081122, #0f1d39);
+    }
+
+    main {
+      max-width: 880px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(1.8rem, 3vw, 2.5rem);
+    }
+
+    #status {
+      min-height: 40px;
+      margin-bottom: 14px;
+      font-weight: 800;
+      font-size: 1.15rem;
+      color: #dce8ff;
+    }
+
+    .stage {
+      min-height: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 0 12px;
+    }
+
+    .turn-panel {
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      padding: 0;
+      box-shadow: none;
+      backdrop-filter: none;
+    }
+
+    .turn-list {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .turn-chip {
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: rgba(255, 255, 255, 0.08);
+      font-weight: 800;
+      color: #fff;
+      min-width: 120px;
+      text-align: center;
+      transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .turn-chip.active {
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: 0 0 0 2px rgba(255,255,255,0.12), 0 0 18px var(--player-glow, rgba(255,255,255,0.35));
+    }
+
+    .timer-wrapper {
+      margin: 40px auto 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .timer-bar {
+      width: min(92vw, 320px);
+      height: 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.16);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      overflow: hidden;
+      box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .timer-fill {
+      height: 100%;
+      width: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #60d7ff, #5b8cff);
+      transition: width 15s linear;
+      transform-origin: right center;
+    }
+
+    .timer-label {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #cfe4ff;
+    }
+
+    .rocket-gallery {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(10px, 2vw, 18px);
+      width: min(92vw, 920px);
+      padding: 12px 0;
+    }
+
+    .rocket-card {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      cursor: pointer;
+      transition: transform 0.2s ease, filter 0.2s ease;
+      padding-bottom: 26px;
+    }
+
+    .rocket-card:hover {
+      transform: translateY(-6px) scale(1.02);
+    }
+
+    .rocket-card img {
+      display: block;
+      width: 100%;
+      height: auto;
+      object-fit: contain;
+      filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.35));
+      transition: filter 0.2s ease, transform 0.2s ease;
+    }
+
+    .rocket-card.selected img {
+      filter: drop-shadow(0 0 22px var(--glow-color, rgba(255,255,255,0.45)));
+      transform: scale(1.04);
+    }
+
+    .rocket-card.disabled {
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+
+    .rocket-card .number-badge {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.85);
+      background: rgba(15, 24, 46, 0.95);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 0.9rem;
+      box-shadow: 0 6px 14px rgba(0,0,0,0.25);
+      z-index: 6;
+    }
+
+    .rocket-card.selected .number-badge {
+      border-color: transparent;
+      color: #fff;
+      box-shadow: 0 0 0 2px rgba(255,255,255,0.2), 0 8px 18px rgba(0,0,0,0.25);
+    }
+
+    .rocket-name {
+      position: absolute;
+      /* anchor to top of the card so it grows downward */
+      top: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      opacity: 0;
+      pointer-events: none;
+      white-space: normal;
+      background: rgba(4, 10, 23, 0.96);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 12px;
+      padding: 8px 10px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.22);
+      z-index: 20;
+      text-align: center;
+      min-width: 110px;
+      max-width: 220px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    .rocket-card:hover .rocket-name,
+    .rocket-card:focus-within .rocket-name {
+      opacity: 1;
+      /* nudge slightly downward when shown */
+      transform: translateX(-50%) translateY(6px);
+      pointer-events: auto;
+    }
+
+    .rocket-stats {
+      position: absolute;
+      /* anchor below the rocket so it grows downward */
+      top: calc(100% + 10px);
+      left: 50%;
+      transform: translateX(-50%) translateY(0);
+      opacity: 0;
+      pointer-events: none;
+      background: rgba(4, 10, 23, 0.94);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      min-width: 166px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.22);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      text-align: left;
+      z-index: 18;
+    }
+
+    .rocket-card.dev-mode:hover .rocket-stats,
+    .rocket-card.dev-mode:focus-within .rocket-stats {
+      opacity: 1;
+      transform: translateX(-50%) translateY(6px);
+      pointer-events: auto;
+    }
+
+    #launchCanvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 5;
+      display: none;
+      pointer-events: none;
+    }
+
+    .countdown-overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 6;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+
+    .countdown-overlay.show {
+      opacity: 1;
+    }
+
+    .countdown-text {
+      font-size: clamp(3rem, 12vw, 7rem);
+      font-weight: 900;
+      color: #fff;
+      text-shadow: 0 10px 24px rgba(0, 0, 0, 0.55);
+      letter-spacing: 0.08em;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 8px;
+    }
+
+    .action-btn {
+      padding: 8px 14px;
+      border-radius: 12px;
+      border: none;
+      font-weight: 900;
+      cursor: pointer;
+      color: #111;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.16);
+    }
+
+    .action-btn.info {
+      background: linear-gradient(90deg,#ffbf4a,#ff8a3d);
+      color: #111;
+    }
+
+    .action-btn.punish {
+      background: linear-gradient(90deg,#ff4a4a,#d32f2f);
+      color: #fff;
+    }
+
+    .rocket-card .badge-clue,
+    .rocket-card .badge-malus {
+      position: absolute;
+      bottom: 6px;
+      min-width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.72rem;
+      font-weight: 900;
+      padding: 0 6px;
+      box-shadow: 0 6px 14px rgba(0,0,0,0.28);
+      z-index: 6;
+    }
+
+    /* place clue to the right of the center number */
+    .rocket-card .badge-clue {
+      left: calc(50% + 40px);
+      transform: translateX(-50%);
+      background-color: #2ecc71;
+      color: #063214;
+      z-index: 11;
+      opacity: 1;
+    }
+
+    /* place malus to the left of the center number */
+    .rocket-card .badge-malus {
+      left: calc(50% - 40px);
+      transform: translateX(-50%);
+      background-color: #c62828;
+      color: #fff;
+      background-image: url('assets/skull.png');
+      background-repeat: no-repeat;
+      background-position: center center;
+      background-size: 14px 14px;
+      z-index: 11;
+      opacity: 1;
+    }
+
+    .rocket-name .action-list {
+      margin-top: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      align-items: stretch;
+      width: 100%;
+    }
+
+    .rocket-name .name-title {
+      width: 100%;
+      text-align: center;
+      font-weight: 900;
+      margin-bottom: 4px;
+    }
+
+    .rocket-name .action-item {
+      padding: 4px 8px;
+      border-radius: 8px;
+      font-size: 0.72rem;
+      font-weight: 800;
+      line-height: 1;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .rocket-name .action-item.info {
+      background: rgba(40,140,60,0.12);
+      color: #7ee787;
+      border: 1px solid rgba(126,231,135,0.12);
+    }
+
+    .rocket-name .action-item.malus {
+      background: rgba(200,40,40,0.12);
+      color: #ffb3b3;
+      border: 1px solid rgba(255,80,80,0.12);
+    }
+
+    .player-bar .player-pill {
+      min-width: 160px;
+      padding: 16px 14px 12px;
+      flex: 1 1 160px;
+    }
+
+    .player-bar .rank-badge {
+      position: absolute;
+      top: -10px;
+      right: 10px;
+      background: rgba(255,255,255,0.92);
+      color: #111;
+      font-weight: 900;
+      font-size: 0.75rem;
+      padding: 2px 7px;
+      border-radius: 999px;
+      border: 1px solid rgba(0,0,0,0.12);
+      pointer-events: none;
+    }
+
+    .finish-return-btn {
+      position: fixed;
+      top: 14px;
+      right: 14px;
+      z-index: 10000;
+      background: #ff4a4a;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 6px 18px rgba(255, 74, 74, 0.28);
+    }
+
+    /* Stats INFO box in selection phase */
+    .info-box {
+      position: fixed;
+      top: 14px;
+      left: 14px;
+      z-index: 10000;
+      background: rgba(6,12,24,0.96);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.06);
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-weight: 800;
+      font-size: 0.86rem;
+      min-width: 180px;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.45);
+    }
+
+    .info-box h4 {
+      margin: 0 0 6px 0;
+      font-size: 0.9rem;
+      color: #ffd966;
+      letter-spacing: 0.02em;
+    }
+
+    .info-box .stat-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .info-box .stat-row span.value { font-weight: 900; color: #dce8ff; }
+
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Aboubafusées</h1>
+    <div id="status">Chargement des joueurs...</div>
+
+    <div class="turn-panel">
+      <div id="turnOrder" class="turn-list"></div>
+    </div>
+
+    <div class="stage">
+      <div id="rocketGallery" class="rocket-gallery" aria-label="Galerie de fusées"></div>
+    </div>
+
+    <div id="timerWrapper" class="timer-wrapper">
+      <div class="timer-bar">
+        <div id="timerFill" class="timer-fill"></div>
+      </div>
+      <div id="timerLabel" class="timer-label">15s</div>
+      <div id="actionButtons" class="action-buttons" style="display:none;">
+        <button id="btnClue" class="action-btn info" title="Indice: Informe d'une statistique aléatoire">Indice</button>
+        <button id="btnMalus" class="action-btn punish" title="Malus: Baisse une statistique aléatoire">Malus</button>
+      </div>
+    </div>
+  </main>
+
+  <canvas id="launchCanvas"></canvas>
+  <div id="countdownOverlay" class="countdown-overlay">
+    <div id="countdownText" class="countdown-text">3</div>
+  </div>
+
+  <div id="statsInfoBox" class="info-box" style="display:none;">
+    <h4>INFO</h4>
+    <div class="stat-row"><div>Vitesse</div><div class="value" id="info-speed">—</div></div>
+    <div class="stat-row"><div>Taille expl.</div><div class="value" id="info-explosion">—</div></div>
+    <div class="stat-row"><div>Temps vol</div><div class="value" id="info-time">—</div></div>
+  </div>
+
+  <script src="../commun/game-players.js"></script>
+  <script>
+    (function () {
+      const statusEl = document.getElementById('status');
+      const turnOrderEl = document.getElementById('turnOrder');
+      const rocketGalleryEl = document.getElementById('rocketGallery');
+      const timerWrapperEl = document.getElementById('timerWrapper');
+      const timerFillEl = document.getElementById('timerFill');
+      const timerLabelEl = document.getElementById('timerLabel');
+      const launchCanvasEl = document.getElementById('launchCanvas');
+      const countdownOverlayEl = document.getElementById('countdownOverlay');
+      const countdownTextEl = document.getElementById('countdownText');
+      const ctx = launchCanvasEl.getContext('2d');
+
+      const rocketFiles = [
+        'Fusée 3D.png',
+        'Fusée Cartoonesque.png',
+        'Fusée déssinée.png',
+        'Fusée minecraft.png',
+        'Fusée Noir & Blanc.png',
+        'Fusée Vivante.png',
+        'Golden Fusée.png',
+        'Vraie Fusée.png'
+      ];
+      const TIMER_DURATION = 15;
+      let order = [];
+      let currentPlayerIndex = 0;
+      let countdownTimer = null;
+      let autoTimer = null;
+      let rocketChoices = new Map();
+      let availableRockets = [];
+      let developerMode = false;
+      let launchState = null;
+      let animationFrame = null;
+      let players = [];
+
+      function shuffle(array) {
+        return array.slice().sort(() => Math.random() - 0.5);
+      }
+
+      function renderOrder(list) {
+        turnOrderEl.innerHTML = '';
+        list.forEach((player, index) => {
+          const chip = document.createElement('div');
+          chip.className = 'turn-chip';
+          chip.textContent = `${index + 1}. ${player.name}`;
+          chip.style.borderColor = player.color || '#8ac6ff';
+          chip.style.background = `${player.color || '#8ac6ff'}20`;
+          chip.style.setProperty('--player-glow', `${player.color || '#8ac6ff'}66`);
+          turnOrderEl.appendChild(chip);
+        });
+      }
+
+      function updateActiveTurnChip() {
+        Array.from(turnOrderEl.children).forEach((chip, index) => {
+          chip.classList.toggle('active', index === currentPlayerIndex);
+          const player = order[index];
+          if (player) {
+            chip.style.boxShadow = index === currentPlayerIndex ? `0 0 0 2px rgba(255,255,255,0.12), 0 0 18px ${player.color || '#8ac6ff'}66` : 'none';
+            chip.style.borderColor = player.color || '#8ac6ff';
+          }
+        });
+      }
+
+      function announceOrder(list) {
+        let step = 0;
+        const preview = setInterval(() => {
+          const randomPlayer = list[Math.floor(Math.random() * list.length)];
+          statusEl.textContent = `Ordre aléatoire... ${randomPlayer.name}`;
+          step += 1;
+          if (step > 16) {
+            clearInterval(preview);
+            renderOrder(list);
+            startTurn(0);
+          }
+        }, 80);
+      }
+
+      function getImageSize(count) {
+        if (count <= 2) return 180;
+        if (count <= 4) return 140;
+        if (count <= 6) return 120;
+        return 96;
+      }
+
+      function clearTimer() {
+        if (countdownTimer) {
+          clearTimeout(countdownTimer);
+          countdownTimer = null;
+        }
+        if (autoTimer) {
+          clearTimeout(autoTimer);
+          autoTimer = null;
+        }
+        timerFillEl.style.transition = 'none';
+        timerFillEl.style.width = '100%';
+      }
+
+      function startTimer() {
+        clearTimer();
+        timerWrapperEl.style.display = 'flex';
+        timerFillEl.style.transition = 'none';
+        timerFillEl.style.width = '100%';
+        timerLabelEl.textContent = `${TIMER_DURATION}s`;
+        requestAnimationFrame(() => {
+          timerFillEl.style.transition = `width ${TIMER_DURATION}s linear`;
+          timerFillEl.style.width = '0%';
+        });
+
+        const startTime = Date.now();
+        const tick = () => {
+          const elapsed = Math.floor((Date.now() - startTime) / 1000);
+          const remaining = Math.max(0, TIMER_DURATION - elapsed);
+          timerLabelEl.textContent = `${remaining}s`;
+          if (remaining > 0) {
+            countdownTimer = window.setTimeout(tick, 250);
+          }
+        };
+        tick();
+
+        autoTimer = window.setTimeout(() => {
+          autoChooseRandomRocket();
+        }, TIMER_DURATION * 1000);
+      }
+
+      function setStatusForPlayer(player) {
+        statusEl.textContent = `${player.name}, Choisis ta fusée!`;
+        statusEl.style.color = player.color || '#dce8ff';
+      }
+
+      function buildRocketStats() {
+        return {
+          speed: Math.floor(Math.random() * 91) + 10,
+          flightTime: Math.floor(Math.random() * 13) + 3,
+          explosionSize: Math.floor(Math.random() * 76) + 25
+        };
+      }
+
+      function renderGallery() {
+        rocketGalleryEl.innerHTML = '';
+        const size = getImageSize(availableRockets.length);
+
+        availableRockets.forEach((rocket, index) => {
+          const fileName = rocket.fileName;
+          const ownerName = [...rocketChoices.entries()].find(([, rocketIndex]) => rocketIndex === index)?.[0];
+          const ownerPlayer = ownerName ? order.find((player) => player.name === ownerName) : null;
+          const card = document.createElement('div');
+          card.className = 'rocket-card';
+          card.tabIndex = 0;
+          card.setAttribute('role', 'img');
+          card.setAttribute('aria-label', fileName);
+          card.style.setProperty('--glow-color', ownerPlayer ? ownerPlayer.color || '#8ac6ff' : 'rgba(255,255,255,0.45)');
+          card.classList.toggle('dev-mode', developerMode);
+
+          if (ownerPlayer) {
+            card.classList.add('selected', 'disabled');
+          } else {
+            card.classList.remove('selected', 'disabled');
+          }
+
+          const img = document.createElement('img');
+          img.src = 'assets/' + encodeURI(fileName);
+          img.alt = fileName;
+          img.style.width = `${size}px`;
+          img.style.maxHeight = `${size * 1.35}px`;
+
+          const badge = document.createElement('div');
+          badge.className = 'number-badge';
+          badge.textContent = index + 1;
+
+          if (ownerPlayer) {
+            badge.style.background = ownerPlayer.color || '#8ac6ff';
+            badge.style.borderColor = ownerPlayer.color || '#8ac6ff';
+          }
+
+          const label = document.createElement('span');
+          label.className = 'rocket-name';
+          // create a centered title inside the bubble so name stays centered
+          const nameTitle = document.createElement('div');
+          nameTitle.className = 'name-title';
+          nameTitle.textContent = fileName.replace(/\.png$/i, '');
+          label.appendChild(nameTitle);
+
+          const statsBox = document.createElement('div');
+          statsBox.className = 'rocket-stats';
+          const stats = rocket.stats || buildRocketStats();
+          // default full stats (used in dev-mode)
+          const fullLines = [
+            `• Vitesse : ${Math.round(stats.speed)} m/s`,
+            `• Temps de vol : ${Math.round(stats.flightTime * 10) / 10} s`,
+            `• Taille d'explosion : ${Math.round(stats.explosionSize)} m`
+          ];
+          fullLines.forEach((line) => {
+            const lineEl = document.createElement('div');
+            lineEl.textContent = line;
+            statsBox.appendChild(lineEl);
+          });
+
+          // If developerMode is enabled, make stats visible without hover
+          if (developerMode) {
+            statsBox.style.opacity = '1';
+            statsBox.style.pointerEvents = 'auto';
+            statsBox.style.transform = 'translateX(-50%) translateY(6px)';
+          }
+
+          // badges for clues and maluses
+          const clueBadge = document.createElement('div');
+          clueBadge.className = 'badge-clue';
+          clueBadge.style.display = rocket.clues ? 'inline-flex' : 'none';
+          clueBadge.textContent = rocket.clues || '';
+
+          const malusBadge = document.createElement('div');
+          malusBadge.className = 'badge-malus';
+          malusBadge.style.display = (rocket.maluses && rocket.maluses.length) ? 'inline-flex' : 'none';
+          malusBadge.textContent = (rocket.maluses && rocket.maluses.length) ? rocket.maluses.length : '';
+
+          // build action list inside the rocket-name bubble (vertical stack)
+          const actionList = document.createElement('div');
+          actionList.className = 'action-list';
+          // clues (revealed stats)
+          const revealed = rocket.revealedStats || [];
+          revealed.forEach((key) => {
+            const item = document.createElement('div');
+            item.className = 'action-item info';
+            if (key === 'speed') item.textContent = `Vitesse : ${Math.round(stats.speed)} m/s`;
+            if (key === 'flightTime') item.textContent = `Temps de vol : ${Math.round(stats.flightTime * 10) / 10} s`;
+            if (key === 'explosionSize') item.textContent = `Taille d'explosion : ${Math.round(stats.explosionSize)} m`;
+            actionList.appendChild(item);
+          });
+          // maluses
+          (rocket.maluses || []).forEach((m) => {
+            const item = document.createElement('div');
+            item.className = 'action-item malus';
+            item.textContent = m.text;
+            actionList.appendChild(item);
+          });
+
+          // attach action list under the centered title
+          label.appendChild(actionList);
+
+          card.appendChild(img);
+          card.appendChild(badge);
+          card.appendChild(label);
+          card.appendChild(statsBox);
+          card.appendChild(clueBadge);
+          card.appendChild(malusBadge);
+
+          
+          if (!ownerPlayer) {
+            card.addEventListener('click', () => chooseRocket(index));
+            card.addEventListener('keydown', (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                chooseRocket(index);
+              }
+            });
+          }
+
+          rocketGalleryEl.appendChild(card);
+        });
+      }
+
+      function getAvailableRocketIndices() {
+        return availableRockets
+          .map((_, index) => index)
+          .filter((index) => ![...rocketChoices.values()].includes(index));
+      }
+
+      function toggleDeveloperMode() {
+        developerMode = !developerMode;
+        renderGallery();
+      }
+
+      function chooseRocket(rocketIndex) {
+        const currentPlayer = order[currentPlayerIndex];
+        if (!currentPlayer) return;
+        if (rocketChoices.has(currentPlayer.name)) return;
+        if ([...rocketChoices.values()].includes(rocketIndex)) return;
+
+        rocketChoices.set(currentPlayer.name, rocketIndex);
+        renderGallery();
+        // mark action used and hide action buttons for this turn
+        actionUsed = true;
+        setActionButtonsVisible(false);
+        advanceTurn(true);
+      }
+
+      function autoChooseRandomRocket() {
+        const currentPlayer = order[currentPlayerIndex];
+        if (!currentPlayer) {
+          advanceTurn(true);
+          return;
+        }
+
+        const availableIndices = getAvailableRocketIndices();
+        if (!availableIndices.length) {
+          advanceTurn(true);
+          return;
+        }
+
+        const randomRocketIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)];
+        rocketChoices.set(currentPlayer.name, randomRocketIndex);
+        renderGallery();
+        statusEl.textContent = `${currentPlayer.name} n'a pas choisi à temps. Fusée attribuée aléatoirement.`;
+        statusEl.style.color = currentPlayer.color || '#dce8ff';
+        // disable action buttons for this turn
+        actionUsed = true;
+        setActionButtonsVisible(false);
+        setTimeout(() => {
+          advanceTurn(true);
+        }, 500);
+      }
+
+      function startTurn(index) {
+        currentPlayerIndex = index;
+        if (currentPlayerIndex >= order.length) {
+          clearTimer();
+          timerWrapperEl.style.display = 'none';
+          turnOrderEl.style.display = 'none';
+          statusEl.textContent = 'Tous les joueurs ont choisi leur fusée !';
+          statusEl.style.color = '#fff';
+          startLaunchPhase();
+          return;
+        }
+        const player = order[currentPlayerIndex];
+        setStatusForPlayer(player);
+        renderOrder(order);
+        updateActiveTurnChip();
+        renderGallery();
+        startTimer();
+        // allow one action (indice ou malus) per turn
+        actionUsed = false;
+        setActionButtonsVisible(true);
+      }
+
+      function advanceTurn(chosen) {
+        clearTimer();
+        if (rocketChoices.size >= order.length) {
+          timerWrapperEl.style.display = 'none';
+          turnOrderEl.style.display = 'none';
+          statusEl.textContent = 'Tous les joueurs ont choisi leur fusée !';
+          statusEl.style.color = '#fff';
+          renderGallery();
+          startLaunchPhase();
+          return;
+        }
+
+        const nextIndex = currentPlayerIndex + 1;
+        if (nextIndex >= order.length) {
+          timerWrapperEl.style.display = 'none';
+          turnOrderEl.style.display = 'none';
+          statusEl.textContent = 'Tous les joueurs ont choisi leur fusée !';
+          statusEl.style.color = '#fff';
+          renderGallery();
+          startLaunchPhase();
+          return;
+        }
+
+        if (!chosen) {
+          const currentPlayer = order[currentPlayerIndex];
+          const nextPlayer = order[nextIndex];
+          statusEl.textContent = `${currentPlayer.name} n'a pas choisi à temps. Passage à ${nextPlayer.name}.`;
+          statusEl.style.color = currentPlayer.color || '#dce8ff';
+          setTimeout(() => {
+            startTurn(nextIndex);
+          }, 500);
+          return;
+        }
+
+        startTurn(nextIndex);
+      }
+
+      function resizeCanvas() {
+        launchCanvasEl.width = window.innerWidth * window.devicePixelRatio;
+        launchCanvasEl.height = window.innerHeight * window.devicePixelRatio;
+        const scale = window.devicePixelRatio || 1;
+        ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      }
+
+      function updatePlayerBarScores() {
+        const bar = document.querySelector('.player-bar');
+        if (!bar) return;
+        const pills = Array.from(bar.querySelectorAll('.player-pill'));
+        pills.forEach((pill) => {
+          const name = pill.querySelector('span:nth-child(2)')?.textContent?.trim();
+          const player = order.find((entry) => entry.name === name);
+          if (!player) return;
+          if (getComputedStyle(pill).position === 'static') {
+            pill.style.position = 'relative';
+          }
+          let scoreEl = pill.querySelector('.pill-score');
+          if (!scoreEl) {
+            scoreEl = document.createElement('div');
+            scoreEl.className = 'pill-score';
+            pill.appendChild(scoreEl);
+          }
+          scoreEl.textContent = `${Math.round(player.score || 0)} m`;
+          scoreEl.style.position = 'absolute';
+          scoreEl.style.right = '8px';
+          scoreEl.style.top = '50%';
+          scoreEl.style.transform = 'translateY(-50%)';
+          scoreEl.style.fontWeight = '900';
+          scoreEl.style.fontSize = '0.8rem';
+          scoreEl.style.padding = '2px 6px';
+          scoreEl.style.borderRadius = '8px';
+          scoreEl.style.background = 'rgba(0,0,0,0.18)';
+        });
+      }
+
+      function computeEffectiveStats(rocket) {
+        const base = rocket.stats || buildRocketStats();
+        const s = { speed: base.speed, flightTime: base.flightTime, explosionSize: base.explosionSize };
+        (rocket.maluses || []).forEach((m) => {
+          if (m.type === 'speed') {
+            s.speed = Math.max(1, s.speed * (1 - (m.value || 0) / 100));
+          } else if (m.type === 'flightTime') {
+            s.flightTime = Math.max(0.1, s.flightTime - (m.value || 2.5));
+          } else if (m.type === 'explosionSize') {
+            s.explosionSize = Math.max(0, s.explosionSize - (m.value || 10));
+          }
+        });
+        return s;
+      }
+
+      function renderStatsInfo() {
+        const box = document.getElementById('statsInfoBox');
+        if (!box) return;
+        // Always display the same fixed ranges during the selection phase
+        document.getElementById('info-speed').textContent = '10 - 100 m/s';
+        document.getElementById('info-explosion').textContent = '25 - 100 m';
+        document.getElementById('info-time').textContent = '3 - 15 s';
+        // Show the box only when the timer/buttons/gallery are visible (selection phase)
+        const timerEl = document.getElementById('timerWrapper');
+        const galleryEl = document.getElementById('rocketGallery');
+        const timerVisible = timerEl && getComputedStyle(timerEl).display !== 'none';
+        const galleryVisible = galleryEl && galleryEl.children && galleryEl.children.length > 0;
+        box.style.display = (timerVisible && galleryVisible) ? 'block' : 'none';
+      }
+
+      // action button state
+      let actionUsed = false;
+
+      function setActionButtonsVisible(visible) {
+        const container = document.getElementById('actionButtons');
+        if (!container) return;
+        container.style.display = visible ? 'flex' : 'none';
+        const btnClue = document.getElementById('btnClue');
+        const btnMalus = document.getElementById('btnMalus');
+        if (btnClue) btnClue.disabled = !visible;
+        if (btnMalus) btnMalus.disabled = !visible;
+      }
+
+      function applyClue() {
+        if (actionUsed) return;
+        actionUsed = true;
+        setActionButtonsVisible(false);
+        const indices = availableRockets.map((_, i) => i);
+        if (!indices.length) return;
+        const idx = indices[Math.floor(Math.random() * indices.length)];
+        const r = availableRockets[idx];
+        r.clues = (r.clues || 0) + 1;
+        r.revealedStats = r.revealedStats || [];
+        const keys = ['speed', 'flightTime', 'explosionSize'];
+        const remaining = keys.filter((k) => !r.revealedStats.includes(k));
+        const pick = remaining.length ? remaining[Math.floor(Math.random() * remaining.length)] : keys[Math.floor(Math.random() * keys.length)];
+        r.revealedStats.push(pick);
+        renderGallery();
+        renderStatsInfo();
+      }
+
+      function applyMalus() {
+        if (actionUsed) return;
+        actionUsed = true;
+        setActionButtonsVisible(false);
+        if (!availableRockets.length) return;
+        // try a few times to find a rocket that doesn't already have all malus types
+        let foundIdx = -1;
+        for (let attempts = 0; attempts < 8; attempts++) {
+          const cand = Math.floor(Math.random() * availableRockets.length);
+          const rr = availableRockets[cand];
+          const existingTypes = (rr.maluses || []).map((m) => m.type);
+          const possible = ['speed','flightTime','explosionSize'].filter((t) => !existingTypes.includes(t));
+          if (possible.length) {
+            foundIdx = cand;
+            break;
+          }
+        }
+        if (foundIdx === -1) {
+          statusEl.textContent = 'Aucun malus applicable.';
+          return;
+        }
+        const r = availableRockets[foundIdx];
+        r.maluses = r.maluses || [];
+        const existingTypes = r.maluses.map((m) => m.type);
+        const types = ['speed','flightTime','explosionSize'].filter((t) => !existingTypes.includes(t));
+        const t = types[Math.floor(Math.random() * types.length)];
+        let text = '';
+        if (t === 'speed') {
+          const percent = Math.floor(5 + Math.random() * 11); // 5-15
+          // store malus info, do NOT mutate stats now — will apply at launch
+          r.maluses.push({ type: t, value: percent, text: `Vitesse -${percent}%` });
+        } else if (t === 'flightTime') {
+          const val = 2.5;
+          r.maluses.push({ type: t, value: val, text: `Temps -${val}s` });
+        } else if (t === 'explosionSize') {
+          const val = Math.floor(10 + Math.random() * 11); //10-20
+          r.maluses.push({ type: t, value: val, text: `Explosion -${val}m` });
+        }
+          renderGallery();
+          renderStatsInfo();
+      }
+
+
+      function updatePlayerBarRanking(sorted) {
+        const bar = document.querySelector('.player-bar');
+        if (!bar) return;
+        const pills = Array.from(bar.querySelectorAll('.player-pill'));
+        pills.forEach((pill) => {
+          const name = pill.querySelector('span:nth-child(2)')?.textContent?.trim();
+          const res = sorted.find((r) => r.name === name);
+          let badge = pill.querySelector('.rank-badge');
+          if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'rank-badge';
+            pill.appendChild(badge);
+          }
+          if (!res) {
+            badge.textContent = '';
+            pill.style.boxShadow = 'none';
+            pill.style.border = '1px solid rgba(255,255,255,0.28)';
+            pill.style.background = 'rgba(15,24,46,0.95)';
+          } else {
+            const rank = sorted.findIndex((r) => r.name === name) + 1;
+            const rankColor = rank === 1 ? '#ffd700' : rank === 2 ? '#c0c0c0' : rank === 3 ? '#cd7f32' : '#8a2be2';
+            badge.textContent = `#${rank}`;
+            pill.style.border = `1px solid ${rankColor}`;
+            pill.style.boxShadow = `0 0 0 2px ${rankColor}`;
+            pill.style.background = 'rgba(255,255,255,0.13)';
+            if (typeof setACText === 'function') setACText(pill, rank, sorted.length);
+          }
+        });
+      }
+
+      function showReturnButton() {
+        if (document.getElementById('returnToMenuBtn')) return;
+        const btn = document.createElement('button');
+        btn.id = 'returnToMenuBtn';
+        btn.className = 'finish-return-btn';
+        btn.textContent = 'Retour';
+        btn.addEventListener('click', () => {
+          window.location.href = '../../index.html';
+        });
+        document.body.appendChild(btn);
+      }
+
+      function finishLaunch() {
+      window.PourtyMiniGame?.finish();
+        const sorted = order.slice().sort((a, b) => b.score - a.score);
+        updatePlayerBarRanking(sorted);
+        showReturnButton();
+        const winner = sorted[0];
+        if (winner) {
+          statusEl.textContent = `${winner.name} a gagné avec ${Math.round(winner.score)} m !`;
+          statusEl.style.color = winner.color || '#fff';
+        }
+      }
+
+      function startLaunchPhase() {
+        if (!order.length || rocketChoices.size < order.length) return;
+        // hide selection UI info box when launching
+        const infoBoxEl = document.getElementById('statsInfoBox');
+        if (infoBoxEl) infoBoxEl.style.display = 'none';
+
+        document.querySelector('main').style.display = 'none';
+        launchCanvasEl.style.display = 'block';
+        resizeCanvas();
+
+        const pillCenters = {};
+        Array.from(document.querySelectorAll('.player-pill')).forEach((pill) => {
+          const name = pill.querySelector('span:nth-child(2)')?.textContent?.trim();
+          if (!name) return;
+          const rect = pill.getBoundingClientRect();
+          pillCenters[name] = (rect.left + rect.right) / 2 / window.innerWidth;
+        });
+
+        const selectedRockets = order
+          .map((player) => {
+            const pickedIndex = rocketChoices.get(player.name);
+            const base = availableRockets[pickedIndex];
+            const baseStats = base?.stats || buildRocketStats();
+            // copy stats fresh so we can apply maluses now
+            const statsCopy = Object.assign({}, baseStats);
+            const applied = [];
+            (base?.maluses || []).forEach((m) => {
+              if (m.type === 'speed') {
+                statsCopy.speed = Math.max(1, statsCopy.speed * (1 - (m.value || 0) / 100));
+                applied.push(m.text || `Vitesse -${m.value}%`);
+              } else if (m.type === 'flightTime') {
+                statsCopy.flightTime = Math.max(0.5, statsCopy.flightTime - (m.value || 2.5));
+                applied.push(m.text || `Temps -${m.value}s`);
+              } else if (m.type === 'explosionSize') {
+                statsCopy.explosionSize = Math.max(1, statsCopy.explosionSize - (m.value || 10));
+                applied.push(m.text || `Explosion -${m.value}m`);
+              }
+            });
+            // log modifications
+            if (applied.length) {
+              console.groupCollapsed(`Malus appliqués pour ${player.name} (${base?.fileName || ''})`);
+              applied.forEach((a) => console.log(a));
+              console.log('Stats finales:', statsCopy);
+              console.groupEnd();
+            }
+
+            return {
+              player,
+              fileName: base?.fileName || rocketFiles[0],
+              stats: statsCopy,
+              altitude: 0,
+              peak: 0,
+              exploded: false,
+              explosionPeak: null,
+              elapsed: 0,
+              x: pillCenters[player.name],
+              image: null,
+              smokeParticles: [],
+              appliedMaluses: applied
+            };
+          })
+          .filter(Boolean);
+
+        selectedRockets.forEach((rocket, index) => {
+          if (rocket.x == null) {
+            rocket.x = (index + 1) / (selectedRockets.length + 1);
+          }
+        });
+
+        selectedRockets.forEach((rocket) => {
+          rocket.image = new Image();
+          rocket.image.src = 'assets/' + encodeURI(rocket.fileName);
+        });
+
+        launchState = {
+          rockets: selectedRockets,
+          particles: [],
+          phase: 'countdown',
+          countdownIndex: 0,
+          values: [3, 2, 1, 'GO!'],
+          lastFrame: 0,
+          recordHeight: 80
+        };
+
+        updatePlayerBarScores();
+        drawLaunchScene();
+        runCountdown();
+      }
+
+      function runCountdown() {
+        if (!launchState) return;
+        const value = launchState.values[launchState.countdownIndex];
+        countdownTextEl.textContent = value;
+        countdownOverlayEl.classList.add('show');
+        if (launchState.countdownIndex >= launchState.values.length - 1) {
+          window.setTimeout(() => {
+            countdownOverlayEl.classList.remove('show');
+            window.setTimeout(() => {
+              launchState.phase = 'flight';
+              launchState.rockets.forEach((rocket) => {
+                rocket.image = new Image();
+                rocket.image.src = 'assets/' + encodeURI(rocket.fileName);
+              });
+              launchLoop();
+            }, 220);
+          }, 700);
+        } else {
+          window.setTimeout(() => {
+            launchState.countdownIndex += 1;
+            countdownOverlayEl.classList.remove('show');
+            window.setTimeout(runCountdown, 220);
+          }, 700);
+        }
+      }
+
+      function worldToScreenY(altitude) {
+        const width = launchCanvasEl.width / (window.devicePixelRatio || 1);
+        const height = launchCanvasEl.height / (window.devicePixelRatio || 1);
+        const bottomPadding = 120;
+        const topPadding = 80;
+        const topHeight = Math.max(140, launchState.recordHeight + 120);
+        return height - bottomPadding - ((altitude / topHeight) * (height - topPadding - bottomPadding));
+      }
+
+      function drawLaunchScene() {
+        if (!launchState) return;
+        const width = launchCanvasEl.width / (window.devicePixelRatio || 1);
+        const height = launchCanvasEl.height / (window.devicePixelRatio || 1);
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = '#07111e';
+        ctx.fillRect(0, 0, width, height);
+
+        launchState.rockets.forEach((rocket) => {
+          rocket.smokeParticles.forEach((smoke) => {
+            const x = width * smoke.x;
+            const y = worldToScreenY(smoke.y);
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, smoke.life * 0.45);
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            ctx.beginPath();
+            ctx.arc(x, y, smoke.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          });
+        });
+
+        launchState.rockets.forEach((rocket) => {
+          const x = width * rocket.x;
+          const y = worldToScreenY(rocket.altitude);
+          const size = Math.max(36, Math.min(78, 36 + rocket.stats.speed / 3));
+          const currentHeight = Math.round(rocket.explosionPeak || rocket.peak || rocket.altitude);
+          const labelY = rocket.exploded ? worldToScreenY(rocket.explosionPeak || rocket.altitude) : y;
+
+          if (rocket.image) {
+            ctx.drawImage(rocket.image, x - size / 2, y - size / 2, size, size);
+          }
+
+          if (rocket.exploded) {
+            const explosionCenterY = worldToScreenY(rocket.altitude);
+            const explosionRadius = Math.max(10, rocket.stats.explosionSize * 0.8);
+            const glow = rocket.player.color || '#8ac6ff';
+            ctx.save();
+            ctx.fillStyle = glow;
+            ctx.globalAlpha = 0.7;
+            ctx.beginPath();
+            ctx.arc(x, explosionCenterY, explosionRadius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+
+          if (launchState.phase === 'flight') {
+            ctx.font = '700 0.82rem Inter, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#fff';
+            ctx.strokeText(`${currentHeight} m`, x + size / 2 + 8, labelY + 4);
+            ctx.fillStyle = rocket.player.color || '#fff';
+            ctx.fillText(`${currentHeight} m`, x + size / 2 + 8, labelY + 4);
+          }
+        });
+
+        let highestLineY = height;
+        let highestValue = 0;
+        launchState.rockets.forEach((rocket) => {
+          const size = Math.max(36, Math.min(78, 36 + rocket.stats.speed / 3));
+          if (rocket.exploded) {
+            const centerY = worldToScreenY(rocket.altitude);
+            const radius = Math.max(10, rocket.stats.explosionSize * 0.8);
+            const topY = centerY - radius;
+            if (topY < highestLineY) {
+              highestLineY = topY;
+              highestValue = rocket.explosionPeak || rocket.peak;
+            }
+          } else {
+            const y = worldToScreenY(rocket.altitude);
+            const topY = y - size / 2;
+            if (topY < highestLineY) {
+              highestLineY = topY;
+              highestValue = rocket.peak;
+            }
+          }
+        });
+
+        if (highestValue > 0 && highestLineY < height) {
+          const displayY = Math.max(24, highestLineY - 8);
+          ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(0, highestLineY);
+          ctx.lineTo(width, highestLineY);
+          ctx.stroke();
+
+          ctx.fillStyle = 'rgba(255,255,255,0.95)';
+          ctx.font = '700 0.82rem Inter, sans-serif';
+          ctx.textAlign = 'right';
+          ctx.fillText(`${Math.round(highestValue)} m`, width - 18, displayY);
+        }
+
+        launchState.particles.forEach((particle) => {
+          const x = width * particle.x;
+          const y = worldToScreenY(particle.y);
+          const alpha = Math.max(0, particle.life / particle.maxLife);
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = particle.color;
+          ctx.beginPath();
+          ctx.arc(x, y, particle.size, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        });
+      }
+
+      function launchLoop() {
+        if (!launchState || launchState.phase !== 'flight') return;
+        const now = performance.now();
+        const delta = Math.min(0.032, (now - (launchState.lastFrame || now)) / 1000 || 0.016);
+        launchState.lastFrame = now;
+
+        launchState.rockets.forEach((rocket) => {
+          if (rocket.exploded) return;
+          rocket.elapsed += delta;
+          rocket.altitude += rocket.stats.speed * delta;
+          rocket.peak = Math.max(rocket.peak, rocket.altitude);
+
+          rocket.smokeParticles.push({
+            x: rocket.x + ((Math.random() - 0.5) * 0.02),
+            y: rocket.altitude - 1.8,
+            vx: (Math.random() - 0.5) * 0.03,
+            vy: 0.08 + Math.random() * 0.08,
+            life: 1,
+            size: 3 + Math.random() * 4
+          });
+
+          rocket.smokeParticles = rocket.smokeParticles.filter((smoke) => {
+            smoke.x += smoke.vx * delta;
+            smoke.y += smoke.vy * delta;
+            smoke.life -= delta * 1.1;
+            return smoke.life > 0;
+          });
+
+          if (rocket.elapsed >= rocket.stats.flightTime) {
+            rocket.exploded = true;
+            rocket.explosionPeak = rocket.altitude + Math.max(10, rocket.stats.explosionSize);
+            rocket.player.score = Math.round(rocket.explosionPeak);
+            updatePlayerBarScores();
+            for (let i = 0; i < Math.max(26, rocket.stats.explosionSize * 3); i += 1) {
+              const angle = Math.random() * Math.PI * 2;
+              const speed = 0.04 + Math.random() * 0.18 + rocket.stats.explosionSize * 0.003;
+              const color = rocket.player.color || '#fff';
+              launchState.particles.push({
+                x: rocket.x,
+                y: rocket.altitude,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                life: 1,
+                maxLife: 1 + Math.random() * 0.9,
+                size: 2 + Math.random() * 3,
+                color
+              });
+            }
+          }
+        });
+
+        launchState.particles = launchState.particles.filter((particle) => {
+          particle.life -= delta * 1.4;
+          particle.x += particle.vx * delta;
+          particle.y += particle.vy * delta;
+          particle.vx *= 0.97;
+          particle.vy *= 0.97;
+          particle.vy += 0.03;
+          return particle.life > 0;
+        });
+
+        launchState.recordHeight = Math.max(launchState.recordHeight, ...launchState.rockets.map((rocket) => rocket.explosionPeak || rocket.peak || rocket.altitude));
+        drawLaunchScene();
+        if (launchState.rockets.every((rocket) => rocket.exploded)) {
+          cancelAnimationFrame(animationFrame);
+          animationFrame = null;
+          finishLaunch();
+          return;
+        }
+        animationFrame = requestAnimationFrame(launchLoop);
+      }
+
+      window.addEventListener('keydown', (event) => {
+        if (event.key === '*' || event.code === 'NumpadMultiply' || (event.key === '8' && event.shiftKey)) {
+          event.preventDefault();
+          toggleDeveloperMode();
+        }
+      });
+
+      window.addEventListener('resize', resizeCanvas);
+
+      try {
+        players = JSON.parse(localStorage.getItem('mini-Jeux-host-players') || '[]');
+      } catch (e) {
+        players = [];
+      }
+
+      if (!players.length) {
+        statusEl.textContent = 'Aucun joueur enregistré.';
+        turnOrderEl.innerHTML = '<div class="turn-chip">Aucun joueur</div>';
+        rocketGalleryEl.innerHTML = '';
+        return;
+      }
+
+      order = shuffle(players.map((p) => ({
+        name: p.name,
+        color: p.color || '#8ac6ff',
+        score: 0
+      })));
+      availableRockets = shuffle(rocketFiles)
+        .slice(0, Math.min(rocketFiles.length, order.length))
+        .map((fileName) => ({
+          fileName,
+          stats: buildRocketStats(),
+          clues: 0,
+          revealedStats: [],
+          maluses: []
+        }));
+      // render initial stats info
+      renderStatsInfo();
+      // wire action buttons
+      const bClue = document.getElementById('btnClue');
+      const bMalus = document.getElementById('btnMalus');
+      if (bClue) bClue.addEventListener('click', applyClue);
+      if (bMalus) bMalus.addEventListener('click', applyMalus);
+
+      announceOrder(order);
+    })();
+  </script>
+</body>
+</html>

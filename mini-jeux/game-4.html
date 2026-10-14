@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <script src="../party-payout.js"></script>
+<script src="../board/board-minigame-bridge.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aboubateau</title>
+  <link rel="stylesheet" href="../style.css" />
+  <style>
+    body{background:#0a0f24;min-height:100vh;color:#fff;font-family:Segoe UI,Roboto,Ubuntu,sans-serif;margin:0;padding:0;}
+    main{width:100%;max-width:1040px;margin:30px auto 80px;padding:20px;text-align:center;}
+    h1{font-size:2.1rem;margin-bottom:8px;color:#f4f8ff;}
+    #status{font-size:1.2rem;margin:8px 0;min-height:30px;}
+    #timer{font-size:1.4rem;font-weight:800;color:#a3e0ff;margin:6px 0;}
+    .player-order{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:14px 0;}
+    .player-chip{padding:7px 11px;border-radius:10px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);font-weight:700;}
+    .player-chip.active{box-shadow:0 0 0 2px rgba(255,220,90,0.35);border-color:#ffd76d;}
+    #board{display:grid;grid-template-columns:40px repeat(10,45px);grid-template-rows:30px repeat(10,45px);gap:4px;margin:16px auto;max-width:520px;}
+    .label-col{display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;color:#9ec7ff;}
+    .label-row{display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;color:#9ec7ff;}
+    .cell{width:45px;height:45px;border-radius:6px;background:#1e2a52;border:1px solid rgba(255,255,255,0.2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;color:#fff;}
+    .cell.hit{background:#348dff;box-shadow:inset 0 0 2px #ffffff;}
+    .cell.miss{background:#2f3b69;color:#bbb;}
+    .cell.hidden{display:flex !important;background:#15204a;color:#81a4ff;}
+    .cell.sunk{box-shadow:0 0 0 2px rgba(255, 215, 0, 0.65);}
+    #return-btn{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:1200;width:200px;height:50px;font-size:1.1rem;}
+    #final-state{display:none;max-width:720px;margin:20px auto;text-align:left;}
+    .cell.sunk{box-shadow:0 0 0 2px rgba(255, 215, 0, 0.65);}
+    #final-state{margin-top:14px;font-size:1.05rem;color:#dbe9ff;display:none;text-align:left;max-width:720px;margin-left:auto;margin-right:auto;}
+    #return-btn{margin-top:16px;padding:10px 14px;font-size:1rem;font-weight:700;border:none;border-radius:10px;background:#ff776d;color:#fff;cursor:pointer;display:none;}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Aboubateau</h1>
+    <div id="status">Préparation du jeu...</div>
+    <div id="timer"></div>
+    <div id="order" class="player-order"></div>
+    <div id="board"></div>
+    <div id="round-info"></div>
+    <div id="final-state"></div>
+    <button id="return-btn">Retour au menu</button>
+  </main>
+  <script src="commun/game-players.js"></script>
+  <script>
+(function(){
+  const savedPlayers = JSON.parse(localStorage.getItem('mini-Jeux-host-players') || '[]');
+  const statusEl = document.getElementById('status');
+  const timerEl = document.getElementById('timer');
+  const orderEl = document.getElementById('order');
+  const boardEl = document.getElementById('board');
+  const roundInfoEl = document.getElementById('round-info');
+  const finalEl = document.getElementById('final-state');
+  const returnBtn = document.getElementById('return-btn');
+
+  if (savedPlayers.length < 2) {
+    statusEl.textContent = 'Il faut au moins 2 joueurs (2 à 6).';
+    return;
+  }
+
+  const players = savedPlayers.slice(0,6).map((p, index) => ({
+    name: p.name,
+    color: p.color || '#fff',
+    hits: 0,
+    sinkCount: 0,
+    active: true,
+    id: index
+  }));
+
+  const gridSize = 10;
+  let board = [];
+  let boats = [];
+  let activePlayers = shuffle(players.filter(p => p.active));
+  let currentIdx = 0;
+  let timerId = null;
+  let timeLeft = 0;
+  let boatWins = [];
+  let selecting = false;
+
+  function shuffle(array) {
+    return array.slice().sort(() => Math.random() - 0.5);
+  }
+
+  function setStatus(text, color) {
+    statusEl.textContent = text;
+    statusEl.style.color = color || '#e0f4ff';
+  }
+
+  function setTimer(v) {
+    timerEl.textContent = typeof v === 'number' ? `Temps restant : ${v}s` : v;
+  }
+
+  function clearTimer() {
+    if (timerId) {
+      clearInterval(timerId);
+      timerId = null;
+    }
+  }
+
+  function getBoatParams(playerCount) {
+    const boatCount = Math.max(1, playerCount - 1);
+    const length = Math.max(2, (7 - playerCount) * 2);
+    return {boatCount, length: Math.min(length, gridSize)};
+  }
+
+  function createBoard() {
+    board = [];
+    for (let r = 0; r < gridSize; r += 1) {
+      const row = [];
+      for (let c = 0; c < gridSize; c += 1) {
+        row.push({boatId: null, hit: false, miss: false});
+      }
+      board.push(row);
+    }
+  }
+
+  function placeBoats() {
+    boats = [];
+    const {boatCount, length} = getBoatParams(activePlayers.length);
+    let id = 0;
+    for (let b = 0; b < boatCount; b += 1) {
+      let placed = false;
+      let attempts = 0;
+      while (!placed && attempts < 120) {
+        attempts += 1;
+        const dir = Math.random() < 0.5 ? 'h' : 'v';
+        const startR = Math.floor(Math.random() * gridSize);
+        const startC = Math.floor(Math.random() * gridSize);
+        const coords = [];
+        for (let i = 0; i < length; i += 1) {
+          const r = dir === 'h' ? startR : startR + i;
+          const c = dir === 'h' ? startC + i : startC;
+          if (r >= gridSize || c >= gridSize) { coords.length = 0; break; }
+          if (board[r][c].boatId !== null) { coords.length = 0; break; }
+          coords.push([r, c]);
+        }
+        if (coords.length > 0 && coords.length === length) {
+          coords.forEach(([r,c]) => { board[r][c].boatId = id; });
+          boats.push({id, coords, hits: 0, length, sunk: false});
+          id += 1;
+          placed = true;
+        }
+      }
+      if (!placed) {
+        // fallback placement single cells
+        for (let r=0;r<gridSize && !placed;r++){
+          for (let c=0;c<gridSize && !placed;c++){
+            if (!board[r][c].boatId) {
+              board[r][c].boatId = id;
+              boats.push({id, coords:[[r,c]],hits:0,length:1,sunk:false});
+              id +=1; placed=true;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  function renderOrder() {
+    orderEl.innerHTML = '';
+    activePlayers.forEach((player, idx) => {
+      const chip = document.createElement('div');
+      chip.className = 'player-chip' + (idx === currentIdx ? ' active' : '');
+      chip.style.borderColor = player.color;
+      chip.style.color = player.color;
+      chip.textContent = `${player.name} (${player.hits})`;
+      orderEl.appendChild(chip);
+    });
+  }
+
+  function renderBoard() {
+    boardEl.innerHTML = '';
+    const alphabet = 'ABCDEFGHIJ'.split('');
+    // header row
+    const corner = document.createElement('div');
+    corner.className = 'label-col';
+    boardEl.appendChild(corner);
+    alphabet.forEach(letter => {
+      const colLabel = document.createElement('div');
+      colLabel.className = 'label-col';
+      colLabel.textContent = letter;
+      boardEl.appendChild(colLabel);
+    });
+    // data rows
+    board.forEach((row, r) => {
+      const rowLabel = document.createElement('div');
+      rowLabel.className = 'label-row';
+      rowLabel.textContent = `${r + 1}`;
+      boardEl.appendChild(rowLabel);
+      row.forEach((cell, c) => {
+        const div = document.createElement('div');
+        div.className = 'cell';
+        if (cell.hit) div.classList.add('hit');
+        else if (cell.miss) div.classList.add('miss');
+        else div.classList.add('hidden');
+
+        if (cell.boatId !== null) {
+          const boat = boats.find(b => b.id === cell.boatId);
+          if (boat && boat.sunk) div.classList.add('sunk');
+        }
+
+        if (cell.hit && cell.boatId !== null) {
+          const winner = players.find(p => p.id === cell.hitBy) || activePlayers.find(p => p.id === cell.hitBy);
+          if (winner) div.style.background = winner.color;
+        }
+        if (cell.miss) div.textContent = '•';
+        if (cell.hit && cell.boatId !== null) div.textContent = 'X';
+        div.addEventListener('click', () => handleCellClick(r,c));
+        boardEl.appendChild(div);
+      });
+    });
+  }
+
+  function currentPlayer() {
+    return activePlayers[currentIdx];
+  }
+
+  function startTurnTimer() {
+    clearTimer();
+    timeLeft = 10;
+    setTimer(timeLeft);
+    timerId = setInterval(() => {
+      timeLeft -= 1;
+      if (timeLeft <= 0) {
+        clearTimer();
+        setStatus('Temps écoulé ! Tir aléatoire.', currentPlayer().color);
+        animateRandomShot();
+      } else {
+        setTimer(timeLeft);
+      }
+    }, 1000);
+  }
+
+  function animateRandomShot() {
+    const candidates = [];
+    board.forEach((row, r) => row.forEach((cell, c) => {
+      if (!cell.hit && !cell.miss) candidates.push([r,c]);
+    }));
+    if (!candidates.length) { checkGameEnd(); return; }
+    const [r,c] = candidates[Math.floor(Math.random() * candidates.length)];
+    const cellIndex = r*gridSize + c;
+    const cellEls = boardEl.querySelectorAll('.cell');
+    const el = cellEls[cellIndex];
+    if (el) {
+      el.style.transform='scale(1.2)';
+      el.style.transition='transform .1s ease';
+      setTimeout(()=>{el.style.transform='';},100);
+      setTimeout(()=>{handleCellClick(r,c,true);}, 140);
+    } else {
+      handleCellClick(r,c,true);
+    }
+  }
+
+  function handleCellClick(r,c,isAuto=false) {
+    if (!selecting || currentPlayer()==null) return;
+    const cell = board[r][c];
+    if (cell.hit || cell.miss) return;
+
+    clearTimer();
+
+    if (cell.boatId === null) {
+      cell.miss = true;
+      selecting = false;
+      setStatus(`${currentPlayer().name} rate sa cible.`, currentPlayer().color);
+      renderBoard();
+      setTimeout(() => {
+        nextPlayer();
+      }, 500);
+      return;
+    }
+
+    // hit
+    cell.hit = true;
+    cell.hitBy = currentPlayer().id;
+    currentPlayer().hits += 1;
+    const boat = boats.find(b=>b.id===cell.boatId);
+    if (boat) {
+      boat.hits += 1;
+      if (boat.hits >= boat.length && !boat.sunk) {
+        boat.sunk = true;
+        const current = currentPlayer();
+        current.sinkCount += 1;
+        current.qualified = true;
+        if (!boatWins.some(bw => bw.playerId === current.id)) {
+          boatWins.push({playerId: current.id, order: boatWins.length + 1});
+        }
+
+        setStatus(`${current.name} coule un bateau et est qualifié !`, current.color);
+        renderBoard();
+
+        // retire le joueur qualifié du tour
+        activePlayers = activePlayers.filter(p => p.id !== current.id);
+        if (activePlayers.length <= 1) {
+          endGame();
+          return;
+        }
+        currentIdx = currentIdx % activePlayers.length;
+
+        setTimeout(() => {
+          selecting = true;
+          startTurnTimer();
+        }, 600);
+        return;
+      }
+
+      setStatus(`${currentPlayer().name} touche un bateau ! Tire encore.`, currentPlayer().color);
+      renderBoard();
+      setTimeout(() => {
+        selecting = true;
+        startTurnTimer();
+      }, 400);
+      return;
+    }
+
+    renderBoard();
+
+    if (boats.every(b => b.sunk)) {
+      endGame();
+      return;
+    }
+
+    setTimeout(() => {
+      nextPlayer();
+    }, 400);
+  }
+
+  function nextPlayer() {
+    currentIdx = (currentIdx + 1) % activePlayers.length;
+    setStatus(`Tour de ${currentPlayer().name}.`, currentPlayer().color);
+    renderOrder();
+    selecting = true;
+    startTurnTimer();
+  }
+
+  function checkGameEnd() {
+    if (boats.every(b => b.sunk)) {
+      endGame();
+    }
+  }
+
+  function endGame() {
+      window.PourtyMiniGame?.finish();
+    clearTimer();
+    selecting = false;
+    setStatus('Partie terminée !', '#ffe68d');
+    orderEl.innerHTML = '';
+    roundInfoEl.textContent = '';
+
+    const rankedPlayers = [];
+    boatWins.forEach(w => {
+      const p = players.find(pl => pl.id === w.playerId);
+      if (p && !rankedPlayers.includes(p)) rankedPlayers.push(p);
+    });
+
+    const remaining = players.filter(p => !rankedPlayers.includes(p));
+    remaining.sort((a,b) => b.hits - a.hits);
+    rankedPlayers.push(...remaining);
+
+    // on ne montre plus le plateau (fin du jeu)
+    boardEl.style.display = 'none';
+    roundInfoEl.style.display = 'none';
+    timerEl.style.display = 'none';
+
+    finalEl.style.display = 'block';
+    finalEl.innerHTML = '<h2>Classement final</h2>' + rankedPlayers.map((p,i) => {
+      const status = p.sinkCount > 0 ? `bateaux coulés: ${p.sinkCount}` : `aucun bateau`;
+      return `<div style="color:${p.color}">${i+1}. ${p.name} - ${status} (${p.hits} hits)</div>`;
+    }).join('');
+
+    updatePlayerBarRanking(rankedPlayers);
+
+    returnBtn.style.display = 'inline-block';
+  }
+
+  function updatePlayerBarRanking(sorted) {
+    const bar = document.querySelector('.player-bar');
+    if (!bar) return;
+    const pills = Array.from(bar.querySelectorAll('.player-pill'));
+    pills.forEach(pill => {
+      const name = pill.querySelector('span:nth-child(2)')?.textContent?.trim();
+      const res = sorted.find(r => r.name === name);
+      let badge = pill.querySelector('.rank-badge');
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'rank-badge';
+        badge.style.marginLeft = 'auto';
+        badge.style.fontWeight = '900';
+        badge.style.fontSize = '0.85rem';
+        badge.style.padding = '2px 6px';
+        badge.style.borderRadius = '99px';
+        badge.style.background = 'rgba(255,255,255,0.8)';
+        badge.style.color = '#000';
+        pill.appendChild(badge);
+      }
+      if (!res) {
+        badge.textContent = '';
+        pill.style.boxShadow = 'none';
+        pill.style.border = '1px solid rgba(255,255,255,0.28)';
+        pill.style.background = 'rgba(15,24,46,0.95)';
+      } else {
+        const rank = sorted.findIndex(r => r.name === name) + 1;
+        const rankColor = rank === 1 ? '#ffd700' : rank === 2 ? '#c0c0c0' : rank === 3 ? '#cd7f32' : '#8a2be2';
+        badge.textContent = `#${rank}`;
+        pill.style.border = `1px solid ${rankColor}`;
+        pill.style.boxShadow = `0 0 0 2px ${rankColor}`;
+        pill.style.background = 'rgba(255,255,255,0.13)';
+        setACText(pill, rank, sorted.length);
+      }
+    });
+  }
+
+  function announceOrder(callback) {
+    let phase = 0;
+    const preview = setInterval(() => {
+      const randomName = activePlayers[Math.floor(Math.random() * activePlayers.length)].name;
+      statusEl.textContent = `Ordre aléatoire ... ${randomName}`;
+      phase += 1;
+      if (phase >= 20) {
+        clearInterval(preview);
+        activePlayers = shuffle(activePlayers);
+        statusEl.textContent = `Ordre fixé : ${activePlayers.map(p=>p.name).join(' → ')}`;
+        renderOrder();
+        setTimeout(() => {
+          callback();
+        }, 800);
+      }
+    }, 80);
+  }
+
+  function initGame() {
+    createBoard();
+    placeBoats();
+    roundInfoEl.textContent = `Bateaux à trouver: ${boats.length}`;
+    renderBoard();
+    currentIdx = 0;
+    boatWins = [];
+    setStatus(`Tour de ${currentPlayer().name}.`, currentPlayer().color);
+    selecting = true;
+    renderOrder();
+    startTurnTimer();
+  }
+
+  returnBtn.addEventListener('click', () => { window.location.href='../index.html'; });
+
+  setStatus('Animation de sélection de l’ordre...');
+  announceOrder(initGame);
+})();
+  </script>
+</body>
+</html>

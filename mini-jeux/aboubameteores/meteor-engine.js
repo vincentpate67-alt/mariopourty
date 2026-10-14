@@ -1,0 +1,46 @@
+(function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory(require('../aboubatour/matter.min.js'));else root.AboubameteoresEngine=factory(root.Matter);})(typeof globalThis!=='undefined'?globalThis:this,function(M){
+  'use strict';
+  const W=1100,H=720,STEP=1/120,DX=12.5,R=18;
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  function shuffle(list,rng){for(let i=list.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[list[i],list[j]]=[list[j],list[i]];}return list;}
+  function ground(s,x){const f=clamp(x/DX,0,s.heights.length-1),i=Math.min(s.heights.length-2,Math.floor(f));return s.heights[i]*(1-f+i)+s.heights[i+1]*(f-i);}
+  function terrain(s,lo=0,hi=s.heights.length-2){for(let i=Math.max(0,lo);i<=Math.min(hi,s.heights.length-2);i++){if(s.ground[i])M.Composite.remove(s.world,s.ground[i]);const x=i*DX,a=s.heights[i],b=s.heights[i+1],bottom=1000,vertices=[{x,y:a},{x:x+DX,y:b},{x:x+DX,y:bottom},{x,y:bottom}],center=M.Vertices.centre(vertices),body=M.Bodies.fromVertices(center.x,center.y,[vertices],{isStatic:true,friction:.65,label:'ground'},true);s.ground[i]=body;M.Composite.add(s.world,body);}}
+  function block(s,x,y,w,h,kind='wood',angle=0){const body=M.Bodies.rectangle(x,y,w,h,{label:kind,angle,friction:.7,restitution:.13,density:kind==='stone'?.003:.0013,frictionAir:.006});body.game={kind,w,h,hp:kind==='stone'?4:3,tint:s.rng()};s.blocks.push(body);M.Composite.add(s.world,body);return body;}
+  function create(count,rng=Math.random){const engine=M.Engine.create({enableSleeping:true,positionIterations:8,velocityIterations:8});engine.gravity.y=1;engine.gravity.scale=.001;
+    const s={count,rng,engine,world:engine.world,order:shuffle(Array.from({length:count},(_,i)=>i),rng),turn:0,heights:[],ground:[],blocks:[],houses:[],joints:[],players:[],spots:[],meteors:[],events:[],deaths:[],time:0,started:false,over:false,ranking:null,nextMeteor:1.2,serial:0,previous:new Map()};
+    const phase=rng()*6,phase2=rng()*6;for(let i=0;i<=W/DX;i++){const x=i*DX;s.heights.push(510-145*Math.sin(Math.PI*x/W)+14*Math.sin(x/100+phase)+7*Math.sin(x/51+phase2));}
+    const houses=[];for(let i=0;i<5;i++){const x=115+i*215+(rng()-.5)*24,w=95+rng()*30,h=64+rng()*36,level=ground(s,x);for(let j=Math.floor((x-w/2-12)/DX);j<=Math.ceil((x+w/2+12)/DX);j++)if(j>=0&&j<s.heights.length)s.heights[j]=level;houses.push({x,w,h,level});}terrain(s);
+    for(const [i,house]of houses.entries()){const{x,w,h,level}=house,left=block(s,x-w/2,level-h/2,12,h),right=block(s,x+w/2,level-h/2,12,h),roof=block(s,x,level-h-8,w+28,16);s.houses.push({left,right,roof,w,h});for(const side of [left,right]){const joint=M.Constraint.create({bodyA:side,pointA:{x:0,y:-h/2},bodyB:roof,pointB:{x:side.position.x-x,y:8},stiffness:.8,damping:.15});s.joints.push(joint);M.Composite.add(s.world,joint);}s.spots.push({id:s.spots.length,x,y:level-R-1,name:'Maison '+(i+1),owner:null});if(i===1||i===3)s.spots.push({id:s.spots.length,x,y:level-h-16-R,name:'Toit '+(i+1),owner:null});}
+    for(const x of [220,660,880]){const xx=x+(rng()-.5)*12;block(s,xx,ground(s,xx)-18,30+rng()*15,34,'crate');}for(const x of [40,1060]){block(s,x,ground(s,x)-18,36,34,'stone');}
+    s.spots.push({id:s.spots.length,x:440,y:ground(s,440)-R-1,name:'Colline',owner:null});
+    // Settle the houses before offering positions, so the initial choice is stable.
+    for(let i=0;i<150;i++)M.Engine.update(engine,STEP*1000);
+    for(const b of s.blocks)if(b.position.y>H||b.position.x<0||b.position.x>W)M.Composite.remove(s.world,b);s.blocks=s.blocks.filter(b=>b.position.y<=H&&b.position.x>=0&&b.position.x<=W); M.Events.on(engine,'collisionStart',event=>{if(!s.started||s.over)return;for(const pair of event.pairs)collision(s,pair.bodyA,pair.bodyB);});return s;
+  }
+  function choose(s,id,spotId){if(s.started||s.order[s.turn]!==id)return false;const spot=s.spots.find(p=>p.id===spotId);if(!spot||spot.owner!==null)return false;spot.owner=id;s.turn++;return true;}
+  function start(s){if(s.started||s.turn!==s.count)return false;s.started=true;for(let id=0;id<s.count;id++){const spot=s.spots.find(p=>p.owner===id),body=M.Bodies.circle(spot.x,spot.y,R,{label:'player',restitution:.25,friction:.15,frictionAir:.002,density:.002});body.game={kind:'player',id};const p={id,body,dead:false};s.players.push(p);M.Composite.add(s.world,body);}return true;}
+  function kill(s,id,x,y,fraction=.5){const p=s.players[id];if(!p||p.dead)return;p.dead=true;s.deaths.push({id,time:s.time+fraction*STEP,serial:++s.serial});s.events.push({kind:'out',owner:id,x,y});M.Composite.remove(s.world,p.body);}
+  function removeBlock(s,b){if(b.game.removed)return;b.game.removed=true;for(const joint of s.joints)if(joint.bodyA===b||joint.bodyB===b)M.Composite.remove(s.world,joint);s.joints=s.joints.filter(j=>j.bodyA!==b&&j.bodyB!==b);M.Composite.remove(s.world,b);s.events.push({kind:'break',x:b.position.x,y:b.position.y,stone:b.game.kind==='stone'});}
+  function carve(s,x,y,r){let lo=Math.floor((x-r)/DX),hi=Math.ceil((x+r)/DX);for(let i=Math.max(0,lo);i<=Math.min(hi,s.heights.length-1);i++){const d=i*DX-x;if(Math.abs(d)<r)s.heights[i]=Math.min(930,Math.max(s.heights[i],y+Math.sqrt(r*r-d*d)));}terrain(s,lo-1,hi);}
+  function explode(s,b,fraction=.5){if(b.game.spent)return;b.game.spent=true;const{x,y}=b.position,r=b.circleRadius*2.5+20,blast=r*1.7;M.Composite.remove(s.world,b);carve(s,x,y,r);s.events.push({kind:'impact',x,y,r});
+    for(const p of s.players){if(p.dead)continue;const dx=p.body.position.x-x,dy=p.body.position.y-y,d=Math.hypot(dx,dy)||1;if(d<r*.25+R){kill(s,p.id,p.body.position.x,p.body.position.y,fraction);continue;}if(d<blast){M.Sleeping.set(p.body,false);const power=(1-d/blast)*16;M.Body.setVelocity(p.body,{x:p.body.velocity.x+dx/d*power,y:p.body.velocity.y+dy/d*power-2});}}
+    for(const piece of s.blocks){if(piece.game.removed)continue;const dx=piece.position.x-x,dy=piece.position.y-y,d=Math.hypot(dx,dy)||1;if(d<blast){M.Sleeping.set(piece,false);M.Body.setVelocity(piece,{x:piece.velocity.x+dx/d*(1-d/blast)*17,y:piece.velocity.y+dy/d*(1-d/blast)*17-2});M.Body.setAngularVelocity(piece,(s.rng()-.5)*.18);piece.game.hp-=d<r?2:1;if(piece.game.hp<=0)removeBlock(s,piece);}}
+    // Ground removal must wake supports and players, including those outside the shockwave.
+    for(const body of M.Composite.allBodies(s.world))if(!body.isStatic)M.Sleeping.set(body,false);
+  }
+  function collision(s,a,b){for(const [meteor,other]of [[a,b],[b,a]])if(meteor.label==='meteor'&&!meteor.game.spent){const prev=s.previous.get(meteor.id)||meteor.position,travel=Math.hypot(meteor.position.x-prev.x,meteor.position.y-prev.y)||1,fraction=clamp((Math.hypot(prev.x-other.position.x,prev.y-other.position.y)-(meteor.circleRadius+(other.circleRadius||20)))/travel,0,1);if(other.label==='player')kill(s,other.game.id,other.position.x,other.position.y,fraction);explode(s,meteor,fraction);return;}
+    for(const [player,other]of [[a,b],[b,a]])if(player.label==='player'&&!s.players[player.game.id].dead){const v=s.previous.get(player.id)?.v||player.velocity,u=s.previous.get(other.id)?.v||other.velocity,relative=Math.hypot(v.x-u.x,v.y-u.y),vertical=Math.abs(v.y-u.y);if(s.time>.65&&((other.isStatic&&vertical>12)||(!other.isStatic&&other.label!=='player'&&relative>11)))kill(s,player.game.id,player.position.x,player.position.y);}
+    for(const piece of [a,b])if(piece.game&&['wood','crate','stone'].includes(piece.game.kind)&&!piece.game.removed){const other=piece===a?b:a,v=s.previous.get(piece.id)?.v||piece.velocity,u=s.previous.get(other.id)?.v||other.velocity;if(Math.hypot(v.x-u.x,v.y-u.y)>8){piece.game.hp--;if(piece.game.hp<=0)removeBlock(s,piece);}}
+  }
+  function meteor(s){const live=s.players.filter(p=>!p.dead),aim=s.rng()<Math.min(.65,.3+s.time*.004)&&live.length?live[Math.floor(s.rng()*live.length)].body.position.x:80+s.rng()*(W-160),r=9+s.rng()*10+Math.min(18,s.time*.12),x=clamp(aim+(s.rng()-.5)*180,20,W-20),body=M.Bodies.circle(x,-70-s.rng()*80,r,{label:'meteor',frictionAir:0,density:.025,restitution:0});body.game={kind:'meteor',spent:false};M.Body.setVelocity(body,{x:(s.rng()-.5)*3,y:3+s.rng()*2});s.meteors.push(body);M.Composite.add(s.world,body);}
+  function step(s,dt=STEP){if(!s.started||s.over)return;s.time+=dt;if(s.time>=s.nextMeteor){meteor(s);s.nextMeteor=s.time+Math.max(.26,1.8-s.time*.034)*( .8+s.rng()*.4);}
+    s.previous.clear();for(const b of M.Composite.allBodies(s.world))s.previous.set(b.id,{x:b.position.x,y:b.position.y,v:{...b.velocity}});M.Engine.update(s.engine,dt*1000);
+    for(const b of s.meteors)if(!b.game.spent&&b.position.y>H+120){b.game.spent=true;M.Composite.remove(s.world,b);}s.meteors=s.meteors.filter(b=>!b.game.spent);
+    for(const b of s.blocks)if(!b.game.removed&&(b.position.y>H+180||b.position.x<-150||b.position.x>W+150))removeBlock(s,b);s.blocks=s.blocks.filter(b=>!b.game.removed);
+    for(const p of s.players)if(!p.dead&&(p.body.position.y>H+50||p.body.position.x<-80||p.body.position.x>W+80))kill(s,p.id,p.body.position.x,p.body.position.y,.99);
+    const alive=s.players.filter(p=>!p.dead);if(alive.length===0||(alive.length===1&&(s.count>1||s.time>12))){s.over=true;s.ranking=alive.map(p=>p.id).concat([...s.deaths].sort((a,b)=>b.time-a.time||b.serial-a.serial).map(p=>p.id));s.events.push({kind:'finished'});}
+  }
+  return {W,H,R,STEP,create,choose,start,step,ground,carve};
+});
+
+

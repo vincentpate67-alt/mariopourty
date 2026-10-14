@@ -1,0 +1,1643 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <script src="../../party-payout.js"></script>
+<script src="../../board/board-minigame-bridge.js"></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Aboubatrading</title>
+  <link rel="stylesheet" href="../../style.css" />
+  <style>
+    body{background:#081028;color:#fff;font-family:Segoe UI,Roboto,Arial;margin:0;padding:18px}
+    main{max-width:980px;margin:8px auto;text-align:center}
+    h1{margin:8px 0 12px;font-size:2.4rem}
+    #status{min-height:34px;margin-bottom:12px;font-weight:900;font-size:1.2rem}
+
+    .player-order{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:8px 0}
+    .player-chip{padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);font-weight:800}
+    .player-chip.turn-active{ box-shadow:0 12px 30px rgba(255,216,107,0.12); transform:scale(1.04); border-color:rgba(255,216,107,0.9); }
+
+    /* keep small animations but rely on style.css for the exact player-bar / player-pill styling */
+    .player-chip, .player-pill{transition:transform .28s ease,opacity .28s ease}
+    .player-chip.chosen{transform:scale(1.06);box-shadow:0 6px 24px rgba(0,0,0,0.45)}
+    /* squares band between 25% and 75% of horizontal size */
+    .squares-band{ width:50%; max-width:75%; min-width:240px; margin:12px auto 0; }
+    .squares-row{ display:flex; justify-content:space-between; align-items:center; width:100%; gap:12px; }
+    .square{ width:clamp(44px,6vw,72px); height:clamp(44px,6vw,72px); background:linear-gradient(180deg,#0b1830,#071225); border-radius:8px; border:1px solid rgba(255,255,255,0.04); box-shadow:0 6px 18px rgba(0,0,0,0.45); display:flex;align-items:center;justify-content:center; color:#ffffff; font-weight:900; font-size:clamp(20px,5vw,36px); }
+    /* days are shown inside squares */
+    .market-wrap{ position:relative; width:50%; max-width:75%; min-width:240px; height:260px; margin:24px auto; display:flex; align-items:center; justify-content:center; }
+    #marketCanvas{ width:100%; height:100%; display:block; border-radius:10px; }
+    .float-change{ position:absolute; pointer-events:none; font-weight:900; font-size:clamp(12px,2.6vw,18px); transition: transform .9s ease-out, opacity .9s ease-out; transform:translateY(0); opacity:1; white-space:nowrap; text-shadow:0 6px 18px rgba(0,0,0,0.6); }
+    .market-instr{ text-align:center; margin-top:8px; color:rgba(255,255,255,0.7); font-weight:700; font-size:0.95rem; }
+    .square.active-day{ transform: translateY(-8px); box-shadow:0 18px 36px rgba(255,216,107,0.08); transition: transform .3s ease, box-shadow .3s ease; }
+    /* day number and meta under each square */
+    .square .day-number{ display:block; }
+    .square .day-meta{ margin-top:6px; font-size:0.78rem; color:rgba(255,255,255,0.78); display:flex; flex-direction:column; gap:2px; align-items:center; opacity:0; transform:translateY(6px); transition: opacity .36s ease, transform .36s ease; }
+    .square .day-meta.visible{ opacity:1; transform:translateY(0); }
+    .square .day-price{ font-weight:800; font-size:0.85rem; color:rgba(230,240,255,0.95); }
+    .square .day-pct{ font-weight:900; font-size:0.85rem; }
+    /* active day's number is golden and gets a persistent glow while active */
+    .square.active-day .day-number{ color:#ffd86b; text-shadow:0 8px 28px rgba(255,216,107,0.95); transition: text-shadow .6s ease, color .3s ease; }
+    /* player-pill wallet and active state */
+    .player-pill .pill-wallet{ margin-left:10px; font-weight:800; color:rgba(230,240,255,0.95); }
+    .player-pill.active{ border-color:transparent; }
+
+    /* Player bar layout: allow it to use available horizontal space instead of compressing names */
+    .player-bar{ display:flex; gap:10px; align-items:center; justify-content:flex-start; padding:8px 12px; box-sizing:border-box; width:auto; max-width:none; overflow-x:auto; }
+    .player-bar::-webkit-scrollbar{ height:8px; }
+    .player-bar::-webkit-scrollbar-thumb{ background:rgba(255,255,255,0.06); border-radius:6px; }
+    .player-pill{ display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:10px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.04); font-weight:800; flex:0 0 auto; min-width:120px; white-space:nowrap; }
+    .player-pill .pill-name{ max-width:26ch; overflow:hidden; text-overflow:ellipsis; }
+
+    /* controls and timer styles */
+    #actionButtons button{ padding:8px 14px; border-radius:10px; font-weight:800; border:none; cursor:pointer; min-width:110px; box-shadow:0 6px 18px rgba(0,0,0,0.4); }
+    #btnInvest{ background:linear-gradient(90deg,#34d058,#1ea34a); color:#062b10; }
+    #btnSell{ background:linear-gradient(90deg,#ff6b6b,#ff3b3b); color:#2b0505; }
+    #btnPass{ background:linear-gradient(90deg,#ffd86b,#ffb36b); color:#3a2b05; }
+    #timerLabel{ background:#ffffff; color:#071225; padding:2px 8px; border-radius:8px; box-shadow:0 6px 14px rgba(0,0,0,0.3); font-weight:900; }
+    #timerWrap{ box-shadow: inset 0 1px 0 rgba(255,255,255,0.02); }
+    /* popup notifications top-right */
+    .game-popup-area{ position:fixed; top:20px; right:20px; display:flex; flex-direction:column; gap:10px; align-items:flex-end; z-index:9999; }
+    .game-popup{ width:280px; background:linear-gradient(180deg,#0b1830,#071225); border:1px solid rgba(255,255,255,0.06); color:#fff; padding:12px 12px 14px; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,0.5); opacity:0; transform:translateY(-12px) scale(0.98); display:flex; gap:10px; align-items:flex-start; }
+    .game-popup.enter{ animation: popupIn .32s ease forwards; }
+    .game-popup.exit{ animation: popupOut .36s ease forwards; }
+    @keyframes popupIn{ from{ opacity:0; transform:translateY(-18px) scale(0.98);} to{ opacity:1; transform:translateY(0) scale(1);} }
+    @keyframes popupOut{ from{ opacity:1; transform:translateY(0) scale(1);} to{ opacity:0; transform:translateY(-18px) scale(0.98);} }
+    .game-popup .profile{ width:44px; height:52px; border-radius:8px; background:transparent; flex:0 0 44px; overflow:hidden; display:flex; align-items:center; justify-content:center; }
+    .game-popup .profile img{ width:100%; height:100%; object-fit:contain; display:block; }
+    .game-popup .meta{ flex:1 1 auto; display:flex; flex-direction:column; gap:4px; }
+    .game-popup .meta .top{ display:flex; justify-content:space-between; align-items:flex-start; }
+    .game-popup .meta .top .left{ display:flex; gap:8px; align-items:center; }
+    .game-popup .meta .pseudo{ font-weight:900; font-size:0.98rem; }
+    .game-popup .meta .message{ font-size:0.86rem; color:rgba(230,230,240,0.92); margin-top:6px; }
+    .game-popup .meta .date{ font-size:0.78rem; color:rgba(255,255,255,0.7); }
+    .game-popup .meta .platform{ font-size:0.72rem; color:rgba(200,200,200,0.6); }
+    /* news button tooltip */
+    .news-container{ position:relative; display:inline-block; }
+    .news-tooltip{ position:absolute; top:calc(100% + 8px); right:0; background:linear-gradient(180deg,#0b1830,#071225); border:1px solid rgba(255,255,255,0.06); padding:8px 10px; border-radius:8px; font-size:0.85rem; color:rgba(230,230,240,0.95); box-shadow:0 8px 20px rgba(0,0,0,0.45); white-space:nowrap; display:none; z-index:10001; }
+    .news-tooltip.visible{ display:block; opacity:1; transition:opacity .18s ease; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Aboubatrading</h1>
+    <div id="status">Chargement des joueurs...</div>
+    <div id="order" class="player-order" aria-hidden="false"></div>
+  </main>
+
+  <!-- controls will be placed under the marketWrap to keep layout consistent -->
+
+  <div id="squaresBand" class="squares-band hidden" aria-hidden="true">
+    <div id="squares" class="squares-row"></div>
+  </div>
+
+  <div id="marketWrap" class="market-wrap hidden" aria-hidden="true">
+    <canvas id="marketCanvas"></canvas>
+  </div>
+
+  <div style="max-width:980px;margin:6px auto 0;text-align:center;">
+    <button id="btnReturn" style="display:none;margin-top:6px;padding:8px 12px;border-radius:10px;background:#ff776d;color:#fff;border:none;font-weight:700;cursor:pointer">Retour</button>
+  </div>
+
+  <div style="max-width:980px;margin:8px auto;text-align:center;">
+    <div id="controls" style="margin-top:8px;display:none;" aria-hidden="true">
+      <div id="turnStatus" style="font-weight:900;margin:6px 0;color:#fff"> </div>
+      <div id="timerWrap" style="width:60%;max-width:600px;margin:8px auto;position:relative;height:20px;background:rgba(255,255,255,0.06);border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,0.06);">
+        <div id="timerBar" style="position:absolute;right:0;top:0;bottom:0;width:100%;background:linear-gradient(90deg,#ffd86b,#ffb36b);transform-origin:right;transition:width 0.2s linear;"></div>
+        <div id="timerLabel" style="position:absolute;left:8px;top:0;bottom:0;display:flex;align-items:center;font-weight:800;color:#071225;">15s</div>
+      </div>
+      <div id="actionArea" style="margin-top:8px;display:flex;flex-direction:column;gap:8px;align-items:center;">
+        <div id="actionButtons" style="display:flex;gap:8px;justify-content:center;width:100%;align-items:center;">
+          <button id="btnInvest">Investir</button>
+          <button id="btnSell">Vendre</button>
+          <button id="btnPass">Passer</button>
+          <div class="news-container" style="margin-left:6px;">
+            <button id="btnNews">News</button>
+            <div id="newsTooltip" class="news-tooltip">Affiche 4 news, seule 1 est une source sûr</div>
+          </div>
+        </div>
+        <div id="buySellControls" style="display:flex;gap:12px;align-items:flex-start;">
+          <div id="buyControl" style="display:none;flex-direction:column;align-items:center;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <input id="buyAmount" type="number" min="1" step="1" style="width:120px;padding:6px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.02);color:#fff" />
+              <button id="buyEmoji" title="Confirmer l'achat" style="background:transparent;border:none;color:inherit;font-size:18px;cursor:pointer;padding:0">✅</button>
+            </div>
+            <div style="font-size:0.85rem;color:rgba(255,255,255,0.7);margin-top:6px">Max: <span id="buyMax">0</span>$</div>
+          </div>
+          <div id="sellControl" style="display:none;flex-direction:column;align-items:center;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <input id="sellAmount" type="number" min="1" step="1" style="width:120px;padding:6px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.02);color:#fff" />
+              <button id="sellEmoji" title="Confirmer la vente" style="background:transparent;border:none;color:inherit;font-size:18px;cursor:pointer;padding:0">✅</button>
+            </div>
+            <div style="font-size:0.85rem;color:rgba(255,255,255,0.7);margin-top:6px">Max: <span id="sellMax">0</span>$</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="playerBar" class="player-bar" aria-hidden="false"></div>
+  <script src="../commun/game-players.js"></script>
+
+  <script>
+  (function(){
+    const stored = JSON.parse(localStorage.getItem('mini-Jeux-host-players') || '[]');
+    const statusEl = document.getElementById('status');
+    const orderEl = document.getElementById('order');
+    const playerBar = document.getElementById('playerBar');
+    // If game-players.js also injected a .player-bar, remove duplicates and keep the page's one.
+    // Use load + MutationObserver to catch bars injected after this script runs.
+    (function(){
+      function removeExtraBars(){
+        const bars = Array.from(document.querySelectorAll('.player-bar'));
+        if (bars.length <= 1) return;
+        const keep = document.getElementById('playerBar') || bars[0];
+        bars.forEach(b => { if (b !== keep) b.remove(); });
+      }
+      // run now in case another script already added one
+      try{ removeExtraBars(); }catch(e){}
+      // run again when page fully loads
+      window.addEventListener('load', ()=>{ try{ removeExtraBars(); }catch(e){} });
+      // observe for late insertions (disconnect after a short time)
+      try{
+        const mo = new MutationObserver((mutations)=>{
+          for (const m of mutations){ if (m.addedNodes && m.addedNodes.length){ removeExtraBars(); break; } }
+        });
+        mo.observe(document.body, { childList: true, subtree: true });
+        setTimeout(()=>{ try{ mo.disconnect(); }catch(e){} }, 4000);
+      }catch(e){}
+    })();
+    // popup area container
+    (function(){
+      const area = document.createElement('div'); area.className = 'game-popup-area'; area.id = 'gamePopupArea'; document.body.appendChild(area);
+    })();
+    
+    const timerBar = document.getElementById('timerBar');
+    const timerLabel = document.getElementById('timerLabel');
+    const btnInvest = document.getElementById('btnInvest');
+    const btnSell = document.getElementById('btnSell');
+    const btnPass = document.getElementById('btnPass');
+    const btnNews = document.getElementById('btnNews');
+    const newsTooltip = document.getElementById('newsTooltip');
+
+    if (!stored.length){ statusEl.textContent = 'Aucun joueur enregistré.'; return; }
+
+    // normalize players
+    let players = stored.map((p, idx) => ({ id: idx, name: p.name, color: p.color || '#8ac6ff', wallet: 100, stockValue: 0, stockPrincipal: 0, lastNewsDay: -1 }));
+
+    function shuffle(a){ return a.slice().sort(()=>Math.random()-0.5); }
+
+    // render a compact player pill used in the bottom bar
+    function createPill(player){
+      const pill = document.createElement('div'); pill.className = 'player-pill';
+      pill.style.borderColor = player.color;
+      const circle = document.createElement('span'); circle.className = 'player-circle'; circle.style.background = player.color;
+      const nm = document.createElement('span'); nm.className = 'pill-name'; nm.textContent = player.name;
+      const wallet = document.createElement('span'); wallet.className = 'pill-wallet'; wallet.textContent = `$${Math.round(player.wallet || 0)}`;
+      const stock = document.createElement('span'); stock.className = 'pill-stock'; stock.style.color = 'rgba(200,200,210,0.85)'; stock.textContent = `$${Math.round(player.stockValue || 0)}`;
+      const stockPct = document.createElement('span'); stockPct.className = 'pill-stock-pct'; stockPct.style.marginLeft = '6px'; stockPct.style.fontWeight = '800'; stockPct.style.display = (player.stockValue>0? 'inline-block':'none'); stockPct.textContent = '';
+      pill.appendChild(circle); pill.appendChild(nm); pill.appendChild(wallet); pill.appendChild(stock); pill.appendChild(stockPct);
+      return pill;
+    }
+
+    // render the bottom player bar using `createPill`
+    function renderPlayerBar(playersList){
+      try{
+        if (!playerBar) return;
+        playerBar.innerHTML = '';
+        playersList.forEach((p, idx) => {
+          const pill = createPill(p);
+          pill.dataset.name = p.name;
+          pill.dataset.idx = idx;
+          // clicking a pill jumps to that player's turn within the current order (if present)
+          pill.addEventListener('click', ()=>{
+            try{
+              const oi = order.findIndex(o => o.name === p.name);
+              if (oi !== -1){ turnIndex = oi; startTurn(); }
+            }catch(e){}
+          });
+          playerBar.appendChild(pill);
+        });
+        // ensure values reflect current state
+        updatePlayerBar();
+      }catch(e){}
+    }
+
+    function updatePlayerBar(){
+      try{
+        if (!playerBar) return;
+        const pills = Array.from(playerBar.querySelectorAll('.player-pill'));
+        pills.forEach(pill => {
+          const name = pill.querySelector('.pill-name')?.textContent?.trim();
+          if (!name) return;
+          const p = players.find(x => x.name === name);
+          if (!p) return;
+          const walletEl = pill.querySelector('.pill-wallet');
+          const stockEl = pill.querySelector('.pill-stock');
+          const stockPctEl = pill.querySelector('.pill-stock-pct');
+          if (walletEl) walletEl.textContent = `$${Math.round(p.wallet)}`;
+          if (stockEl) stockEl.textContent = `$${Math.round(p.stockValue)}`;
+          if (stockPctEl){
+            const hasStock = Math.round(p.stockValue) > 0;
+            if (hasStock && Math.round(p.stockPrincipal) > 0){
+              const pct = Math.round(((p.stockValue - p.stockPrincipal) / Math.max(1, p.stockPrincipal)) * 100);
+              stockPctEl.textContent = (pct>0?'+':'') + pct + '%';
+              stockPctEl.style.color = pct >= 0 ? '#3cff6b' : '#ff6b6b';
+              stockPctEl.style.display = 'inline-block';
+            } else {
+              stockPctEl.textContent = '';
+              stockPctEl.style.display = 'none';
+            }
+          }
+        });
+      }catch(e){}
+    }
+
+    // compute ranking by total wealth (wallet + stockValue) and annotate pills
+    // call with show=true to display ranking/AC (only at game end)
+    function updatePlayerBarRanking(show){
+      const bar = playerBar; if (!bar) return;
+      const pills = Array.from(bar.querySelectorAll('.player-pill'));
+      if (!show){
+        // remove badges and reset overlays
+        pills.forEach(pill=>{
+          const badge = pill.querySelector('.rank-badge'); if (badge) badge.remove();
+          const acBadge = pill.querySelector('.ac-badge'); if (acBadge) acBadge.style.display = 'none';
+          pill.style.boxShadow = '';
+          pill.style.border = '';
+        });
+        return;
+      }
+      // compute totals and sort (tie-break: use current play `order` so earlier players rank higher on ties)
+      const ranking = players.map((p, idx)=>({ name: p.name, total: Math.round((p.wallet || 0) + (p.stockValue || 0)), color: p.color, idx, orderIdx: order.findIndex(o => o.name === p.name) }));
+      ranking.sort((a,b)=>{
+        if (b.total !== a.total) return b.total - a.total;
+        const ai = (typeof a.orderIdx === 'number' && a.orderIdx >= 0) ? a.orderIdx : a.idx;
+        const bi = (typeof b.orderIdx === 'number' && b.orderIdx >= 0) ? b.orderIdx : b.idx;
+        return ai - bi; // smaller orderIdx = earlier in play order => higher rank
+      });
+      pills.forEach(pill=>{
+        const name = pill.querySelector('.pill-name')?.textContent?.trim();
+        const idx = ranking.findIndex(r=> r.name === name);
+        let badge = pill.querySelector('.rank-badge');
+        if (!badge){ badge = document.createElement('span'); badge.className = 'rank-badge'; badge.style.marginLeft='8px'; badge.style.fontWeight='900'; badge.style.fontSize='0.85rem'; badge.style.padding='2px 6px'; badge.style.borderRadius='99px'; badge.style.background='rgba(255,255,255,0.12)'; badge.style.color='#fff'; badge.style.marginLeft='auto'; pill.appendChild(badge); }
+        if (idx === -1){ badge.textContent = ''; pill.style.boxShadow=''; pill.style.border = ''; }
+        else {
+          const rank = idx + 1;
+          badge.textContent = `#${rank}`;
+          const rankColor = rank === 1 ? '#ffd700' : rank === 2 ? '#c0c0c0' : rank === 3 ? '#cd7f32' : '#8a2be2';
+          pill.style.border = `1px solid ${rankColor}`;
+          pill.style.boxShadow = `0 0 0 6px ${rankColor}22`;
+          if (typeof setACText === 'function') setACText(pill, rank, ranking.length);
+        }
+      });
+    }
+
+    function computeSquaresCount(n){
+      if (n <= 3) return 5; // 2-3 players => 5 squares (also 1 falls here)
+      if (n <= 5) return 4; // 4-5 players => 4 squares
+      return 3; // 6+ players => 3 squares
+    }
+
+    function renderSquares(){
+      const row = document.getElementById('squares'); if (!row) return;
+      row.innerHTML = '';
+      const count = computeSquaresCount(players.length);
+      for (let i=0;i<count;i++){
+        const s = document.createElement('div'); s.className = 'square'; s.dataset.idx = i; row.appendChild(s);
+      }
+    }
+
+    function addDays(date, days){ const d = new Date(date.getTime()); d.setDate(d.getDate() + days); return d; }
+    function formatDayTwo(date){ return String(date.getDate()).padStart(2,'0'); }
+    function populateSquaresWithDates(startDate){
+      const row = document.getElementById('squares'); if (!row) return;
+      row.innerHTML = '';
+      const count = computeSquaresCount(players.length);
+      for (let i=0;i<count;i++){
+        const d = addDays(startDate, i);
+        const s = document.createElement('div'); s.className = 'square'; s.dataset.idx = i;
+        // structure: day number + meta area for price and pct
+        const num = document.createElement('div'); num.className = 'day-number'; num.textContent = formatDayTwo(d);
+        const meta = document.createElement('div'); meta.className = 'day-meta';
+        const price = document.createElement('div'); price.className = 'day-price'; price.textContent = '--';
+        const pct = document.createElement('div'); pct.className = 'day-pct'; pct.textContent = '';
+        meta.appendChild(price); meta.appendChild(pct);
+        s.appendChild(num); s.appendChild(meta);
+        row.appendChild(s);
+      }
+    }
+
+    let order = shuffle(players.slice());
+    // tickers list and chosen ticker for the current instrument label (3-4 letters)
+    const tickersList = ['TIGR','ABOUB','KFC','NIGG','GUEZZ','DBEL','CS2','PROUT', 'DAX40', 'SMIG', 'MCDO', 'HITL'];
+    const chosenTicker = tickersList[Math.floor(Math.random()*tickersList.length)];
+    // pick a random hue and derive background + border colors so text stays readable
+    const _tickerHue = Math.floor(Math.random()*360);
+    const tickerBG = `hsla(${_tickerHue},60%,14%,0.96)`; // dark translucent bg
+    const tickerBorder = `hsl(${_tickerHue},75%,64%)`; // brighter border
+
+    function renderOrder(){
+      orderEl.innerHTML = '';
+      order.forEach(p => {
+        const chip = document.createElement('div'); chip.className = 'player-chip';
+        chip.style.borderColor = p.color; chip.textContent = p.name; orderEl.appendChild(chip);
+      });
+      // keep bottom player-bar positions unchanged (rendered from `players`), do not reorder it here
+    }
+
+    function announceOrder(){
+      orderEl.innerHTML = '';
+      let step = 0;
+      const preview = setInterval(()=>{
+        statusEl.textContent = 'Ordre aléatoire... ' + stored[Math.floor(Math.random()*stored.length)].name;
+        step++; if (step>18){ clearInterval(preview); order = shuffle(players.slice()); renderOrder(); statusEl.textContent = 'Ordre fixé';
+          // small highlight animation on the pill corresponding to the first in `order` (without changing positions)
+          const pills = Array.from(playerBar.querySelectorAll('.player-pill'));
+          const target = pills.find(pill => pill.querySelector('.pill-name')?.textContent?.trim() === order[0].name);
+          if (target){ target.classList.add('chosen'); setTimeout(()=> target.classList.remove('chosen'), 900); }
+            // reveal and populate squares with consecutive dates starting today
+            const band = document.getElementById('squaresBand'); if (band){ band.classList.remove('hidden'); band.setAttribute('aria-hidden','false'); }
+            populateSquaresWithDates(new Date());
+        }
+      }, 80);
+    }
+
+    // init
+    renderPlayerBar(players);
+    renderSquares();
+    announceOrder();
+
+    
+
+    const buyControl = document.getElementById('buyControl');
+    const sellControl = document.getElementById('sellControl');
+    const buyAmountEl = document.getElementById('buyAmount');
+    const sellAmountEl = document.getElementById('sellAmount');
+    const buyMaxEl = document.getElementById('buyMax');
+    const sellMaxEl = document.getElementById('sellMax');
+    const buyEmojiEl = document.getElementById('buyEmoji');
+    const sellEmojiEl = document.getElementById('sellEmoji');
+
+    // button listeners
+    if (btnPass) btnPass.addEventListener('click', ()=>{ passTurn(); });
+    if (btnInvest) btnInvest.addEventListener('click', ()=>{ onInvestClick(); });
+    if (btnSell) btnSell.addEventListener('click', ()=>{ onSellClick(); });
+    if (btnNews) {
+      btnNews.addEventListener('mouseenter', ()=>{ try{ newsTooltip.classList.add('visible'); }catch(e){} });
+      btnNews.addEventListener('mouseleave', ()=>{ try{ newsTooltip.classList.remove('visible'); }catch(e){} });
+      btnNews.addEventListener('click', ()=>{
+        try{
+          const player = order[turnIndex]; if (!player) return;
+          const p = players.find(x=>x.name===player.name); if (!p) return;
+          // only one news per player per day (news are free)
+          if (typeof p.lastNewsDay === 'number' && p.lastNewsDay === currentDayIndex){ createPopup('Déjà acheté aujourd\'hui'); return; }
+          p.lastNewsDay = currentDayIndex;
+          updatePlayerBar(); updateBuySellMax();
+          // trigger bang behaviour (reused logic)
+          triggerBang();
+        }catch(e){}
+      });
+    }
+    const btnReturnEl = document.getElementById('btnReturn'); if (btnReturnEl) btnReturnEl.addEventListener('click', ()=>{ window.location.href = '../../index.html'; });
+
+    // emoji confirm click handlers (click the ✅ to commit)
+    if (buyEmojiEl) buyEmojiEl.addEventListener('click', ()=>{ try{ commitBuy(); }catch(e){}; activeAction = null; if (buyControl) buyControl.style.display = 'none'; if (buyAmountEl) buyAmountEl.value = ''; try{ updateBuySellMax(); }catch(e){} });
+    if (sellEmojiEl) sellEmojiEl.addEventListener('click', ()=>{ try{ commitSell(); }catch(e){}; activeAction = null; if (sellControl) sellControl.style.display = 'none'; if (sellAmountEl) sellAmountEl.value = ''; try{ updateBuySellMax(); }catch(e){} });
+
+    // round number inputs on blur to avoid decimal issues
+    if (buyAmountEl) buyAmountEl.addEventListener('blur', ()=>{ buyAmountEl.value = Math.max(0, Math.round(Number(buyAmountEl.value) || 0)); });
+    if (sellAmountEl) sellAmountEl.addEventListener('blur', ()=>{ sellAmountEl.value = Math.max(0, Math.round(Number(sellAmountEl.value) || 0)); });
+
+    // pressing Enter in the amount inputs should confirm the buy/sell (simulate emoji click)
+    if (buyAmountEl) buyAmountEl.addEventListener('keydown', (e)=>{ if (e.key === 'Enter'){ e.preventDefault(); try{ commitBuy(); }catch(err){}; activeAction = null; if (buyControl) buyControl.style.display = 'none'; if (buyAmountEl) buyAmountEl.value = ''; try{ updateBuySellMax(); }catch(e){} } });
+    if (sellAmountEl) sellAmountEl.addEventListener('keydown', (e)=>{ if (e.key === 'Enter'){ e.preventDefault(); try{ commitSell(); }catch(err){}; activeAction = null; if (sellControl) sellControl.style.display = 'none'; if (sellAmountEl) sellAmountEl.value = ''; try{ updateBuySellMax(); }catch(e){} } });
+
+    function updateBuySellMax(){
+      const player = order[turnIndex];
+      if (!player) return;
+      const p = players.find(x=>x.name===player.name);
+      if (!p) return;
+      buyMaxEl.textContent = Math.round(p.wallet);
+      sellMaxEl.textContent = Math.round(p.stockValue);
+      // use integers to avoid decimal rounding issues
+      buyAmountEl.max = Math.max(1, Math.floor(Math.round(p.wallet)));
+      sellAmountEl.max = Math.max(1, Math.floor(Math.round(p.stockValue)));
+      // disable sell button if no stock
+      if (p.stockValue <= 0) btnSell.disabled = true; else btnSell.disabled = false;
+      // disable buy button when wallet is empty
+      try{ if (btnInvest) btnInvest.disabled = Math.round(p.wallet) <= 0; }catch(e){}
+      // update news button state/label
+      try{ updateNewsButton(); }catch(e){}
+    }
+
+    // compute news price based on players count
+    function computeNewsPrice(n){
+      if (n <= 3) return 5;
+      if (n === 4) return 10;
+      return 15;
+    }
+
+    function updateNewsButton(){
+      try{
+        if (!btnNews) return;
+        // news are free now
+        btnNews.textContent = `News`;
+        // disable when current player cannot afford
+        const player = order[turnIndex]; if (!player) return;
+        const p = players.find(x=>x.name===player.name); if (!p) return;
+        // disable when cannot afford, already bought today, or game finished
+        btnNews.disabled = (typeof p.lastNewsDay === 'number' && p.lastNewsDay === currentDayIndex) || gameFinished;
+      }catch(e){}
+    }
+
+    // centralised bang trigger used by key and by News button
+    function triggerBang(){
+      try{
+        // mark that the current player saw news this turn (used for auto-passing after an invest)
+        try{ const player = order[turnIndex]; if (player){ const p = players.find(x=>x.name===player.name); if (p) p.newsShownThisTurn = currentDayIndex; } }catch(e){}
+        if (bangState !== 'idle'){
+          try{ bangCreateStaggerTimeouts.forEach(id => clearTimeout(id)); }catch(e){}
+          bangCreateStaggerTimeouts = [];
+          if (Array.isArray(lastBangGroup) && lastBangGroup.length){
+            const copy = lastBangGroup.slice();
+            copy.forEach(h=>{ try{ h.remove(); }catch(e){} });
+            lastBangGroup = [];
+          }
+          bangState = 'removing';
+          scheduleBangCreate(POPUP_EXIT_DURATION + 60);
+          return;
+        }
+        const shuffled = buildBangMsgs();
+        showBangGroupWithMsgs(shuffled);
+      }catch(e){}
+    }
+
+    function arraysEqual(a,b){ if (!a || !b || a.length !== b.length) return false; for (let i=0;i<a.length;i++) if (a[i] !== b[i]) return false; return true; }
+
+    // fast announce at day start ensuring new order differs from previous
+    function announceOrderFast(onDone){
+      try{
+        const prev = order ? order.map(o=>o.name) : [];
+        orderEl.innerHTML = '';
+        let step = 0;
+        const maxSteps = 10;
+        const intervalMs = 48;
+        const preview = setInterval(()=>{
+          statusEl.textContent = 'Ordre aléatoire... ' + stored[Math.floor(Math.random()*stored.length)].name;
+          step++;
+          if (step > maxSteps){
+            clearInterval(preview);
+            // pick a new order different from prev (retry limited times)
+            let attempts = 0; let newOrder = null;
+            do { newOrder = shuffle(players.slice()); attempts++; } while (arraysEqual(newOrder.map(p=>p.name), prev) && attempts < 30);
+            order = newOrder || shuffle(players.slice());
+            renderOrder();
+            statusEl.textContent = 'Ordre fixé';
+            const pills = Array.from(playerBar.querySelectorAll('.player-pill'));
+            const target = pills.find(pill => pill.querySelector('.pill-name')?.textContent?.trim() === order[0].name);
+            if (target){ target.classList.add('chosen'); setTimeout(()=> target.classList.remove('chosen'), 700); }
+            // call onDone after short delay to allow animation
+            if (typeof onDone === 'function') setTimeout(onDone, 220);
+          }
+        }, intervalMs);
+      }catch(e){ if (typeof onDone === 'function') onDone(); }
+    }
+
+    let activeAction = null; // 'buy' or 'sell' or null
+
+    function onInvestClick(){
+      if (activeAction === 'buy'){
+        activeAction = null; if (buyControl) buyControl.style.display = 'none';
+      } else {
+        activeAction = 'buy'; if (buyControl) buyControl.style.display = 'flex'; if (sellControl) sellControl.style.display = 'none';
+        updateBuySellMax(); if (buyAmountEl) buyAmountEl.value = '';
+      }
+    }
+
+    function onSellClick(){
+      if (activeAction === 'sell'){
+        activeAction = null; if (sellControl) sellControl.style.display = 'none';
+      } else {
+        activeAction = 'sell'; if (sellControl) sellControl.style.display = 'flex'; if (buyControl) buyControl.style.display = 'none';
+        updateBuySellMax(); if (sellAmountEl) sellAmountEl.value = '';
+      }
+    }
+
+    function commitBuy(){
+      // round inputs to integers to avoid decimal issues
+      let amt = Math.round(Number(buyAmountEl.value) || 0); if (amt <= 0) return;
+      const player = order[turnIndex]; const p = players.find(x=>x.name===player.name);
+      if (!p) return; if (amt > Math.round(p.wallet)) amt = Math.round(p.wallet);
+      if (amt <= 0) return;
+      // subtract from wallet, add to stockPrincipal and stockValue (rounded)
+      p.wallet = Math.round((p.wallet - amt));
+      p.stockPrincipal = Math.round((p.stockPrincipal + amt));
+      p.stockValue = Math.round((p.stockValue + amt));
+      updatePlayerBar(); updateSquaresMeta(); drawMarket();
+      try{ updateNewsButton(); }catch(e){}
+      // if player already saw news this turn (via news button or trigger), auto-pass after buy
+      try{ const player = order[turnIndex]; const p = players.find(x=>x.name===player.name); if (p && (p.newsShownThisTurn === currentDayIndex || p.lastNewsDay === currentDayIndex)){ setTimeout(()=> passTurn(), 160); } }catch(e){}
+    }
+
+    function commitSell(){
+      // round inputs and values to avoid decimal issues
+      let amt = Math.round(Number(sellAmountEl.value) || 0); if (amt <= 0) return;
+      const player = order[turnIndex]; const p = players.find(x=>x.name===player.name);
+      if (!p) return; if (amt > Math.round(p.stockValue)) amt = Math.round(p.stockValue);
+      if (amt <= 0) return;
+      const prevStockValue = Math.round(p.stockValue);
+      const prevPrincipal = Math.round(p.stockPrincipal);
+      const principalReduction = prevPrincipal > 0 ? Math.round(prevPrincipal * (amt / Math.max(1, prevStockValue))) : 0;
+      p.stockValue = Math.max(0, Math.round(p.stockValue - amt));
+      p.stockPrincipal = Math.max(0, Math.round(p.stockPrincipal - principalReduction));
+      p.wallet = Math.round(p.wallet + amt);
+      // if stockValue becomes 0, ensure pct display resets (handled in updatePlayerBar)
+      updatePlayerBar(); updateSquaresMeta(); drawMarket();
+      try{ updateNewsButton(); }catch(e){}
+      // do not auto-pass after sell; user must press Pass
+    }
+
+    // Market simulation state
+    const marketCanvas = document.getElementById('marketCanvas');
+    const marketWrap = document.getElementById('marketWrap');
+    const squaresBand = document.getElementById('squaresBand');
+    let marketCtx = null;
+    let marketData = []; // array of daily prices
+    let marketPaths = []; // per-segment arrays of sample prices for micro-variations
+    const SAMPLES_PER_SEG = 12;
+    let currentDayIndex = 0; // index into marketData (0..count-1)
+    let marketAnimating = false;
+    // turn state
+    const TURN_TIME = 30; // seconds
+    let turnIndex = 0; // index in `order` for whose turn it is within the current day
+    let turnTimerId = null;
+    let turnTimeLeft = TURN_TIME * 1000;
+    let gameFinished = false;
+    let nextForecast = null;
+    const activePopups = [];
+    let lastBangGroup = [];
+    const BANG_STAGGER = 140; // ms between each popup entrance for smooth animation
+    const POPUP_EXIT_DURATION = 420; // ms to wait for exit animation to finish
+    let bangState = 'idle'; // 'idle' | 'creating' | 'present' | 'removing'
+    let bangCreateTimeoutId = null; // scheduled creator after removal
+    let bangCreateStaggerTimeouts = []; // timeouts used while staggering creation
+    let hadUpTick = false; // track whether at least one upward daily move happened this game
+    let trueOnlyUsedDay = -1; // prevent showing multiple trueOnly messages in the same day
+    let overtureUsed = false; // one-time special event availability
+    let activeOvertureHandle = null; // handle for persistent overture popup
+    let todayOvertureMultiplier = 1; // multiplier applied to token numbers on the overture day
+
+    function highlightOrderChip(name){
+      const chips = Array.from(orderEl.querySelectorAll('.player-chip'));
+      chips.forEach(c=>{ 
+        if (c.textContent.trim() === name){ 
+          c.classList.add('turn-active'); 
+          // color the glow / border using the player's color
+          const p = players.find(x => x.name === name);
+          if (p) c.style.boxShadow = `0 12px 30px ${p.color}40`;
+        } else { 
+          c.classList.remove('turn-active'); c.style.boxShadow='';
+        }
+      });
+    }
+
+    function highlightPlayerPill(name){
+      const pills = Array.from(playerBar.querySelectorAll('.player-pill'));
+      pills.forEach(p=>{ 
+        const nm = p.querySelector('.pill-name')?.textContent?.trim();
+        if (nm === name){ 
+          p.classList.add('active');
+          const pl = players.find(x=>x.name===name);
+          if (pl) p.style.boxShadow = `0 12px 30px ${pl.color}40`;
+        } else { p.classList.remove('active'); p.style.boxShadow=''; }
+      });
+    }
+
+    function setStatusForPlayer(player){
+      // set the top status text entirely in player's color
+      statusEl.innerHTML = `<span style="color:${player.color};font-weight:900">${player.name}, à toi de jouer!</span>`;
+    }
+
+    function stopTurnTimer(){
+      if (turnTimerId) { clearInterval(turnTimerId); turnTimerId = null; }
+    }
+
+    function updateTimerUI(){
+      if (!timerBar || !timerLabel) return;
+      const pct = Math.max(0, turnTimeLeft / (TURN_TIME * 1000));
+      timerBar.style.width = (pct * 100) + '%';
+      timerLabel.textContent = Math.ceil(turnTimeLeft/1000) + 's';
+    }
+
+    function startTurn(){
+      if (gameFinished) return;
+      // ensure order exists
+      if (!order || !order.length) return;
+      const player = order[turnIndex];
+      highlightOrderChip(player.name);
+      highlightPlayerPill(player.name);
+      setStatusForPlayer(player);
+      
+      // reset timer
+      stopTurnTimer();
+      turnTimeLeft = TURN_TIME * 1000;
+      // hide any buy/sell controls when a new turn starts
+      activeAction = null; if (buyControl) buyControl.style.display = 'none'; if (sellControl) sellControl.style.display = 'none';
+      updatePlayerBar();
+      updateBuySellMax();
+      updateTimerUI();
+      turnTimerId = setInterval(()=>{
+        turnTimeLeft -= 200;
+        if (turnTimeLeft <= 0){
+          // timeout -> pass turn
+          stopTurnTimer();
+          passTurn();
+          return;
+        }
+        updateTimerUI();
+      }, 200);
+    }
+
+    function finishGame(){
+      window.PourtyMiniGame?.finish();
+      gameFinished = true;
+      stopTurnTimer();
+      statusEl.textContent = 'Le jeu est fini.';
+      
+      // disable buttons
+      if (btnInvest) btnInvest.disabled = true;
+      if (btnSell) btnSell.disabled = true;
+      if (btnPass) btnPass.disabled = true;
+      // ensure UI up to date and show final ranking + AC badges
+      try{ updatePlayerBar(); }catch(e){}
+      try{ updatePlayerBarRanking(true); }catch(e){}
+      // show return button now
+      try{ if (btnReturnEl) btnReturnEl.style.display = ''; }catch(e){}
+    }
+
+    function passTurn(){
+      // advance to next player; if all players had their turn, advance day
+      stopTurnTimer();
+      turnIndex++;
+      if (turnIndex >= order.length){
+        // round complete -> check if we should advance day
+        const count = computeSquaresCount(players.length);
+        // if advancing would move to the last day (which should not be played as a normal round),
+        // do a final reveal: advance to last day, show final animations for ~1.5s without controls/timer, then finish
+        if (currentDayIndex >= count - 2){
+          // hide controls and disable buttons/timer
+          const controlsEl = document.getElementById('controls'); if (controlsEl){ controlsEl.style.display = 'none'; controlsEl.setAttribute('aria-hidden','true'); }
+          stopTurnTimer();
+          if (btnInvest) btnInvest.disabled = true; if (btnSell) btnSell.disabled = true; if (btnPass) btnPass.disabled = true;
+          // show selling message
+          try{ statusEl.textContent = "Entrain de vendre les dernières actions..."; }catch(e){}
+          // advance to final day and show animations
+          const advanced = advanceOneDay();
+          // after final market evolution, auto-sell remaining stocks for all players
+          setTimeout(()=>{
+            // ensure market advanced fully
+            try{
+              const lastPrev = marketData[currentDayIndex-1] || marketData[currentDayIndex];
+              const lastCur = marketData[currentDayIndex];
+              // apply market to stocks one last time (should already be applied by advanceOneDay, but ensure)
+              try{ applyMarketToStocks(lastPrev, lastCur); }catch(e){}
+              // sell remaining stocks for all players at final price -> move stockValue to wallet and reset principal/value
+              players.forEach(p=>{
+                const sellAmt = Math.round(p.stockValue || 0);
+                if (sellAmt > 0){ p.wallet = Math.round(p.wallet + sellAmt); p.stockValue = 0; p.stockPrincipal = 0; }
+              });
+              updatePlayerBar(); updateSquaresMeta(); drawMarket();
+            }catch(e){}
+            // wait briefly so users see the sell result, then finish
+            setTimeout(()=>{ finishGame(); }, 800);
+          }, 600);
+          return;
+        }
+        const advanced = advanceOneDay();
+        if (!advanced){
+          finishGame();
+          return;
+        }
+        // reset to first player
+        turnIndex = 0;
+        // refresh meta
+        updateSquaresMeta();
+        // at the start of the new day, reshuffle order quickly (different from previous)
+        announceOrderFast(()=>{
+          try{ startTurn(); }catch(e){ startTurn(); }
+        });
+        // startTurn will be called by announceOrderFast callback
+        return;
+      }
+      // start next player's turn
+      startTurn();
+    }
+
+    function ensureCanvasSize(){
+      if (!marketCanvas) return;
+      const rect = marketCanvas.getBoundingClientRect();
+      marketCanvas.width = Math.floor(rect.width * devicePixelRatio);
+      marketCanvas.height = Math.floor(rect.height * devicePixelRatio);
+      marketCtx = marketCanvas.getContext('2d');
+      marketCtx.scale(devicePixelRatio, devicePixelRatio);
+      drawMarket();
+    }
+
+    // popup generation lists and helper
+    const pseudoBases = ['Divago','Vincent paté','Jacobin','Porto','Donald trump','Joe biden','Elon musk','Michel skibidi','DBEL','Zankirigu','M.Allard','Saucisse','Belkayet','Mashallah','Tahmed','Blue yéti','Mamadou','Macwalter','Lipome','Cramptés','Troudpoil'];
+    const popupWraps = ['xX{base}_du_{num}Xx','Abouba-{base}','Quoicou-{base}','{base}_lover','{base} le chad','{base}#{num}', 'Smooth-{base}', 'Giga-{base}', 'Fan de {base}' ];
+    const platforms = ['X','Twitter','Youtube','Discord','Instagram','BBC News','QuoicouNews','BoubaNews','SkibidiTV', 'Parcoursup', 'LinkedIn', 'Reddit', 'Twitch', 'TikTok', 'WhatsApp', 'Snapchat'];
+
+    // --- prewritten news message templates ---
+    const stagneTemplates = [
+      { text: "Ouais j'pense l'{TICKER} il va pas trop bouger la team" },
+      { text: "l'{TICKER} il dort ou quoiiii il est fada le type" },
+      { text: "100% l'{TICKER} il bouge pas d'un poil..." },
+      { text: "Zzz le {TICKER}..." },
+      { text: "Wesh c'est le confinement ou quoi zebi la teamz (parce que le marché là il est fatiguééé)" },
+      { text: "l'{TICKER} c guez ça pue le nom il pue et il bouge jamais" },
+      { text: "0 Fluctuation aujourd'hui frère..." },
+      { text: "{TICKER} il bouge jamais, essayez plutôt l'{OTHER_TICKER}" },
+      { text: "Pff... ça se voit que le marché il est fatigué... moi j'dis un petit {PREDICT_SIGNED}%", trueOnly: true },
+      { text: "Pff... ça se voit que le marché il est fatigué... moi j'dis un petit {RANDOM_MINUS10_10}%" }
+    ];
+
+    const haussierTemplates = [
+      { text: "Faut acheter du {TICKER} à gogo les gatés" },
+      { text: "100% l'{TICKER} il skyrocket frère" },
+      { text: "Moi j'pense le {TICKER} va faire {RANDOM_PLUS10_50}%" },
+      { text: "Moi j'pense le {TICKER} va faire {PREDICT_SIGNED}%", trueOnly: true },
+      { text: "LES GAAARS, ACHETEZ TOUS DU {TICKER}!§,§§!!" },
+      { text: "Guys you should try {TICKER}, trust me" },
+      { text: "VENDEZ VOS {OTHER_TICKER} et ACHETEZ QUE DU {TICKER}!!!!!" },
+      { text: "{TICKER} = ARGENT GRATUUUUUUUUUUIT!" },
+      { text: "{TICKER} > ALL" },
+      { text: "Un marabout m'a dit que {TICKER} allait exploser!" },
+      { text: "LE {TICKER} C'EST TROP SOUS-COTÉ LA TEAAAAM" },
+      { text: "franchement {TICKER} c'est cool" },
+    ];
+
+    const baissierTemplates = [
+      { text: "l'{TICKER} c'est guezz #guez #finito #achetezmaformation" },
+      { text: "100% l'{TICKER} il chute de zinzito..." },
+      { text: "Prédiction: {TICKER} chutera de {RANDOM_MINUS10_50}%" },
+      { text: "Prédiction: {TICKER} chutera de -{PREDICT_ABS}%", trueOnly: true },
+      { text: "wesh le {TICKER} ça pue sa mort" },
+      { text: "#anti{TICKER}" },
+      { text: "En déringolade le {TICKER}..." },
+      { text: "{OTHER_TICKER} il monte bcp plus que le {TICKER} hein..." },
+      { text: "FUCK LE {TICKER}!" },
+      { text: "NON AU {TICKER}!" },
+      { text: "#{OTHER_TICKER}>{TICKER}" },
+      { text: "Franchement c'est surcoté le {TICKER} hein..." },
+    ];
+
+    function randInt(min, max){ return Math.floor(Math.random() * (max - min + 1)) + min; }
+    function formatPredictSigned(pct){ if (typeof pct !== 'number') pct = Math.round(pct || 0); return (pct > 0 ? '+' + pct : String(pct)); }
+    function formatPredictAbs(pct){ return String(Math.abs(Math.round(pct || 0))); }
+    function formatRandSigned(min, max){ const v = randInt(min, max); return v > 0 ? '+' + v : String(v); }
+    function formatRandPlus(min, max){ return '+' + randInt(min, max); }
+    function formatRandMinus(min, max){ return '-' + randInt(min, max); }
+
+    function randChoice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+    function zeroPad(n){ return String(n).padStart(2,'0'); }
+
+    function makeRandomPseudo(){
+      const base = randChoice(pseudoBases);
+      const pattern = randChoice(popupWraps);
+      const num = zeroPad(1 + Math.floor(Math.random()*99));
+      const name = pattern.replace('{base}', base).replace('{num}', num);
+      return name;
+    }
+
+    function makeRandomColor(){ const h = Math.floor(Math.random()*360); return `hsl(${h},85%,62%)`; }
+
+    
+
+    function createPopup(forcedMessage){
+      const area = document.getElementById('gamePopupArea'); if (!area) return null;
+      const popup = document.createElement('div'); popup.className = 'game-popup enter';
+      // profile image
+      const prof = document.createElement('div'); prof.className = 'profile';
+      const img = document.createElement('img'); img.src = 'assets/profile.png'; img.style.width='100%'; img.style.height='100%'; img.style.objectFit='contain'; prof.appendChild(img);
+      // meta
+      const meta = document.createElement('div'); meta.className = 'meta';
+      const top = document.createElement('div'); top.className = 'top';
+      const left = document.createElement('div'); left.className = 'left';
+      const date = document.createElement('div'); date.className = 'date';
+      const now = new Date();
+      const dd = String(now.getDate()).padStart(2,'0'); const mm = String(now.getMonth()+1).padStart(2,'0');
+      const hh = String(now.getHours()).padStart(2,'0'); const minu = String(now.getMinutes()).padStart(2,'0');
+      date.textContent = `${dd}/${mm} à ${hh}:${minu}`;
+      const plat = document.createElement('div'); plat.className = 'platform'; plat.textContent = randChoice(platforms);
+      left.appendChild(date);
+      const rightTop = document.createElement('div'); rightTop.style.fontSize='0.78rem'; rightTop.style.color='rgba(255,255,255,0.6)'; rightTop.textContent = plat.textContent;
+      top.appendChild(left); top.appendChild(rightTop);
+      const pseudo = document.createElement('div'); pseudo.className = 'pseudo'; pseudo.textContent = makeRandomPseudo(); pseudo.style.color = '#999';
+      const message = document.createElement('div'); message.className = 'message';
+      try {
+        if (typeof forcedMessage === 'string'){
+          message.textContent = forcedMessage;
+          message.style.color = 'rgba(200,200,200,0.9)';
+        } else if (forcedMessage && typeof forcedMessage === 'object' && typeof forcedMessage.html === 'string'){
+          // forcedMessage produced by buildBangMsgs -> { html, category, isTrue }
+          message.innerHTML = forcedMessage.html;
+          // color based on category
+          if (forcedMessage.category === 'Marché haussier') message.style.color = '#3cff6b';
+          else if (forcedMessage.category === 'Marché baissier') message.style.color = '#ff6b6b';
+          else if (forcedMessage.category === 'Overture') { message.style.color = '#ffd86b'; message.style.fontWeight = '900'; }
+          else message.style.color = 'rgba(200,200,200,0.9)';
+        } else {
+          // fallback: keep previous simple behavior
+          if (!nextForecast) try { computeNextForecast(); } catch(e){}
+          const possible = ['Marché haussier','Stagne','Marché baissier'];
+          let trueText = 'Stagne';
+          if (nextForecast && typeof nextForecast.marketText === 'string') trueText = nextForecast.marketText;
+          if (Math.random() < 0.5) message.textContent = trueText;
+          else {
+            const others = possible.filter(p => p !== trueText);
+            message.textContent = others[Math.floor(Math.random()*others.length)];
+          }
+          if (message.textContent === 'Marché haussier') message.style.color = '#3cff6b';
+          else if (message.textContent === 'Marché baissier') message.style.color = '#ff6b6b';
+          else message.style.color = 'rgba(200,200,200,0.9)';
+        }
+      } catch(e) { message.textContent = 'Stagne'; message.style.color = 'rgba(200,200,200,0.9)'; }
+      meta.appendChild(top); meta.appendChild(pseudo); meta.appendChild(message);
+
+      popup.appendChild(prof); popup.appendChild(meta);
+      // add to area at top so newest appear on top; insert at beginning
+      if (area.firstChild) area.insertBefore(popup, area.firstChild); else area.appendChild(popup);
+      // ensure popup displays above the subtle overlay
+      try{ popup.style.zIndex = 9999; }catch(e){}
+      // handle for removal and timeout
+      const handle = { el: popup, timeoutId: null };
+      // mark as persistent immediately for overture so it isn't trimmed during creation
+      let _isOvertureHandle = false;
+      try{ if (forcedMessage && typeof forcedMessage === 'object' && forcedMessage.category === 'Overture'){ handle.persistent = true; _isOvertureHandle = true; } }catch(e){}
+      handle.remove = function(force){
+        // if this handle is persistent (overture), only allow forced removal
+        if (handle.persistent && !force) return;
+        try{ clearTimeout(handle.timeoutId); }catch(e){}
+        if (!popup.classList.contains('exit')){
+          popup.classList.remove('enter'); popup.classList.add('exit');
+          setTimeout(()=>{ try{ popup.remove(); }catch(e){} }, 380);
+        }
+        const idx = activePopups.indexOf(handle); if (idx !== -1) activePopups.splice(idx,1);
+        try{
+          // remove from lastBangGroup if present
+          const li = lastBangGroup.indexOf(handle);
+          if (li !== -1) lastBangGroup.splice(li,1);
+          // if there is no scheduled creation and no remaining staggered timeouts and
+          // the lastBangGroup is empty, consider bang idle again
+          if (!bangCreateTimeoutId && bangCreateStaggerTimeouts.length === 0 && lastBangGroup.length === 0){
+            try{ bangState = 'idle'; }catch(e){}
+          }
+          // clear active overture handle if needed
+          try{ if (activeOvertureHandle === handle) activeOvertureHandle = null; }catch(e){}
+        }catch(e){}
+      };
+      // fallback timeout
+      handle.timeoutId = setTimeout(()=> handle.remove(), 18000);
+      // add to active list then trim old popups but preserve the overture if present
+      activePopups.push(handle);
+      // if this is an overture created manually, register global state
+      try{ if (_isOvertureHandle){ overtureUsed = true; activeOvertureHandle = handle; try{ clearTimeout(handle.timeoutId); }catch(e){} handle.timeoutId = null; handle.persistent = true; } }catch(e){}
+      while (activePopups.length > 10){
+        try{
+          // prefer removing the oldest that is not the overture
+          let idxToRemove = activePopups.findIndex(h => h !== activeOvertureHandle);
+          if (idxToRemove === -1) idxToRemove = 0;
+          const old = activePopups[idxToRemove]; if (old) old.remove();
+        }catch(e){}
+      }
+      return handle;
+    }
+    function clearPopupsForDay(){
+      try{
+        // remove all popups with exit animation except the overture which should persist for the day
+        const copy = activePopups.slice();
+        copy.forEach(h => { try{ if (h !== activeOvertureHandle) h.remove(); }catch(e){} });
+      }catch(e){}
+    }
+
+    // --- Bang popup sequencing helpers ---
+    function showBangGroupWithMsgs(msgs){
+      // cancel any pending staggered creation
+      try{ bangCreateStaggerTimeouts.forEach(id => clearTimeout(id)); }catch(e){}
+      bangCreateStaggerTimeouts = [];
+      bangState = 'creating';
+      lastBangGroup = [];
+      for (let i = 0; i < msgs.length; i++){
+        const m = msgs[i];
+        const t = setTimeout(()=>{
+          try{
+            const h = createPopup(m);
+            if (h) lastBangGroup.push(h);
+            // when last popup of the trio was created, mark present
+            if (i === msgs.length - 1) {
+              bangState = 'present';
+            }
+          }catch(e){}
+        }, i * BANG_STAGGER);
+        bangCreateStaggerTimeouts.push(t);
+      }
+    }
+    function pickOtherTicker(current){
+      try{ const others = tickersList.filter(t => t !== current); if (!others.length) return current; return others[Math.floor(Math.random()*others.length)]; }catch(e){ return current; }
+    }
+
+    function buildBangMsgs(){
+      try{ if (!nextForecast) computeNextForecast(); }catch(e){}
+      // derive category from the forecast pct to avoid mismatches
+      const pctRounded = (nextForecast && nextForecast.overture && typeof nextForecast.boostedPctRounded === 'number') ? nextForecast.boostedPctRounded : (nextForecast && typeof nextForecast.pctRounded === 'number' ? nextForecast.pctRounded : null);
+      let trueCategory = 'Stagne';
+      if (typeof pctRounded === 'number'){
+        if (pctRounded > 10) trueCategory = 'Marché haussier';
+        else if (pctRounded < -10) trueCategory = 'Marché baissier';
+        else trueCategory = 'Stagne';
+      } else {
+        trueCategory = (nextForecast && nextForecast.marketText) ? nextForecast.marketText : 'Stagne';
+      }
+      const categories = ['Marché haussier','Stagne','Marché baissier'];
+      const others = categories.filter(c => c !== trueCategory);
+      const templatesMap = { 'Stagne': stagneTemplates, 'Marché haussier': haussierTemplates, 'Marché baissier': baissierTemplates };
+      const otherTicker = pickOtherTicker(chosenTicker);
+
+      function isTokenTemplate(text){ return /\{PREDICT_SIGNED\}|\{PREDICT_ABS\}|\{RANDOM_/.test(text); }
+      function isSensitiveTemplate(text){ return /\{PREDICT_SIGNED\}|\{RANDOM_MINUS10_10\}/.test(text); }
+
+      function replaceTokens(text){
+        // determine effective percent and multiplier
+        let pct;
+        let mult = 1;
+        if (nextForecast && nextForecast.overture && typeof nextForecast.boostedPctRounded === 'number'){
+          pct = nextForecast.boostedPctRounded;
+          mult = nextForecast.overtureMultiplier || 1;
+        } else {
+          pct = (nextForecast && typeof nextForecast.pctRounded === 'number') ? nextForecast.pctRounded : randInt(-10,10);
+          mult = (typeof todayOvertureMultiplier === 'number' && todayOvertureMultiplier > 0) ? todayOvertureMultiplier : 1;
+        }
+        // random tokens also scale with the overture multiplier when active
+        const r_signed = Math.round(randInt(-10,10) * mult);
+        const r_minus = Math.round(randInt(10,50) * mult);
+        const r_plus = Math.round(randInt(10,50) * mult);
+        return text.replace(/\{TICKER\}/g, chosenTicker)
+             .replace(/\{OTHER_TICKER\}/g, otherTicker)
+             .replace(/\{PREDICT_SIGNED\}/g, formatPredictSigned(pct))
+             .replace(/\{PREDICT_ABS\}/g, formatPredictAbs(pct))
+             .replace(/\{RANDOM_MINUS10_10\}/g, (r_signed > 0 ? '+' + r_signed : String(r_signed)))
+             .replace(/\{RANDOM_MINUS10_50\}/g, '-' + Math.abs(r_minus))
+             .replace(/\{RANDOM_PLUS10_50\}/g, '+' + Math.abs(r_plus));
+      }
+
+      // weighted pick that disfavors token-containing templates and can exclude "sensitive" ones
+      function weightedPick(arr, opts){
+        opts = opts || {};
+        let pool = arr.filter(t => !(opts.excludeTrueOnly && t.trueOnly));
+        if (opts.excludeSensitive) pool = pool.filter(t => !isSensitiveTemplate(t.text));
+        if (!pool.length) return null;
+        const weighted = pool.map(t => {
+          let w = 1;
+          if (isTokenTemplate(t.text)) w *= 0.25; // token templates are rarer
+          if (t.trueOnly && opts.boostTrueOnly) w *= 1.15;
+          return { t, w };
+        });
+        let sum = weighted.reduce((s,i)=> s + i.w, 0);
+        let r = Math.random() * sum;
+        for (let i=0;i<weighted.length;i++){
+          r -= weighted[i].w;
+          if (r <= 0) return weighted[i].t;
+        }
+        return weighted[weighted.length-1].t;
+      }
+
+      // decide how many true messages (1..3) for 4 slots, but ensure not to create 2 haussieres + 2 baissieres
+      const numTrue = Math.random() < 0.5 ? 2 : 1;
+      let cats = [];
+      // we will create 4 slots now
+      if (numTrue >= 2){
+        // prefer more true-category messages
+        cats = [trueCategory, trueCategory, trueCategory, randChoice(others)];
+      } else {
+        // single true and mix others
+        cats = [trueCategory, others[0], others[1], others[0]];
+      }
+      cats = shuffle(cats);
+
+      const msgs = [];
+      const chosenTpls = new Set();
+      const chosenHtmls = new Set();
+      const chosenSensitivePerCategory = {}; // track if a sensitive template was already chosen for a category
+      let usedTrueOnlyLocal = false;
+
+      for (let i=0;i<cats.length;i++){
+        const cat = cats[i];
+        let pool = (templatesMap[cat] || stagneTemplates).slice();
+        // exclude already-used template objects to avoid selecting the same template twice
+        pool = pool.filter(t => !chosenTpls.has(t));
+        let picked = null;
+        let attempts = 0;
+        while (attempts < 12 && pool.length){
+          const allowTrueOnly = (cat === trueCategory) && !usedTrueOnlyLocal && (trueOnlyUsedDay !== currentDayIndex);
+          const excludeSensitive = !!chosenSensitivePerCategory[cat];
+          const tpl = weightedPick(pool, { excludeTrueOnly: (cat !== trueCategory) || !allowTrueOnly, boostTrueOnly: true, excludeSensitive });
+          if (!tpl) break;
+          // try to generate a unique html a few times (tokens may randomize)
+          let html = null; let htmlAttempts = 0; let ok = false;
+          while (htmlAttempts < 6){
+            html = replaceTokens(tpl.text);
+            // if this template is sensitive and we already have a sensitive for this category, treat as collision
+            if (chosenSensitivePerCategory[cat] && isSensitiveTemplate(tpl.text)) { htmlAttempts++; continue; }
+            if (!chosenHtmls.has(html)){ ok = true; break; }
+            htmlAttempts++;
+          }
+          if (ok){ picked = { tpl, html }; break; }
+          // remove this template from pool and retry
+          pool = pool.filter(x => x !== tpl);
+          attempts++;
+        }
+        if (!picked){
+          // fallback: search any template in this category (including those used) that yields unique html
+          const allCandidates = (templatesMap[cat] || stagneTemplates).slice();
+          for (let j=0;j<allCandidates.length;j++){
+            const cand = allCandidates[j];
+            if (cat !== trueCategory && cand.trueOnly) continue; // trueOnly only for predicted category
+            if (chosenSensitivePerCategory[cat] && isSensitiveTemplate(cand.text)) continue; // avoid second sensitive in same category
+            let html = replaceTokens(cand.text);
+            if (!chosenHtmls.has(html)){ picked = { tpl: cand, html }; break; }
+          }
+        }
+        if (!picked){
+          // last resort: create a generic unique label
+          let gen = cat;
+          let suffix = 1;
+          while (chosenHtmls.has(gen)) { gen = cat + ' ' + (++suffix); }
+          picked = { tpl: { text: gen }, html: gen };
+        }
+        // record
+        chosenTpls.add(picked.tpl);
+        chosenHtmls.add(picked.html);
+        const isTrue = (cat === trueCategory);
+        msgs.push({ html: picked.html, category: cat, isTrue });
+        if (picked.tpl && picked.tpl.trueOnly){ usedTrueOnlyLocal = true; trueOnlyUsedDay = currentDayIndex; }
+        if (picked.tpl && isSensitiveTemplate(picked.tpl.text)){ chosenSensitivePerCategory[cat] = true; }
+      }
+
+      // ensure no duplicates (safety): if duplicates remain, unique-ify by appending small suffix
+      for (let i=0;i<msgs.length;i++){
+        for (let j=i+1;j<msgs.length;j++){
+          if (msgs[i].html === msgs[j].html){ msgs[j].html += ' ·'; }
+        }
+      }
+      // enforce constraint: avoid having exactly 2 haussier and 2 baissier simultaneously
+      const catCounts = msgs.reduce((acc,m)=>{ acc[m.category]=(acc[m.category]||0)+1; return acc; }, {});
+      if ((catCounts['Marché haussier'] === 2) && (catCounts['Marché baissier'] === 2)){
+        // break the tie by turning one of the baissier into Stagne
+        for (let m of msgs){ if (m.category === 'Marché baissier'){ m.category = 'Stagne'; break; } }
+      }
+      return shuffle(msgs);
+    }
+
+    function scheduleBangCreate(delay){
+      try{ if (bangCreateTimeoutId) clearTimeout(bangCreateTimeoutId); }catch(e){}
+      bangCreateTimeoutId = setTimeout(()=>{
+        bangCreateTimeoutId = null;
+        const shuffled = buildBangMsgs();
+        showBangGroupWithMsgs(shuffled);
+      }, delay);
+    }
+
+    function initMarketData(count){
+      marketData = [];
+      hadUpTick = false;
+      // start from a baseline (use percentage changes between -50% and +50%)
+      let v = 100;
+      for (let i=0;i<count;i++){
+        if (i === 0){
+          marketData.push(v);
+          continue;
+        }
+        // random percentage delta between -50% and +50%
+        let newV;
+        let attempts = 0;
+        do {
+          const deltaPct = (Math.random() * 100) - 50; // -50 .. +50
+          newV = Math.max(1, v * (1 + deltaPct / 100));
+          attempts++;
+        } while (Math.abs(newV - v) < 1e-9 && attempts < 8);
+        // last-resort nudge (keeps within reasonable bounds)
+        if (Math.abs(newV - v) < 1e-9){ newV = Math.max(1, v * (1 + (Math.random() < 0.5 ? 0.02 : -0.02))); }
+        v = newV;
+        marketData.push(v);
+      }
+      currentDayIndex = 0;
+      generateMarketPaths();
+      // prepare initial forecast for the upcoming day
+      try { computeNextForecast(); } catch(e){}
+    }
+
+    function generateMarketPaths(){
+      marketPaths = [];
+      if (!marketData || marketData.length < 2) return;
+      for (let i=1;i<marketData.length;i++){
+        const a = marketData[i-1];
+        const b = marketData[i];
+        const path = [];
+        // parameters for noise
+        const freq = 2 + Math.random() * 4; // 2..6
+        const phase = Math.random() * Math.PI * 2;
+        const ampBase = Math.max(3, Math.abs(b - a) * 0.6);
+        for (let s=0;s<=SAMPLES_PER_SEG;s++){
+          const t = s / SAMPLES_PER_SEG;
+          // linear base
+          const base = a + (b - a) * t;
+          // envelope to zero at ends
+          const env = Math.sin(Math.PI * t);
+          const noise = Math.sin(t * freq * Math.PI + phase) * ampBase * env * (0.5 + Math.random()*0.7);
+          const value = base + noise;
+          path.push(Math.max(1, Math.round(value)));
+        }
+        marketPaths.push(path);
+      }
+    }
+
+    // compute a forecast for the next day's percent and projected price (stored in nextForecast)
+    function computeNextForecast(){
+      try{
+        const count = computeSquaresCount(players.length);
+        // ensure marketData has at least one value
+        if (!marketData || marketData.length === 0) return null;
+        // we forecast for currentDayIndex+1 if possible
+        const prev = marketData[currentDayIndex] || marketData[marketData.length-1];
+        // choose a random delta in -50..+50 but keep it deterministic for the upcoming day until consumed
+        const deltaPct = (Math.random() * 100) - 50;
+        const projected = Math.max(1, prev * (1 + deltaPct / 100));
+        const pctRounded = Math.round(deltaPct);
+        let marketText = 'Stagne';
+        if (pctRounded > 10) marketText = 'Marché haussier';
+        else if (pctRounded < -10) marketText = 'Marché baissier';
+        nextForecast = { deltaPct: deltaPct, pctRounded: pctRounded, projected: Math.round(projected), marketText };
+        // possibility: schedule the one-time Overture event for next day (1/3 chance)
+        try{
+          if (!overtureUsed && Math.random() < 0.3333333){
+              nextForecast.overture = true;
+              nextForecast.overtureMultiplier = 2;
+              nextForecast.overtureText = "Overture des marchés: Volatilité x2";
+              // mark overture used immediately so no other overture can be scheduled afterwards
+              try{ overtureUsed = true; }catch(e){}
+              try{
+                const base = nextForecast.pctRounded;
+                const boost = nextForecast.overtureMultiplier || 2;
+                const baseProj = Math.round(prev * (1 + nextForecast.deltaPct / 100));
+                const boostPct = Math.round(nextForecast.deltaPct * (nextForecast.overtureMultiplier || 2));
+                const boostProj = Math.round(prev * (1 + (nextForecast.deltaPct * (nextForecast.overtureMultiplier || 2) / 100)));
+                console.info('[Prévision] Overture prévue — base:', `${base > 0 ? '+' : ''}${base}% → $${baseProj}`, ' o/boost:', `x${boost} ${boostPct > 0 ? '+' : ''}${boostPct}% → $${boostProj}`);
+              }catch(e){}
+              // compute and store boosted values so messages created before the day-of can use them
+              try{
+                nextForecast.baseDeltaPct = nextForecast.deltaPct;
+                nextForecast.boostedDeltaPct = nextForecast.baseDeltaPct * (nextForecast.overtureMultiplier || 1);
+                nextForecast.boostedPctRounded = Math.round(nextForecast.boostedDeltaPct);
+                nextForecast.boostedProjected = Math.round(prev * (1 + (nextForecast.boostedDeltaPct / 100)));
+              }catch(e){}
+              // create the persistent overture popup now (one day before the actual boost applies)
+              try{
+                if (!activeOvertureHandle){
+                  const h = createPopup({ html: nextForecast.overtureText, category: 'Overture', isTrue: false });
+                  if (h){ try{ clearTimeout(h.timeoutId); }catch(e){} h.timeoutId = null; h.persistent = true; activeOvertureHandle = h; }
+                }
+              }catch(e){}
+              console.info('[Prévision] Overture prévue pour le prochain jour');
+            }
+        }catch(e){}
+        // if overture is present, prefer the boosted values for the "à venir" log so popups/categories match the boosted outcome
+        try{
+          let effPct = pctRounded;
+          let effProj = Math.round(projected);
+          let effMarketText = marketText;
+          if (nextForecast && nextForecast.overture && typeof nextForecast.boostedPctRounded === 'number'){
+            effPct = nextForecast.boostedPctRounded;
+            effProj = nextForecast.boostedProjected;
+            if (effPct > 10) effMarketText = 'Marché haussier';
+            else if (effPct < -10) effMarketText = 'Marché baissier';
+            else effMarketText = 'Stagne';
+          }
+          console.info('[Prévision] (à venir) ', `${effPct > 0 ? '+' : ''}${effPct}% → $${effProj} — ${effMarketText}`);
+        }catch(e){}
+        return nextForecast;
+      }catch(e){ console.log('Erreur computeNextForecast', e); return null; }
+    }
+
+    // apply market percentage changes to players' stockValue when day advances
+    function applyMarketToStocks(prevVal, curVal){
+      if (!prevVal) return;
+      const pct = (curVal - prevVal) / prevVal; // fractional change e.g. 0.1
+      players.forEach(p => {
+        if (Math.round(p.stockValue) > 0){
+          p.stockValue = Math.round(Math.max(0, p.stockValue * (1 + pct)));
+        }
+        // if after applying change the stock value is 0, reset principal to 0 as well
+        if (Math.round(p.stockValue) === 0){ p.stockPrincipal = 0; }
+      });
+    }
+
+    // populate price and percent metadata under each square and animate appearance
+    function updateSquaresMeta(){
+      const squares = Array.from(document.querySelectorAll('.square'));
+      squares.forEach((s,i)=>{
+        const priceEl = s.querySelector('.day-price');
+        const pctEl = s.querySelector('.day-pct');
+        const meta = s.querySelector('.day-meta');
+        if (!priceEl || !pctEl || !meta) return;
+        const val = marketData[i];
+        // show only for current or past days
+        if (val === undefined || i > currentDayIndex){
+          priceEl.textContent = '--';
+          pctEl.textContent = '';
+          pctEl.style.opacity = 0; pctEl.style.transform = 'translateY(6px)';
+          meta.classList.remove('visible');
+        } else {
+          priceEl.textContent = `$${Math.round(val)}`;
+          if (i === 0){
+            pctEl.textContent = '';
+            pctEl.style.opacity = 0; pctEl.style.transform = 'translateY(6px)';
+          } else {
+            const prev = marketData[i-1] || val;
+            const pct = prev ? Math.round(((val - prev) / prev) * 100) : 0;
+            pctEl.textContent = (pct>0?'+':'') + pct + '%';
+            pctEl.style.color = pct >= 0 ? '#3cff6b' : '#ff6b6b';
+            // animate appearance for past or current days
+            pctEl.style.opacity = 0; pctEl.style.transform = 'translateY(6px)';
+            setTimeout(()=>{ pctEl.style.transition = 'opacity .36s ease, transform .36s ease'; pctEl.style.opacity = 1; pctEl.style.transform = 'translateY(0)'; }, 80 + i*60);
+          }
+          setTimeout(()=> meta.classList.add('visible'), 120 + i*40);
+        }
+      });
+      // update active-day class (glow persists via CSS)
+      const squaresEls = Array.from(document.querySelectorAll('.square'));
+      squaresEls.forEach((s,idx)=>{ if (idx === currentDayIndex) s.classList.add('active-day'); else s.classList.remove('active-day'); });
+    }
+
+    function drawMarket(){
+      if (!marketCtx || !marketCanvas) return;
+      const w = marketCanvas.clientWidth;
+      const h = marketCanvas.clientHeight;
+      const pad = 12;
+      marketCtx.clearRect(0,0,w,h);
+      // background
+      marketCtx.fillStyle = 'rgba(6,12,24,0.35)';
+      marketCtx.fillRect(0,0,w,h);
+      if (!marketData.length) return;
+      // compute visible range (hide future points)
+      const visibleCount = Math.max(1, Math.min(currentDayIndex + 1, marketData.length));
+      const visibleData = marketData.slice(0, visibleCount);
+      // compute x positions: distribute across width matching squares center positions
+      const squares = Array.from(document.querySelectorAll('.square'));
+      const allPositions = squares.map(s => {
+        const r = s.getBoundingClientRect();
+        const canvasRect = marketCanvas.getBoundingClientRect();
+        // x relative to canvas left
+        const x = (r.left + r.width/2) - canvasRect.left;
+        return x;
+      });
+      const count = marketData.length;
+      const xsAll = allPositions.length === count ? allPositions : (()=>{ const arr=[]; for(let i=0;i<count;i++) arr.push((w/(count-1)) * i); return arr; })();
+      let xs = xsAll.slice(0, visibleCount);
+      // clamp x positions so labels don't overflow canvas edges
+      xs = xs.map(x => Math.min(w - pad, Math.max(pad, x)));
+      // include micro-sample paths to compute min/max so samples stay within canvas
+      let minV = Infinity, maxV = -Infinity;
+      for (let v of visibleData){ if (v < minV) minV = v; if (v > maxV) maxV = v; }
+      for (let seg = 0; seg < visibleCount - 1; seg++){
+        const path = marketPaths[seg];
+        if (!path) continue;
+        for (let val of path){ if (val < minV) minV = val; if (val > maxV) maxV = val; }
+      }
+      if (!isFinite(minV) || !isFinite(maxV)){
+        minV = Math.min(...visibleData); maxV = Math.max(...visibleData);
+      }
+      // add a small padding to avoid touching the edges
+      const range = Math.max(1, maxV - minV);
+      const vPad = Math.max(1, Math.round(range * 0.12));
+      minV -= vPad; maxV += vPad;
+      const mapY = v => {
+        const y = pad + (h - pad*2) * (1 - (v - minV) / Math.max(1, (maxV - minV)));
+        return Math.min(h - pad, Math.max(pad, y));
+      };
+
+      // draw micro-variation segments using precomputed marketPaths
+      for (let seg = 0; seg < xs.length - 1; seg++){
+        const x0 = xs[seg], x1 = xs[seg+1];
+        const path = marketPaths[seg] || [];
+        if (!path.length){
+          // fallback to straight line
+          const y0 = mapY(marketData[seg]);
+          const y1 = mapY(marketData[seg+1]);
+          const segColor = marketData[seg+1] > marketData[seg] ? '#3cff6b' : '#ff6b6b';
+          marketCtx.strokeStyle = segColor;
+          marketCtx.lineWidth = 3; marketCtx.beginPath(); marketCtx.moveTo(x0,y0); marketCtx.lineTo(x1,y1); marketCtx.stroke();
+          continue;
+        }
+        // color the entire micro-path according to the daily direction (no blue/neutral lines)
+        const segColor = marketData[seg+1] > marketData[seg] ? '#3cff6b' : '#ff6b6b';
+        for (let k=0;k<path.length-1;k++){
+          const t0 = k / (path.length-1);
+          const t1 = (k+1) / (path.length-1);
+          const sx0 = x0 + (x1 - x0) * t0;
+          const sx1 = x0 + (x1 - x0) * t1;
+          const sy0 = mapY(path[k]);
+          const sy1 = mapY(path[k+1]);
+          marketCtx.strokeStyle = segColor;
+          marketCtx.lineWidth = 2;
+          marketCtx.beginPath(); marketCtx.moveTo(sx0, sy0); marketCtx.lineTo(sx1, sy1); marketCtx.stroke();
+        }
+      }
+
+      // draw dashed vertical ticks under each visible day/point
+      marketCtx.save();
+      marketCtx.setLineDash([4,4]);
+      marketCtx.strokeStyle = 'rgba(255,255,255,0.08)';
+      marketCtx.lineWidth = 1;
+      for (let i=0;i<xs.length;i++){
+        const x = xs[i]; const y = mapY(marketData[i]);
+        const y0 = y + 6; const y1 = h - pad - 6;
+        marketCtx.beginPath(); marketCtx.moveTo(x, y0); marketCtx.lineTo(x, y1); marketCtx.stroke();
+      }
+      marketCtx.restore();
+
+      // draw markers and vertical stop under current day (only visible ones)
+      const fontSize = Math.max(10, Math.round(h * 0.07));
+      marketCtx.font = `700 ${fontSize}px sans-serif`;
+      marketCtx.textAlign = 'left';
+      marketCtx.textBaseline = 'bottom';
+      for (let i=0;i<xs.length;i++){
+        const x = xs[i]; const y = mapY(marketData[i]);
+        marketCtx.fillStyle = i===currentDayIndex ? '#ffd86b' : '#ffffff';
+        marketCtx.beginPath(); marketCtx.arc(x,y,4,0,Math.PI*2); marketCtx.fill();
+        // price label near the point (ensure it stays inside canvas)
+        const priceText = `$${Math.round(marketData[i])}`;
+        const priceW = marketCtx.measureText(priceText).width;
+        let tx = x + 8;
+        // if label would overflow right edge, place it to the left of the point
+        if (tx + priceW > w - pad) tx = x - 8 - priceW;
+        if (tx < pad) tx = pad;
+        let ty = y - 8;
+        if (ty < 14) ty = y + fontSize + 6;
+        marketCtx.fillStyle = 'rgba(230,240,255,0.95)';
+        marketCtx.fillText(priceText, tx, ty);
+        // if current day, draw vertical line down to the squares band
+        if (i === currentDayIndex){
+          marketCtx.strokeStyle = 'rgba(255,255,255,0.12)'; marketCtx.lineWidth = 1; marketCtx.beginPath(); marketCtx.moveTo(x,y+6); marketCtx.lineTo(x, h - 6); marketCtx.stroke();
+          // draw ticker label next to the current point
+          try{
+            const ticker = chosenTicker || '';
+            const tickerFontSize = Math.max(10, Math.round(h * 0.06));
+            const tickerFont = `700 ${tickerFontSize}px sans-serif`;
+            // set font to measure text
+            marketCtx.font = tickerFont;
+            const paddingX = 8, paddingY = 6, radius = 6;
+            const textW = marketCtx.measureText(ticker).width;
+            const rectW = textW + paddingX * 2;
+            const rectH = tickerFontSize + paddingY * 2;
+            let rectX = x + 10;
+            if (rectX + rectW > w - pad) rectX = x - 10 - rectW;
+            // display ticker slightly lower than center of point
+            let rectY = y - rectH / 2 + 10;
+            if (rectY < pad) rectY = pad;
+            if (rectY + rectH > h - pad) rectY = h - pad - rectH;
+            // rounded rectangle background (randomized color per load)
+            marketCtx.fillStyle = tickerBG;
+            marketCtx.beginPath();
+            marketCtx.moveTo(rectX + radius, rectY);
+            marketCtx.arcTo(rectX + rectW, rectY, rectX + rectW, rectY + rectH, radius);
+            marketCtx.arcTo(rectX + rectW, rectY + rectH, rectX, rectY + rectH, radius);
+            marketCtx.arcTo(rectX, rectY + rectH, rectX, rectY, radius);
+            marketCtx.arcTo(rectX, rectY, rectX + rectW, rectY, radius);
+            marketCtx.closePath();
+            marketCtx.fill();
+            // border using ticker color
+            marketCtx.strokeStyle = tickerBorder; marketCtx.lineWidth = 1; marketCtx.stroke();
+            // draw ticker text
+            marketCtx.fillStyle = '#ffffff'; marketCtx.textBaseline = 'middle'; marketCtx.textAlign = 'center';
+            marketCtx.fillText(ticker, rectX + rectW/2, rectY + rectH/2);
+            // restore price font
+            marketCtx.font = `700 ${fontSize}px sans-serif`;
+            marketCtx.textAlign = 'left'; marketCtx.textBaseline = 'bottom';
+          }catch(e){}
+        }
+      }
+    }
+
+    // Advance one day: increment index, optionally change data by random step and redraw
+    function advanceOneDay(){
+      const count = computeSquaresCount(players.length);
+      if (!marketData.length) initMarketData(count);
+      // remove persistent overture from previous day (if any) at day start
+      try{ if (activeOvertureHandle){ try{ activeOvertureHandle.remove(true); }catch(e){} activeOvertureHandle = null; } }catch(e){}
+      // reset overture multiplier for the new day (will be set to 2 if overture applies today)
+      try{ todayOvertureMultiplier = 1; }catch(e){}
+      if (currentDayIndex < count - 1){
+        currentDayIndex++;
+      } else {
+        // wrap or stop at end; here we stop
+        return;
+      }
+      // find active square element for positioning floating percent
+      const squares = Array.from(document.querySelectorAll('.square'));
+      const active = squares[currentDayIndex];
+      // mutate next value by using a precomputed forecast if available, otherwise random
+      const prev = marketData[currentDayIndex-1];
+      let newV;
+      let deltaPct = 0;
+      let overtureThisDay = false;
+      let overtureTextLocal = null;
+      if (nextForecast && typeof nextForecast.deltaPct === 'number'){
+        deltaPct = nextForecast.deltaPct;
+        if (nextForecast.overture){
+          try{ deltaPct = deltaPct * (nextForecast.overtureMultiplier || 2); }catch(e){}
+          overtureThisDay = true;
+          overtureTextLocal = nextForecast.overtureText || "Overture des marchés US: Fluctuation x2 aujourd'hui";
+          // mark today's overture multiplier so token replacements (PREDICT_SIGNED / RANDOM) scale x2
+          try{ todayOvertureMultiplier = nextForecast.overtureMultiplier || 1; }catch(e){}
+        }
+        newV = Math.max(1, prev * (1 + deltaPct / 100));
+      } else {
+        let attempts = 0;
+        do {
+          deltaPct = (Math.random() * 100) - 50; // -50 .. +50
+          newV = Math.max(1, prev * (1 + deltaPct / 100));
+          attempts++;
+        } while (Math.abs(newV - prev) < 1e-9 && attempts < 8);
+        if (Math.abs(newV - prev) < 1e-9){
+          deltaPct = (Math.random() < 0.5 ? 2 : -2);
+          newV = Math.max(1, prev * (1 + (deltaPct / 100)));
+        }
+      }
+      // ensure at least one upward daily move across the game: if this is the last day
+      // and we haven't had any up tick yet, force a positive delta
+      try{
+        const count = computeSquaresCount(players.length);
+        if (currentDayIndex === count - 1 && !hadUpTick){
+          if (deltaPct <= 0){
+            // force a moderate increase
+            deltaPct = Math.max(2, Math.abs(deltaPct) + 5);
+            newV = Math.max(1, prev * (1 + deltaPct / 100));
+          }
+        }
+      }catch(e){}
+      // Console preview/consumption: show the forecast that was predicted earlier
+      try {
+        if (overtureThisDay && nextForecast){
+          const basePct = nextForecast.deltaPct;
+          const boost = nextForecast.overtureMultiplier || 2;
+          const boostedPct = deltaPct;
+          const baseRounded = Math.round(basePct);
+          const boostedRounded = Math.round(boostedPct);
+          const baseProjected = Math.round(Math.max(1, prev * (1 + basePct/100)));
+          const boostedProjected = Math.round(newV);
+          let baseMarketText = 'Stagne';
+          if (baseRounded > 10) baseMarketText = 'Marché haussier';
+          else if (baseRounded < -10) baseMarketText = 'Marché baissier';
+          let boostedMarketText = 'Stagne';
+          if (boostedRounded > 10) boostedMarketText = 'Marché haussier';
+          else if (boostedRounded < -10) boostedMarketText = 'Marché baissier';
+          console.info(`[Prévision appliquée] base: ${baseRounded > 0 ? '+' : ''}${baseRounded}% → $${baseProjected} — ${baseMarketText}`);
+          console.info(`[Prévision appliquée] Overture x${boost}: ${boostedRounded > 0 ? '+' : ''}${boostedRounded}% → $${boostedProjected} — ${boostedMarketText}`);
+        } else {
+          const pctRounded = Math.round(deltaPct);
+          let marketText = 'Stagne';
+          if (pctRounded > 10 && pctRounded <= 50) marketText = 'Marché haussier';
+          else if (pctRounded >= -50 && pctRounded < -10) marketText = 'Marché baissier';
+          console.info(`[Prévision appliquée] ${pctRounded > 0 ? '+' : ''}${pctRounded}% → $${Math.round(newV)} — ${marketText}`);
+        }
+      } catch (e) { console.log('[Prévision] erreur lors du calcul de prévision', e); }
+      marketData[currentDayIndex] = newV;
+      // if overture was scheduled for this day, do not recreate the persistent popup (it was shown a day before)
+      // keep console logs and apply multiplier via todayOvertureMultiplier
+      if (overtureThisDay){
+        try{ overtureUsed = true; }catch(e){}
+      }
+      // update hadUpTick if this move was upwards
+      try{ if (Math.round(newV) > Math.round(prev)) hadUpTick = true; }catch(e){}
+      // consume previous forecast and compute a new one for the next day (if any)
+      nextForecast = null;
+      try{ computeNextForecast(); }catch(e){}
+      // apply market pct change to players' stockValue
+      try{ applyMarketToStocks(prev, newV); }catch(e){}
+      // after market change, update UI and buy/sell limits
+      try{ updatePlayerBar(); updateBuySellMax(); }catch(e){}
+      // regenerate micro-paths so the new segment reflects updated data
+      generateMarketPaths();
+      // update squares meta (prices + %)
+      updateSquaresMeta();
+      // redraw
+      drawMarket();
+      // update player bar to reflect new stock values
+      updatePlayerBar();
+
+      // show floating percentage change near the new point
+      try{
+        const prev = marketData[currentDayIndex-1] || marketData[currentDayIndex];
+        const cur = marketData[currentDayIndex];
+        const pct = prev ? Math.round(((cur - prev) / prev) * 100) : 0;
+        const sign = pct > 0 ? '+' : '';
+        const text = `${sign}${pct}%`;
+        // compute positions
+        const marketRect = marketWrap.getBoundingClientRect();
+        const canvasRect = marketCanvas.getBoundingClientRect();
+        const activeRect = active.getBoundingClientRect();
+        const x = (activeRect.left + activeRect.width/2) - marketRect.left;
+        // compute y on canvas
+        const visibleCount = Math.max(1, Math.min(currentDayIndex + 1, marketData.length));
+        const visibleData = marketData.slice(0, visibleCount);
+        const minV = Math.min(...visibleData); const maxV = Math.max(...visibleData);
+        const pad = 12; const ch = marketCanvas.clientHeight;
+        const yCanvas = pad + (ch - pad*2) * (1 - (cur - minV) / Math.max(1, (maxV - minV)));
+        const y = (canvasRect.top - marketRect.top) + yCanvas;
+
+        const floatEl = document.createElement('div'); floatEl.className = 'float-change'; floatEl.textContent = text;
+        floatEl.style.left = `${Math.round(x)}px`;
+        // position initial different for up vs down animation
+        if (pct >= 0) floatEl.style.top = `${Math.round(y - 12)}px`;
+        else floatEl.style.top = `${Math.round(y + 12)}px`;
+        floatEl.style.color = pct >= 0 ? '#3cff6b' : '#ff6b6b';
+        marketWrap.appendChild(floatEl);
+        // animate up on gain, down on loss
+        requestAnimationFrame(()=>{ floatEl.style.transform = pct >= 0 ? 'translateY(-28px)' : 'translateY(28px)'; floatEl.style.opacity = '0'; });
+        setTimeout(()=>{ if (floatEl && floatEl.parentNode) floatEl.parentNode.removeChild(floatEl); }, 1000);
+        // at the end of day advancement, clear stacked popups (they descend/fade)
+        try{ clearPopupsForDay(); }catch(e){}
+      }catch(e){}
+      return true;
+    }
+
+    // keyboard handler for '*' key (robust across layouts & numpad)
+    window.addEventListener('keydown', (e)=>{
+      const k = e.key;
+      const code = e.code || '';
+      const isMultiply = k === '*' || k === 'Multiply' || code === 'NumpadMultiply' || (k === '8' && e.shiftKey);
+      const isBang = k === '!' || k === 'Digit1' && e.shiftKey || code === 'Digit1' && e.shiftKey;
+      if (isMultiply){
+        advanceOneDay();
+      }
+      if (isBang){
+        try{ triggerBang(); }catch(e){}
+      }
+    });
+
+    // resize observer to keep canvas in sync
+    let ro = new ResizeObserver(()=>{ ensureCanvasSize(); });
+    ro.observe(document.getElementById('marketWrap'));
+
+    // when order is announced we reveal market and initialize data
+    const originalAnnounce = announceOrder;
+    announceOrder = function(){ originalAnnounce(); setTimeout(()=>{
+      // reveal market area
+      if (marketWrap){ marketWrap.classList.remove('hidden'); marketWrap.setAttribute('aria-hidden','false'); }
+      // reveal controls too
+      const controlsEl = document.getElementById('controls'); if (controlsEl){ controlsEl.style.display = ''; controlsEl.setAttribute('aria-hidden','false'); }
+      // init market data and canvas
+      const count = computeSquaresCount(players.length);
+      initMarketData(count);
+      ensureCanvasSize();
+      // populate squares' price/pct once market data exists
+      setTimeout(()=>{ updateSquaresMeta(); drawMarket(); }, 160);
+    }, 1000); };
+
+    // Poll until the squares band becomes visible (original announce may have run before override)
+    let checkCount = 0;
+    const checkIntervalId = setInterval(()=>{
+      const bandEl = document.getElementById('squaresBand');
+      if (bandEl && !bandEl.classList.contains('hidden')){
+        if (marketWrap){ marketWrap.classList.remove('hidden'); marketWrap.setAttribute('aria-hidden','false'); }
+        const count = computeSquaresCount(players.length);
+        initMarketData(count);
+          setTimeout(()=>{
+            ensureCanvasSize();
+            // small delay then populate squares meta and highlight the first day
+            setTimeout(()=>{
+              updateSquaresMeta();
+              const squares = Array.from(document.querySelectorAll('.square'));
+              squares.forEach(s => s.classList.remove('active-day'));
+              if (squares[0]) squares[0].classList.add('active-day');
+              drawMarket();
+              // reveal controls now that order and market are ready
+              const controlsEl = document.getElementById('controls');
+              if (controlsEl){ controlsEl.style.display = ''; controlsEl.setAttribute('aria-hidden','false'); }
+              // start first player's turn
+              turnIndex = 0;
+              startTurn();
+            }, 120);
+          }, 80);
+        clearInterval(checkIntervalId);
+        return;
+      }
+      checkCount++; if (checkCount > 40) clearInterval(checkIntervalId);
+    }, 150);
+
+  })();
+  </script>
+</body>
+</html>

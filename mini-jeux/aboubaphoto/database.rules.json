@@ -1,0 +1,66 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "photoRooms": {
+      "$room": {
+        ".read": "auth != null && root.child('photoRooms').child($room).child('host').val() === auth.uid && root.child('photoRooms').child($room).child('expiresAt').val() > now",
+        ".write": "auth != null && ((!data.exists() && newData.child('host').val() === auth.uid) || data.child('host').val() === auth.uid)",
+        ".validate": "newData.hasChildren(['host','createdAt','expiresAt','players']) && $room.matches(/^[a-f0-9]{36}$/)",
+        "host": {
+          ".validate": "newData.isString() && (data.exists() ? newData.val() === data.val() : newData.val() === auth.uid)"
+        },
+        "createdAt": {
+          ".validate": "newData.isNumber() && ((!data.exists() && newData.val() <= now + 60000 && newData.val() >= now - 60000) || newData.val() === data.val())"
+        },
+        "expiresAt": {
+          ".validate": "newData.isNumber() && ((!data.exists() && newData.val() > now && newData.val() <= now + 86460000) || newData.val() === data.val())"
+        },
+        "players": {
+          ".validate": "newData.hasChildren()",
+          "$player": {
+            ".read": "auth != null && root.child('photoRooms').child($room).child('expiresAt').val() > now && (!data.child('uid').exists() || data.child('uid').val() === auth.uid || root.child('photoRooms').child($room).child('host').val() === auth.uid)",
+            ".write": "auth != null && root.child('photoRooms').child($room).child('expiresAt').val() > now && data.exists() && (!data.child('uid').exists() || data.child('uid').val() === auth.uid) && newData.child('uid').val() === auth.uid && newData.child('name').val() === data.child('name').val() && newData.child('color').val() === data.child('color').val() && newData.child('index').val() === data.child('index').val()",
+            ".validate": "newData.hasChildren(['name','color','index','online']) && $player.matches(/^[a-f0-9]{36}$/)",
+            "name": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40"
+            },
+            "color": {
+              ".validate": "newData.isString() && newData.val().matches(/^#[0-9a-fA-F]{6}$/)"
+            },
+            "index": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 5 && newData.val() % 1 === 0"
+            },
+            "uid": {
+              ".validate": "newData.isString() && (!data.exists() ? newData.val() === auth.uid : newData.val() === data.val())"
+            },
+            "online": {
+              ".validate": "newData.isBoolean()"
+            },
+            "photo": {
+              ".validate": "newData.hasChildren(['url','publicId','sentAt']) && (!data.exists() || now >= data.child('sentAt').val() + 2000)",
+              "url": {
+                ".validate": "newData.isString() && newData.val().length < 1000 && newData.val().matches(/^https:\\/\\/res\\.cloudinary\\.com\\/ua1z1wb8\\/image\\/upload\\/.+/)"
+              },
+              "publicId": {
+                ".validate": "newData.isString() && newData.val().length < 300"
+              },
+              "sentAt": {
+                ".validate": "newData.isNumber() && newData.val() <= now && newData.val() >= now - 10000"
+              },
+              "$other": {
+                ".validate": false
+              }
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    }
+  }
+}

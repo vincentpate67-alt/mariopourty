@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Aboubamind</title>
+<script src="../../party-payout.js"></script><script src="../../board/board-minigame-bridge.js"></script>
+<link rel="stylesheet" href="../../style.css"><link rel="stylesheet" href="mind.css?v=1">
+<script src="../commun/game-players.js" defer></script><script src="mind-engine.js?v=1" defer></script><script src="mind.js?v=1" defer></script></head>
+<body class="mind"><div id="mind-tint"></div><header class="mind-header"><h1>Aboubamind</h1><p id="mind-status" role="status" aria-live="polite">Création du code secret</p><div id="mind-order" aria-label="Ordre des joueurs"></div></header>
+<main id="mind-main"><aside class="mind-panel" id="mind-clue-panel"><div class="panel-heading"><h2>Indices</h2><span id="mind-round"></span></div><ol id="mind-clues"></ol></aside>
+<section id="mind-center"><div id="mind-safe" aria-hidden="true"><div class="safe-hinge top"></div><div class="safe-hinge bottom"></div><div class="safe-door"><div class="safe-rivets"></div><div class="safe-dial"><i></i><i></i><i></i></div><div id="mind-secret"><span>?</span><span>?</span><span>?</span><span>?</span></div><div class="safe-handle"></div></div></div>
+<form id="mind-form" hidden autocomplete="off"><div class="turn-heading"><strong id="mind-player"></strong><b id="mind-seconds">20</b></div><div id="mind-clock"><i></i></div><div id="mind-entry"><div id="mind-digits" aria-hidden="true"><span>—</span><span>—</span><span>—</span><span>—</span></div><input id="mind-answer" type="text" inputmode="numeric" maxlength="4" pattern="[1-9][0-9]{3}" aria-label="Code à quatre chiffres, sans zéro au début" spellcheck="false" autocomplete="off"></div><button id="mind-submit" type="submit">Proposer ce code</button><p id="mind-error" role="status"></p></form>
+<div id="mind-result" hidden role="status"></div><div class="mind-legend" id="mind-legend" hidden><span><i class="good-dot"></i> Bien placé</span><span><i class="near-dot"></i> Mal placé</span></div><div id="mind-end" hidden><button id="mind-replay">Rejouer</button><button id="return-btn">Retour aux mini-jeux</button></div></section>
+<aside class="mind-panel" id="mind-history-panel"><div class="panel-heading"><h2>Tentatives</h2><span id="mind-attempt-count">0</span></div><div id="mind-history"><p class="empty-history">Aucun code essayé</p></div></aside></main>
+</body></html>

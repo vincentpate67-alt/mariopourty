@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <script src="../party-payout.js"></script>
+<script src="../board/board-minigame-bridge.js"></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Aboujackpot</title>
+  <link rel="stylesheet" href="../style.css" />
+  <style>
+    body{background:#081028;color:#fff;font-family:Segoe UI,Roboto,Arial;margin:0;padding:18px}
+    main{max-width:980px;margin:8px auto;text-align:center}
+    h1{margin:8px 0 12px;font-size:2.4rem}
+    #status{min-height:30px;margin-bottom:10px;font-weight:900;font-size:1.4rem}
+    .player-order{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:8px 0}
+    .player-chip{padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);font-weight:800}
+
+    /* game sizing (reduced) */
+    .game-area{display:flex;flex-direction:column;align-items:center;gap:18px;margin-top:8px;transform:scale(1.1);transform-origin:top center}
+    .machine-row{display:flex;align-items:flex-start;gap:24px}
+    .slot-machine{display:flex;gap:18px;background:linear-gradient(180deg,#091225,#0b1730);padding:28px;border-radius:12px;border:1px solid rgba(255,255,255,0.06)}
+    .reel{width:192px;height:360px;border-radius:8px;background:linear-gradient(180deg,#0b2240,#071224);overflow:hidden;position:relative;border:2px solid rgba(255,255,255,0.04)}
+    .reel .strip{display:flex;flex-direction:column}
+    .reel .symbol{height:120px;display:flex;align-items:center;justify-content:center;font-size:110px}
+
+    .controls-right{display:flex;flex-direction:column;gap:10px;align-items:center;height:360px;justify-content:center}
+    .lever{width:140px;height:260px;border-radius:12px;background:linear-gradient(180deg,#2b2b2b,#111);display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid rgba(255,255,255,0.06);transform-origin:center;user-select:none;font-size:56px}
+    .lever.spin-anim{transform:rotate(-30deg)}
+    .info-bar{display:flex;gap:12px;align-items:center;justify-content:center;margin-top:4px;font-size:0.95rem}
+    .small-pill{background:rgba(255,255,255,0.03);padding:10px 12px;border-radius:12px;font-weight:800}
+    .bet-controls{display:flex;align-items:center;gap:8px}
+    .big-btn{padding:10px 14px;border-radius:8px;border:none;background:#6bc0ff;color:#071a3a;font-weight:900;cursor:pointer}
+    .big-btn.secondary{background:#ff9d5a}
+    /* prayer toggle button (green) */
+    #prayerToggle{background:linear-gradient(90deg,#4caf50,#2e7d32);color:#fff;border:none}
+    #message{min-height:28px;margin-top:6px;color:#dbe9ff;font-size:1.25rem;font-weight:900}
+    .meta{font-weight:800}
+
+    .rules{background:rgba(255,255,255,0.03);left:10px;padding:18px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);max-width:340px;width:320px;text-align:left}
+    .rules h3{margin:0 0 8px 0;font-size:1rem}
+    .rules .rule{margin-bottom:8px}
+
+    .slot-machine{position:relative}
+    .slot-machine .center-line{position:absolute;left:0;right:0;top:50%;height:4px;background:rgba(255,0,0,0.12);transform:translateY(-50%);pointer-events:none;z-index:12}
+
+    #poorOverlay{position:fixed;left:0;top:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:100006}
+    #poorOverlay .text{font-size:72px;color:#ff6b6b;font-weight:900;text-shadow:0 6px 18px rgba(0,0,0,0.6);transform:scale(0.6);opacity:0;transition:transform .35s cubic-bezier(.2,.9,.2,1),opacity .35s}
+    #poorOverlay.show .text{transform:scale(1);opacity:1}
+
+    .flash-overlay{position:fixed;left:0;top:0;right:0;bottom:0;pointer-events:none;z-index:100000;opacity:0;transition:opacity .24s ease}
+    .flash-overlay.show{opacity:1}
+    .flash-overlay.red{background:rgba(255,30,30,0.12)}
+    .flash-overlay.green{background:rgba(80,255,130,0.12)}
+
+    .money-burst{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:100001}
+    .money-burst .dollar{position:absolute;color:#ffd700;font-size:28px;animation:rise 700ms ease-out forwards}
+    @keyframes rise{0%{transform:translateY(0) scale(1);opacity:1}100%{transform:translateY(-120px) scale(1.6);opacity:0}}
+
+    #jackpotOverlay{position:fixed;left:0;top:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:100005}
+    #jackpotOverlay .text{font-size:96px;color:#ffd700;font-weight:900;text-shadow:0 8px 28px rgba(0,0,0,0.6);transform:scale(0.6);opacity:0;transition:transform .35s cubic-bezier(.2,.9,.2,1),opacity .35s}
+    #jackpotOverlay.show .text{transform:scale(1);opacity:1}
+
+    .hidden{display:none}
+    .return-btn{margin-top:12px;padding:10px 14px;border-radius:10px;background:#ff776d;color:#fff;border:none;font-weight:700;cursor:pointer}
+    /* Prayer panel styles */
+    .prayer-panel{display:flex;align-items:center;justify-content:center;gap:18px;background:linear-gradient(180deg,#091225,#0b1730);padding:28px;border-radius:12px;border:1px solid rgba(255,255,255,0.06);min-height:360px;flex:0 0 auto}
+    .prayer-box{display:flex;gap:18px;align-items:center}
+    .prayer-wheel{width:160px;height:160px;border-radius:12px;display:flex;align-items:center;justify-content:center;position:relative;flex-shrink:0;transform:rotate(-90deg);background:conic-gradient(#4caf50 0 1%, #ff4c4c 1% 100%);box-shadow:inset 0 2px 8px rgba(0,0,0,0.6)}
+    .prayer-wheel .inner{width:96px;height:96px;border-radius:50%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;transform:rotate(90deg);}
+    .prayer-spinner{position:absolute;left:0;top:0;right:0;bottom:0;transform-origin:center center;}
+    .prayer-pointer{position:absolute;left:50%;top:8px;width:8px;height:8px;background:#fff;border-radius:50%;transform:translateX(-50%);box-shadow:0 4px 12px rgba(0,0,0,0.6);pointer-events:none}
+    .prayer-ping{position:absolute;left:50%;top:8px;width:12px;height:12px;border-radius:50%;transform:translateX(-50%);background:#fff;box-shadow:0 6px 18px rgba(255,255,255,0.9);opacity:0;transition:opacity .18s ease, transform .18s ease}
+    .prayer-ping.show{opacity:1;transform:translateX(-50%) scale(1.15)}
+    .prayer-controls{display:flex;flex-direction:column;align-items:flex-start;gap:8px;color:#dbe9ff}
+    .prayer-controls label{font-weight:800}
+    input[type=range].prayer-range{width:220px}
+    #chancePopup{position:fixed;top:12px;right:12px;padding:8px 12px;background:linear-gradient(90deg,#ffd54d,#ffb74d);color:#071224;font-weight:900;border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,0.35);z-index:100020}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Aboujackpot</h1>
+    <div id="status">Chargement des joueurs...</div>
+    <div id="order" class="player-order"></div>
+
+    <div id="gameContainer" class="game-area hidden">
+      <div class="machine-row">
+        <div class="rules">
+          <h3>Règles & Gains</h3>
+          <div class="rule">3x Nourriture (🍔🍌🍕🍩) = x2</div>
+          <div class="rule">3x même nourriture = x10</div>
+          <div class="rule">3x Caca (💩) = x25</div>
+          <div class="rule">3x Singe (🐵) = x100</div>
+        </div>
+
+        <div class="slot-machine" aria-hidden="false">
+          <div class="reel" id="reel1"><div class="strip"><div class="symbol">🍔</div></div></div>
+          <div class="reel" id="reel2"><div class="strip"><div class="symbol">🍌</div></div></div>
+          <div class="reel" id="reel3"><div class="strip"><div class="symbol">🍕</div></div></div>
+          <div class="center-line" aria-hidden="true"></div>
+        </div>
+
+        <!-- Prayer panel inserted here so it occupies the same place as the slot-machine -->
+        <div id="prayer-panel" class="prayer-panel hidden" aria-hidden="true">
+          <div class="prayer-box">
+            <div id="prayerWheel" class="prayer-wheel" aria-hidden="true">
+              <div class="inner"></div>
+              <div id="prayerSpinner" class="prayer-spinner"><div id="prayerPointer" class="prayer-pointer"></div></div>
+              <div id="prayerPing" class="prayer-ping"></div>
+            </div>
+            <div class="prayer-controls">
+              <label>Montant: <span id="prayerAmountLabel">1$</span></label>
+              <input id="prayerAmount" class="prayer-range" type="range" min="1" max="75" value="1" />
+              <div style="margin-top:6px">
+                <button id="prayBtn" class="big-btn">Prier</button>
+              </div>
+              <div style="font-size:0.9rem;color:rgba(255,255,255,0.6);max-width:260px">Si le ping finit dans la zone verte, tu gagnes <strong>Chance x2</strong> pour ce tour. Sinon, tu perds la mise.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="controls-right">
+          <div id="lever" class="lever" title="Tirer la manivelle">🎰</div>
+        </div>
+      </div>
+
+      <div class="info-bar">
+        <div class="small-pill">Argent: <span id="money">50$</span></div>
+        <div class="small-pill">Spins restants: <span id="spins">5</span></div>
+        <div class="small-pill bet-controls">Mise: <button id="betMinus" class="big-btn">-</button> <span id="bet" class="meta">1$</span> <button id="betPlus" class="big-btn">+</button> <button id="stopBtn" class="big-btn secondary" style="margin-left:8px">Arrêter</button> <button id="prayerToggle" class="big-btn" style="margin-left:8px">Prière</button></div>
+      </div>
+
+      <div id="message"></div>
+
+      <div style="width:100%;max-width:920px;margin-top:8px">
+        <script src="commun/game-players.js"></script>
+      </div>
+      
+      
+    </div>
+
+    <div id="flashOverlay" class="flash-overlay hidden"></div>
+    <div id="moneyBurst" class="money-burst"></div>
+    <div id="jackpotOverlay" class="hidden"><div class="text">JACKPOT!</div></div>
+    <div id="poorOverlay" class="hidden"><div class="text">T'ES PAUVRE</div></div>
+    <div id="chancePopup" class="hidden">Chance x2</div>
+  </main>
+
+  <script>
+  (function(){
+    const stored = JSON.parse(localStorage.getItem('mini-Jeux-host-players') || '[]');
+    const statusEl = document.getElementById('status');
+    const orderEl = document.getElementById('order');
+    const reelEls = [document.getElementById('reel1'), document.getElementById('reel2'), document.getElementById('reel3')];
+    const lever = document.getElementById('lever');
+    const stopBtn = document.getElementById('stopBtn');
+    const moneyEl = document.getElementById('money');
+    const spinsEl = document.getElementById('spins');
+    const betEl = document.getElementById('bet');
+    const betMinus = document.getElementById('betMinus');
+    const betPlus = document.getElementById('betPlus');
+    const messageEl = document.getElementById('message');
+
+    if (!stored.length){ statusEl.textContent = 'Aucun joueur enregistré.'; return; }
+
+    // build players state (reset money/spins for this mini-jeu)
+    let players = stored.map(p => ({ name: p.name, color: p.color || '#8ac6ff', money: 50, spins: 5, _played:false, _playing:false }));
+    let order = shuffle(players.slice());
+    let currentIdx = 0;
+
+    // symbol pool with frequencies
+    const pool = [];
+    addMany('🍔',9); addMany('🍌',9); addMany('🍕',9); addMany('🍩',9); addMany('💩',6); addMany('🐵',3);
+    const BET_OPTIONS = [1,5,10,25,'ALL'];
+    let betIndex = 0;
+
+    let spinning = false;
+    let passRequested = false;
+    let __forceNextJackpot = false;
+    window.forceNextJackpot = function(){ __forceNextJackpot = true; console.log('Next spin forced to JACKPOT'); };
+
+    function addMany(sym,n){ for(let i=0;i<n;i++) pool.push(sym); }
+    function shuffle(arr){ return arr.slice().sort(()=>Math.random()-0.5); }
+    function randFromPool(){ return pool[Math.floor(Math.random()*pool.length)]; }
+
+    function announceOrder(){
+      orderEl.innerHTML = '';
+      let step = 0; const preview = setInterval(()=>{
+        statusEl.textContent = 'Ordre aléatoire... ' + stored[Math.floor(Math.random()*stored.length)].name;
+        step++; if (step>18){ clearInterval(preview); renderOrder(); setTimeout(()=> startTurn(0), 700); }
+      },80);
+    }
+
+    function renderOrder(){ orderEl.innerHTML=''; order.forEach(p=>{ const chip = document.createElement('div'); chip.className='player-chip'; chip.style.borderColor = p.color; chip.textContent = p.name; orderEl.appendChild(chip); }); }
+
+    const gameContainer = document.getElementById('gameContainer');
+
+    function startTurn(idx){
+      currentIdx = idx;
+      // wrap-around rounds until all spins exhausted
+      // ensure prayer UI is hidden when a new turn starts
+      if (prayerPanel) { prayerPanel.classList.add('hidden'); if (slotMachine) slotMachine.classList.remove('hidden'); }
+      if (currentIdx >= order.length){
+        const anyLeft = order.some(x=> x.spins > 0);
+        if (anyLeft) { startTurn(0); return; }
+        else { endGame(); return; }
+      }
+      const p = order[currentIdx];
+      if (p.spins <= 0){ startTurn(currentIdx + 1); return; }
+      // show game area now that it's player's turn
+      gameContainer.classList.remove('hidden');
+      statusEl.textContent = `${p.name}, c'est à ton tour!`;
+      statusEl.style.color = p.color;
+      passRequested = false;
+      // mark playing flags
+      order.forEach(o => { o._playing = false; });
+      p._playing = true; p._played = true;
+      updateHud(p);
+      // show player's money in pill now that they're playing
+      try{ updatePlayerMoneyInPill(p); } catch(e){}
+      messageEl.textContent = '';
+      stopBtn.disabled = false;
+    }
+
+    function updateHud(player){
+      moneyEl.textContent = player.money + '$';
+      spinsEl.textContent = player.spins;
+      const choice = BET_OPTIONS[betIndex];
+      betEl.textContent = choice === 'ALL' ? 'ALL IN' : `${choice}$`;
+    }
+
+    function animateFlash(type, duration=600){
+      const overlay = document.getElementById('flashOverlay');
+      overlay.className = 'flash-overlay ' + type + ' show'; overlay.classList.remove('hidden');
+      setTimeout(()=>{ overlay.classList.remove('show'); setTimeout(()=> overlay.classList.add('hidden'), 260); }, duration);
+    }
+
+    function showJackpot(duration=1600){
+      const el = document.getElementById('jackpotOverlay');
+      if (!el) return;
+      el.classList.remove('hidden');
+      // trigger animation
+      requestAnimationFrame(()=> el.classList.add('show'));
+      setTimeout(()=>{ el.classList.remove('show'); setTimeout(()=> el.classList.add('hidden'), 360); }, duration);
+    }
+
+    function showPoorOverlay(duration=1200){
+      const el = document.getElementById('poorOverlay');
+      if (!el) return;
+      el.classList.remove('hidden');
+      requestAnimationFrame(()=> el.classList.add('show'));
+      setTimeout(()=>{ el.classList.remove('show'); setTimeout(()=> el.classList.add('hidden'), 360); }, duration);
+    }
+
+    function moneyBurst(amount){
+      const container = document.getElementById('moneyBurst');
+      const count = Math.min(18, Math.max(4, Math.round(amount/ (BET_OPTIONS[betIndex]||1) * 2)));
+      for(let i=0;i<count;i++){
+        const el = document.createElement('div'); el.className='dollar'; el.textContent = '$';
+        el.style.left = (Math.random()*200 - 100) + 'px'; el.style.top = (Math.random()*40 - 20) + 'px';
+        container.appendChild(el);
+        setTimeout(()=> el.remove(), 900);
+      }
+    }
+
+    function describeOutcome(results, bet){
+      const foods = new Set(['🍔','🍌','🍕','🍩']);
+      const names = { '💩':'caca', '🐵':'singe', '🍔':'burger', '🍌':'banane', '🍕':'pizza', '🍩':'donut' };
+      const [a,b,c] = results;
+      const human = (x)=> names[x] ? names[x] : x;
+      if (a === b && b === c){
+        if (a === '🐵') return `${a}, ${b}, ${c}. 3x ${human(a)} = x100`;
+        if (a === '💩') return `${a}, ${b}, ${c}. 3x ${human(a)} = x25`;
+        if (foods.has(a)) return `${a}, ${b}, ${c}. 3x ${human(a)} = x10`;
+      }
+      if (foods.has(a) && foods.has(b) && foods.has(c)) return `${a}, ${b}, ${c}. 3x nourriture (différentes) = x2`;
+      if (a===b || a===c || b===c) {
+        const sym = a===b ? a : a===c ? a : b;
+        return `${a}, ${b}, ${c}. 2x ${human(sym)} = pas de gain`;
+      }
+      return `${a}, ${b}, ${c}. Pas de gain = -mise`;
+    }
+
+    async function startSpin(){
+      const p = order[currentIdx];
+      if (spinning) return;
+      if (p.spins <= 0){ messageEl.textContent = 'Plus de spins pour ce joueur.'; return; }
+      const choice = BET_OPTIONS[betIndex];
+      const betValue = choice === 'ALL' ? p.money : Number(choice);
+      if (!betValue || betValue <= 0){ messageEl.textContent = 'Mise invalide.'; return; }
+      if (betValue > p.money){ messageEl.textContent = 'Mise trop élevée.'; return; }
+      // consume spin
+      p.spins -= 1;
+      // deduct bet instantly when spinning
+      p.money -= betValue;
+      updateHud(p);
+      // update pill immediately so player sees the deduction
+      try{ updatePlayerMoneyInPill(p); } catch(e){}
+      spinning = true; lever.classList.add('spin-anim');
+
+      // build strips and animate
+      const force = !!__forceNextJackpot; if (force) __forceNextJackpot = false;
+      // decide final symbols with potential bias if player has Chance x2
+      let finalSymbols = [];
+      if (force) {
+        finalSymbols = ['🐵','🐵','🐵'];
+      } else if (p.chanceDouble) {
+        // bias: sometimes force a triple, otherwise bias reels to match more often
+        const forceTriple = Math.random() < 0.18; // small chance of guaranteed triple
+        if (forceTriple) {
+          const r = Math.random();
+          let sym;
+          if (r < 0.45) sym = '🐵';
+          else if (r < 0.75) sym = '💩';
+          else { const foods = ['🍔','🍌','🍕','🍩']; sym = foods[Math.floor(Math.random()*foods.length)]; }
+          finalSymbols = [sym, sym, sym];
+        } else {
+          const sym0 = randFromPool();
+          finalSymbols[0] = sym0;
+          finalSymbols[1] = Math.random() < 0.28 ? sym0 : randFromPool();
+          finalSymbols[2] = Math.random() < 0.24 ? finalSymbols[0] : randFromPool();
+        }
+      } else {
+        finalSymbols = [randFromPool(), randFromPool(), randFromPool()];
+      }
+
+      const promises = reelEls.map((reel, i) => new Promise((resolve)=>{
+        reel.innerHTML = '';
+        const strip = document.createElement('div'); strip.className = 'strip';
+        const total = 36;
+        for(let k=0;k<total;k++){ const s = document.createElement('div'); s.className='symbol'; s.textContent = randFromPool(); strip.appendChild(s); }
+        // choose a final index near the end
+        const finalIndex = 20 + Math.floor(Math.random()*8);
+        // ensure final symbol at that index (use precomputed finalSymbols)
+        const finalSym = finalSymbols[i] || randFromPool();
+        strip.children[finalIndex].textContent = finalSym;
+        finalSymbols[i] = finalSym;
+        reel.appendChild(strip);
+        // force reflow then animate so the 'finalIndex' ends up centered in the reel
+        const symbolHeight = strip.children[0].offsetHeight || 120;
+        const visibleCount = Math.max(1, Math.floor(reel.clientHeight / symbolHeight));
+        const centerOffset = Math.floor(visibleCount/2);
+        const translateIndex = Math.max(0, finalIndex - centerOffset);
+        const duration = 1400 + i*300 + Math.floor(Math.random()*300);
+        strip.style.transition = `transform ${duration}ms cubic-bezier(.2,.9,.2,1)`;
+        requestAnimationFrame(()=>{ strip.style.transform = `translateY(-${translateIndex * symbolHeight}px)`; });
+        // resolve on transition end
+        const onEnd = (ev) => { if (ev.target === strip){ strip.removeEventListener('transitionend', onEnd); resolve(); } };
+        strip.addEventListener('transitionend', onEnd);
+        // safety fallback
+        setTimeout(()=>{ resolve(); }, duration + 120);
+      }));
+
+      // wait for all reels to finish
+      await Promise.all(promises);
+
+      // finalize
+      spinning = false; lever.classList.remove('spin-anim');
+      const results = finalSymbols.slice();
+      // log detected emojis and the matching rule
+      try { const ruleDesc = describeOutcome(results, betValue); console.log(ruleDesc); } catch(e){}
+      const payout = evaluate(results, betValue);
+      // jackpot animation if big win (3x singe)
+      if (payout === betValue * 100) { showJackpot(); }
+      const pcur = order[currentIdx];
+      // add payout (if any) after bet already deducted
+      if (payout > 0) pcur.money += payout;
+      // ensure HUD shows updated money after payout
+      try{ updateHud(pcur); }catch(e){}
+
+      // update player playing flags (they have played)
+      pcur._playing = false;
+      pcur._played = true;
+
+      // message + animations
+      if (payout > 0){
+        animateFlash('green', 500); messageEl.style.color = '#7af288'; messageEl.textContent = `+${payout}$ gagné !`; moneyBurst(payout);
+      } else {
+        animateFlash('red', 500); messageEl.style.color = '#ff6b6b'; messageEl.textContent = `-${betValue}$ perdu`;
+      }
+
+      // update pill money in real-time
+      updatePlayerMoneyInPill(pcur);
+
+      // if player is bankrupt, show poor overlay then advance
+      if (pcur.money <= 0){
+        showPoorOverlay(1200);
+        setTimeout(()=>{
+          // update HUD + hide pill money for final/after being marked poor
+          try{ updateHud(pcur); }catch(e){}
+          updatePlayerMoneyInPill(pcur);
+            if (passRequested || pcur.spins <= 0){ passRequested = false; pcur.chanceDouble = false; hideChancePopup(); currentIdx++; startTurn(currentIdx); }
+        }, 1250);
+        return;
+      }
+
+      // after short pause, decide whether to advance (wait for spin finished)
+      setTimeout(()=>{
+        if (passRequested || pcur.spins <= 0){ passRequested = false; try{ updateHud(pcur); }catch(e){}; updatePlayerMoneyInPill(pcur); pcur.chanceDouble = false; hideChancePopup(); currentIdx++; startTurn(currentIdx); }
+        // otherwise player may spin again
+      }, 800);
+    }
+
+    function evaluate(results, bet){
+      const foods = new Set(['🍔','🍌','🍕','🍩']);
+      // if all three are same
+      if (results.length === 3){
+        const [a,b,c] = results;
+        if (a === b && b === c){
+          if (a === '🐵') return bet * 100;
+          if (a === '💩') return bet * 25;
+          if (foods.has(a)) return bet * 10;
+        }
+        // all three are food (not necessarily same)
+        if (foods.has(a) && foods.has(b) && foods.has(c)) return bet * 2;
+          // two of a kind -> no payout
+          if (a===b || a===c || b===c) return 0;
+        }
+        return 0;
+    }
+
+    // bet controls
+    betMinus.onclick = ()=>{ betIndex = Math.max(0, betIndex-1); updateHud(order[currentIdx]); };
+    betPlus.onclick = ()=>{ betIndex = Math.min(BET_OPTIONS.length-1, betIndex+1); updateHud(order[currentIdx]); };
+
+    // Prayer / Prière UI elements
+    const prayerToggle = document.getElementById('prayerToggle');
+    const prayerPanel = document.getElementById('prayer-panel');
+    const prayerWheel = document.getElementById('prayerWheel');
+    const prayerPointer = document.getElementById('prayerPointer');
+    const prayerSpinner = document.getElementById('prayerSpinner');
+    const prayerPing = document.getElementById('prayerPing');
+    const prayerAmount = document.getElementById('prayerAmount');
+    const prayerAmountLabel = document.getElementById('prayerAmountLabel');
+    const prayBtn = document.getElementById('prayBtn');
+    const chancePopupEl = document.getElementById('chancePopup');
+    const slotMachine = document.querySelector('.slot-machine');
+
+    function updatePrayerUI(){
+      const p = order[currentIdx];
+      if (!p) return;
+      const maxAmount = Math.min(75, Math.max(1, p.money));
+      prayerAmount.max = maxAmount;
+      if (Number(prayerAmount.value) > maxAmount) prayerAmount.value = maxAmount;
+      prayerAmountLabel.textContent = `${prayerAmount.value}$`;
+      const pct = Number(prayerAmount.value);
+      // pct is percentage (1$ = 1% ...)
+      prayerWheel.style.background = `conic-gradient(#4caf50 0 ${pct}%, #ff4c4c ${pct}% 100%)`;
+      // reset spinner rotation
+      if (prayerSpinner) prayerSpinner.style.transform = 'rotate(0deg)';
+    }
+
+    prayerAmount.addEventListener('input', ()=> updatePrayerUI());
+
+    function showChancePopup(player){
+      if (!chancePopupEl) return;
+      chancePopupEl.textContent = `Chance x2 — ${player.name}`;
+      chancePopupEl.classList.remove('hidden');
+      // color accent
+      chancePopupEl.style.background = `linear-gradient(90deg, ${player.color} 0%, #ffd54d 100%)`;
+    }
+    function hideChancePopup(){ if (chancePopupEl) chancePopupEl.classList.add('hidden'); }
+
+    prayerToggle.addEventListener('click', ()=>{
+      const p = order[currentIdx];
+      if (!p) { messageEl.textContent = "Aucun joueur actif."; return; }
+      if (prayerPanel.classList.contains('hidden')){
+        // open prayer UI: hide the slot-machine (keeps rules and controls in place)
+        if (slotMachine) slotMachine.classList.add('hidden');
+        prayerPanel.classList.remove('hidden');
+        updatePrayerUI();
+      } else {
+        if (slotMachine) slotMachine.classList.remove('hidden');
+        prayerPanel.classList.add('hidden');
+      }
+    });
+
+    async function runPrayerAnimation(amount){
+      return new Promise((resolve)=>{
+        const fullSpins = 6 + Math.floor(Math.random()*4);
+        const finalAngle = Math.random()*360; // degrees
+        const duration = 2000 + Math.floor(Math.random()*900);
+        const start = performance.now();
+        function easeOut(t){ return 1 - Math.pow(1 - t, 3); }
+        function frame(now){
+          const elapsed = now - start;
+          const progress = Math.min(elapsed / duration, 1);
+          const eased = easeOut(progress);
+          const currentRotation = (fullSpins * 360 + finalAngle) * eased;
+          if (prayerSpinner) prayerSpinner.style.transform = `rotate(${currentRotation}deg)`;
+          if (progress < 1) requestAnimationFrame(frame);
+          else {
+            // show ping briefly
+            prayerPing.classList.add('show');
+            setTimeout(()=> prayerPing.classList.remove('show'), 900);
+            // normalize final angle relative to top (0..360)
+            const landed = finalAngle % 360;
+            // compute wedge degrees (1$ = 1% -> amount% of circle)
+            const wedgeDeg = Number(amount) * 3.6; // amount% of 360
+            const success = landed <= wedgeDeg;
+            resolve(success);
+          }
+        }
+        requestAnimationFrame(frame);
+      });
+    }
+
+    prayBtn.addEventListener('click', async ()=>{
+      const p = order[currentIdx];
+      if (!p) { messageEl.textContent = 'Aucun joueur.'; return; }
+      const amount = Math.max(1, Math.min(Number(prayerAmount.value || 1), Number(prayerAmount.max || 75)));
+      if (amount > p.money){ messageEl.textContent = 'Pas assez d\'argent pour cette prière.'; return; }
+      // deduct prayer cost immediately
+      p.money -= amount;
+      updateHud(p);
+      try{ updatePlayerMoneyInPill(p); }catch(e){}
+      prayBtn.disabled = true;
+      messageEl.textContent = 'Prière en cours...';
+      const ok = await runPrayerAnimation(amount);
+      if (ok){
+        // grant Chance x2 for this player's remaining turn
+        p.chanceDouble = true;
+        showChancePopup(p);
+        messageEl.style.color = '#7af288';
+        messageEl.textContent = `Prière réussie ! Chance x2 actif pour ce tour.`;
+      } else {
+        p.chanceDouble = false;
+        messageEl.style.color = '#ff6b6b';
+        messageEl.textContent = `Prière ratée. -${amount}$`;
+      }
+      // re-enable pray button if player still has money
+      setTimeout(()=>{ prayBtn.disabled = false; updatePrayerUI(); }, 600);
+    });
+
+    lever.addEventListener('click', ()=>{ startSpin(); });
+    // Arrêter = demander à passer le tour (avance après fin du spin)
+    stopBtn.addEventListener('click', ()=>{
+      const p = order[currentIdx];
+      p.spins = 0;
+      stopBtn.disabled = true;
+      messageEl.textContent = 'Pass demandé...';
+      // update the player's pill with current money immediately
+      try{ updatePlayerMoneyInPill(p); }catch(e){}
+      passRequested = true;
+      // if not spinning, advance immediately
+      if (!spinning){
+        // clear Chance bonus when turn ends
+        p.chanceDouble = false; hideChancePopup();
+        currentIdx++; startTurn(currentIdx);
+      }
+    });
+
+    // keyboard shortcuts
+    window.addEventListener('keydown', (e)=>{
+      if (e.code === 'Space') startSpin();
+      if (e.code === 'KeyP') {
+        const p = order[currentIdx]; p.spins = 0; stopBtn.disabled = true; messageEl.textContent = 'Pass demandé...';
+        try{ updatePlayerMoneyInPill(p); }catch(e){}
+        passRequested = true;
+        if (!spinning){ p.chanceDouble = false; hideChancePopup(); currentIdx++; startTurn(currentIdx); }
+      }
+    });
+
+    function updatePlayerBarRanking(sorted){
+      const bar = document.querySelector('.player-bar');
+      if (!bar) return;
+      const pills = Array.from(bar.querySelectorAll('.player-pill'));
+      pills.forEach(pill => {
+        const name = pill.querySelector('span:nth-child(2)')?.textContent?.trim();
+        const res = sorted.find(r => r.name === name);
+        let badge = pill.querySelector('.rank-badge');
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'rank-badge';
+          badge.style.marginLeft = 'auto';
+          badge.style.fontWeight = '900';
+          badge.style.fontSize = '0.85rem';
+          badge.style.padding = '2px 6px';
+          badge.style.borderRadius = '99px';
+          badge.style.background = 'rgba(255,255,255,0.8)';
+          badge.style.color = '#000';
+          pill.appendChild(badge);
+        }
+        if (!res) {
+          badge.textContent = '';
+          pill.style.boxShadow = 'none';
+          pill.style.border = '1px solid rgba(255,255,255,0.28)';
+          pill.style.background = 'rgba(15,24,46,0.95)';
+        } else {
+          const rank = sorted.findIndex(r => r.name === name) + 1;
+          const rankColor = rank === 1 ? '#ffd700' : rank === 2 ? '#c0c0c0' : rank === 3 ? '#cd7f32' : '#8a2be2';
+          badge.textContent = `#${rank}`;
+          pill.style.border = `1px solid ${rankColor}`;
+          pill.style.boxShadow = `0 0 0 2px ${rankColor}`;
+          pill.style.background = 'rgba(255,255,255,0.13)';
+          if (typeof setACText === 'function') setACText(pill, rank, sorted.length);
+        }
+      });
+    }
+
+    function ensurePlayerBar(){
+      return document.querySelector('.player-bar') || null;
+    }
+
+    function updatePlayerMoneyInPill(player){
+      const bar = document.querySelector('.player-bar');
+      if (!bar) {
+        // wait for the player-bar to be created by game-players.js on load
+        window.addEventListener('load', function onLoad(){ window.removeEventListener('load', onLoad); updatePlayerMoneyInPill(player); });
+        return;
+      }
+      const pills = Array.from(bar.querySelectorAll('.player-pill'));
+      pills.forEach(pill => {
+        const name = pill.querySelector('span:nth-child(2)')?.textContent?.trim();
+        if (name === player.name){
+          // ensure the pill can host an absolute element
+          if (!pill.style.position) pill.style.position = 'relative';
+          let moneyRight = pill.querySelector('.pill-money');
+          if (!moneyRight){
+            moneyRight = document.createElement('div');
+            moneyRight.className = 'pill-money';
+            moneyRight.style.position = 'absolute';
+            moneyRight.style.right = '8px';
+            moneyRight.style.top = '50%';
+            moneyRight.style.transform = 'translateY(-50%)';
+            moneyRight.style.fontWeight = '900';
+            moneyRight.style.color = '#fff';
+            moneyRight.style.background = 'rgba(0,0,0,0.16)';
+            moneyRight.style.padding = '2px 6px';
+            moneyRight.style.borderRadius = '8px';
+            moneyRight.style.fontSize = '0.9rem';
+            pill.appendChild(moneyRight);
+          }
+          // show money only if player has played or is playing
+          if (!player._played && !player._playing){
+            moneyRight.style.display = 'none';
+          } else {
+            moneyRight.style.display = 'block';
+            moneyRight.textContent = `${player.money}$`;
+          }
+        }
+      });
+    }
+
+    function endGame(){
+      window.PourtyMiniGame?.finish();
+      // hide gameplay and order
+      hideChancePopup();
+      document.querySelectorAll('main > .game-area, #gameContainer').forEach(el=>{ if (el) el.style.display = 'none'; });
+      orderEl.style.display = 'none';
+      // hide money labels in player pills for final screen
+      document.querySelectorAll('.player-pill .pill-money').forEach(el=> el.style.display = 'none');
+      // find winner & ranking (by money desc)
+      const ranking = order.slice().sort((a,b)=>b.money - a.money);
+      const winner = ranking[0];
+      statusEl.textContent = `${winner.name} a gagné!`;
+      statusEl.style.color = winner.color;
+
+      // leaderboard (centered)
+      const board = document.createElement('div');
+      board.id = 'endLeaderboard';
+      board.style.marginTop = '12px';
+      board.style.maxWidth = '720px';
+      board.style.marginLeft='auto';
+      board.style.marginRight='auto';
+      const title = document.createElement('h3'); title.textContent = 'CLASSEMENT'; title.style.margin='0 0 8px 0'; board.appendChild(title);
+      ranking.forEach((p,idx)=>{
+        const r = document.createElement('div');
+        r.style.display='flex'; r.style.justifyContent='space-between'; r.style.padding='8px'; r.style.borderBottom='1px solid rgba(255,255,255,0.04)';
+        r.innerHTML = `<div>#${idx+1} ${p.name}</div><div style="font-weight:900">${p.money}$</div>`;
+        board.appendChild(r);
+      });
+      statusEl.parentNode.insertBefore(board, statusEl.nextSibling);
+
+      // annotate player-bar ranks (player-bar is created by game-players.js on load)
+      setTimeout(()=> updatePlayerBarRanking(ranking), 120);
+
+      // add Retour button
+      const ret = document.createElement('button');
+      ret.className = 'return-btn'; ret.textContent = 'Retour';
+      ret.addEventListener('click', ()=> { window.location.href = '../index.html'; });
+      board.appendChild(ret);
+    }
+
+    // initialize
+    renderOrder(); announceOrder();
+    // player-pill money will be updated when players play; ensure bar exists via game-players.js
+
+  })();
+  </script>
+</body>
+</html>

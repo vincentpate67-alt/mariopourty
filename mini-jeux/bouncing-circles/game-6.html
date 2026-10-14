@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <script src="../../party-payout.js"></script>
+<script src="../../board/board-minigame-bridge.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bouncing Circles</title>
+  <link rel="stylesheet" href="../../style.css" />
+  <style>
+    body{background:#06102a;min-height:100vh;color:#fff;font-family:Segoe UI,Roboto,Ubuntu,sans-serif;margin:0;padding:0;}
+    main{width:100%;max-width:960px;margin:30px auto 160px;padding:16px;text-align:center;position:relative;}
+    #circle-canvas{width:100%;max-width:680px;height:680px;background:#07102b;border:1px solid rgba(255,255,255,.22);border-radius:14px;}
+    #ball-selector{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;justify-items:center;margin:12px auto 8px;max-width:420px;}
+    .choice-ball{width:42px;height:42px;border-radius:50%;border:2px solid rgba(255,255,255,.5);background:#888;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;transition:transform .2s ease,background .2s ease;border-color:#fff;}
+    .choice-ball.chosen{background:#6ea8ff;border-color:#fff;transform:scale(1.1);}
+    #player-turn{margin-bottom:8px;font-size:1.1rem;color:#dce6ff;}
+    #countdown{font-size:2rem;margin-bottom:6px;color:#fff;}
+    #status-text{min-height:1.2rem;color:#a8cdf2;margin-bottom:10px;}
+  </style>
+</head>
+<body>
+  <main>
+    <button id="exit-button" data-target="../../index.html" style="position:absolute;top:12px;left:12px;padding:8px 12px;border:none;border-radius:8px;background:#ff7676;color:#fff;font-weight:700;cursor:pointer;display:none;z-index:10;">Retour</button>
+    <div id="player-turn"></div>
+    <div id="countdown"></div>
+    <div id="status-text"></div>
+    <div id="ball-selector"></div>
+    <canvas id="circle-canvas" width="680" height="680"></canvas>
+  </main>
+
+  <script src="../commun/game-players.js"></script>
+  <script>
+(function(){
+  const playerList = JSON.parse(localStorage.getItem('mini-Jeux-host-players') || '[]');
+  const playerTurnEl = document.getElementById('player-turn');
+  const countdownEl = document.getElementById('countdown');
+  const statusText = document.getElementById('status-text');
+  const exitButton = document.getElementById('exit-button');
+  const canvas = document.getElementById('circle-canvas');
+  const ctx = canvas.getContext('2d');
+
+  if (playerList.length === 0) {
+    playerTurnEl.textContent = 'Aucun joueur trouvé : ajoute des joueurs dans le menu';
+    statusText.textContent = 'Pas de joueurs';
+    return;
+  }
+
+  const shuffle = arr => arr.slice().sort(() => Math.random() - 0.5);
+  const playersOrder = shuffle(playerList);
+
+  const totalBalls = 10;
+  const placeholders = [];
+  const chosenBall = {};
+  let currentPicker = 0;
+  let phase = 'choose';
+
+  const center = {x: canvas.width/2, y: canvas.height/2};
+  const ringOuter = 320;
+  const ringThickness = 16;
+  const ringInner = ringOuter - ringThickness;
+  const ringMiddle = ringOuter - ringThickness / 2;
+  const minRadius = ringInner - 20;
+
+  let holeAngle = 0;
+  let holeSpan = Math.PI * 0.03;
+  const holeGrowthRate = 0.001;
+  const holeLimit = Math.PI * 0.95;
+
+  const activeBalls = [];
+  const eliminationTimes = {};
+  let animationId = null;
+
+  const apple = { x: null, y: null, r: 22, active: false };
+  const appleImage = new Image();
+  let appleImageBroken = false;
+  appleImage.onload = () => { appleImageBroken = false; };
+  appleImage.onerror = () => { appleImageBroken = true; console.warn('⚠️ [GAME] failed to load pomme.png'); clearAppleTimer(); };
+  appleImage.src = 'assets/pomme.png';
+  let appleTimerId = null;
+  const appleParticles = [];
+
+  function setAppleTimer() {
+    if (apple.active || appleTimerId != null) return;
+    appleTimerId = setTimeout(() => {
+      appleTimerId = null;
+      spawnApple();
+    }, 4000);
+  }
+
+  function clearAppleTimer() {
+    if (appleTimerId != null) {
+      clearTimeout(appleTimerId);
+      appleTimerId = null;
+    }
+  }
+
+  function updateEliminations() {
+    playersOrder.forEach(player => {
+      if (!eliminationTimes[player.name]) {
+        const haveBall = activeBalls.some(b => !b.destroyed && b.owner.name === player.name);
+        if (!haveBall) {
+          eliminationTimes[player.name] = performance.now();
+          console.log(`🔴 [GAME] ${player.name} est éliminé (0 billes restantes)`);
+          showStatus(`${player.name} a plus de billes, éliminé !`);
+        }
+      }
+    });
+
+    const alive = playersOrder.filter(p => !eliminationTimes[p.name]).length;
+    if (alive <= 1) {
+      finishGame();
+    }
+  }
+
+  function spawnApple() {
+    apple.active = false;
+    apple.x = null;
+    apple.y = null;
+
+    const minDist = 30;
+    for (let tries = 0; tries < 100; tries++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = Math.random() * (ringInner - minDist - 20) + 20;
+      const x = center.x + Math.cos(angle) * radius;
+      const y = center.y + Math.sin(angle) * radius;
+      const overlap = activeBalls.some(b => Math.hypot(b.x - x, b.y - y) < b.r + apple.r + 6);
+      if (!overlap) {
+        apple.x = x;
+        apple.y = y;
+        apple.active = true;
+        // spawn particles for growing effect
+        for (let i = 0; i < 20; i++) {
+          const a = Math.random()*Math.PI*2;
+          const speed = Math.random()*1.4 + 0.7;
+          appleParticles.push({
+            x, y,
+            vx: Math.cos(a)*speed,
+            vy: Math.sin(a)*speed,
+            life: 0.5,
+            alpha: 1
+          });
+        }
+        return;
+      }
+    }
+    apple.active = false;
+    setAppleTimer();
+  }
+
+  function updatePlayerTurn() {
+    if (phase === 'choose') {
+      const player = playersOrder[currentPicker];
+      playerTurnEl.textContent = `${player.name} choisis ta bille`;
+      playerTurnEl.style.color = player.color || '#fff';
+    }
+  }
+
+  function announceOrder() {
+    let step = 0;
+    const preview = setInterval(() => {
+      playerTurnEl.textContent = 'Ordre aléatoire... ' + playersOrder[Math.floor(Math.random() * playersOrder.length)].name;
+      step++;
+      if (step > 18) {
+        clearInterval(preview);
+        // show final order briefly then initialize the choose phase
+        setTimeout(() => {
+          currentPicker = 0;
+          makePlaceholders();
+          updatePlayerTurn();
+          showStatus('Clique sur une des boules grises pour choisir la position.');
+          drawScene();
+        }, 300);
+      }
+    }, 80);
+  }
+
+  function showStatus(text) {
+    statusText.textContent = text;
+  }
+
+  function makePlaceholders() {
+    placeholders.length = 0;
+
+    for (let i = 0; i < totalBalls; i++) {
+      let x, y;
+      let tries = 0;
+      const r = 18;
+      while (true) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = Math.random() * (minRadius - 40) + 40;
+        x = center.x + Math.cos(angle) * radius;
+        y = center.y + Math.sin(angle) * radius;
+
+        const overlap = placeholders.some(ph => Math.hypot(ph.x - x, ph.y - y) < ph.r + r + 4);
+        if (!overlap || tries > 50) break;
+        tries++;
+      }
+
+      placeholders.push({x,y,r:27,chosen: false,color:null});
+    }
+  }
+
+  function drawRing() {
+    const start = holeAngle - holeSpan/2;
+    const end = holeAngle + holeSpan/2;
+
+    ctx.save();
+    // full visible border (safe wall)
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, ringMiddle, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.lineWidth = ringThickness;
+    ctx.stroke();
+
+    // hole segment (danger) in background color
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, ringMiddle, start, end, false);
+    ctx.lineWidth = ringThickness + 2;
+    ctx.strokeStyle = 'rgba(255,255,255,1)';
+    ctx.stroke();
+
+    // visual debug for ring radius if needed
+    // ctx.globalCompositeOperation = 'source-over';
+    // ctx.beginPath();
+    // ctx.arc(center.x, center.y, ringOuter, 0, Math.PI*2);
+    // ctx.strokeStyle = 'rgba(255,0,0,0.25)';
+    // ctx.lineWidth = 1;
+    // ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
+
+    // subtle ring outline
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, ringMiddle, 0, Math.PI*2);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawScene() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'rgba(8,13,36,0.8)';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    drawRing();
+
+    if (phase === 'choose') {
+      placeholders.forEach((ph, idx) => {
+        ctx.beginPath();
+        ctx.arc(ph.x, ph.y, ph.r, 0, Math.PI*2);
+        ctx.fillStyle = ph.chosen ? (ph.color || 'rgba(255,200,200,0.9)') : 'rgba(190,190,190,0.9)';
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = ph.chosen ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.4)';
+        ctx.stroke();
+        ctx.fillStyle = '#000';
+        ctx.font = '12px Segoe UI';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText((idx+1).toString(), ph.x, ph.y);
+      });
+    }
+
+    if (apple.active && apple.x != null && apple.y != null) {
+      ctx.save();
+      ctx.globalAlpha = 0.9;
+      if (!appleImageBroken && appleImage.complete && appleImage.naturalWidth > 0) {
+        try {
+          ctx.drawImage(appleImage, apple.x - apple.r, apple.y - apple.r, apple.r * 2.2, apple.r * 2.2);
+        } catch (e) {
+          // Fallback to simple circle if drawImage fails for any reason
+          ctx.beginPath();
+          ctx.fillStyle = '#ff6b6b';
+          ctx.arc(apple.x, apple.y, apple.r, 0, Math.PI*2);
+          ctx.fill();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+          ctx.stroke();
+          appleImageBroken = true;
+        }
+      } else {
+        // simple fallback representation when image missing or broken
+        ctx.beginPath();
+        ctx.fillStyle = '#ff6b6b';
+        ctx.arc(apple.x, apple.y, apple.r, 0, Math.PI*2);
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+
+    // apple particle effect
+    appleParticles.forEach(p => {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255, 200, 50, ${p.alpha})`;
+      ctx.fill();
+    });
+
+    activeBalls.forEach(ball => {
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2);
+      ctx.fillStyle = ball.destroyed ? 'rgba(255,100,100,0.5)' : (ball.owner.color || '#aaa');
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    });
+  }
+
+  function startCountdown(seconds, callback) {
+    let remaining = seconds;
+    countdownEl.textContent = remaining;
+    const timer = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(timer);
+        countdownEl.textContent = '';
+        phase = 'simulate';
+        callback();
+      } else {
+        countdownEl.textContent = remaining;
+      }
+    }, 1000);
+  }
+
+  function beginSimulation() {
+    placeholders.forEach(ph => ph.chosen = true);
+    activeBalls.length = 0;
+    playersOrder.forEach(player => {
+      const idx = chosenBall[player.name];
+      if (idx == null) return;
+      const ph = placeholders[idx];
+      const startX = ph.x;
+      const startY = ph.y;
+      activeBalls.push({x:startX, y:startY, r:30, vx:(Math.random()*2-1)*3.6, vy:(Math.random()*2-1)*3.6, owner:player, destroyed:false});
+    });
+
+    apple.active = false;
+    apple.x = null;
+    apple.y = null;
+    clearAppleTimer();
+    setAppleTimer();
+
+    showStatus('Reposé, le jeu commence !');
+    playerTurnEl.textContent = 'Survis dans le cercle';
+    playerTurnEl.style.color = '#fff';
+
+    loop();
+  }
+
+  function collideTwo(a, b) {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const dist = Math.hypot(dx, dy);
+    const minDist = a.r + b.r;
+    if (dist > minDist || dist === 0) return;
+
+    const nx = dx / dist;
+    const ny = dy / dist;
+    const tx = -ny;
+    const ty = nx;
+
+    // push apart
+    const overlap = minDist - dist;
+    a.x -= nx * overlap * 0.5;
+    a.y -= ny * overlap * 0.5;
+    b.x += nx * overlap * 0.5;
+    b.y += ny * overlap * 0.5;
+
+    // projections
+    const v1n = a.vx * nx + a.vy * ny;
+    const v1t = a.vx * tx + a.vy * ty;
+    const v2n = b.vx * nx + b.vy * ny;
+    const v2t = b.vx * tx + b.vy * ty;
+
+    // exchange normal components (equal mass), tangential unchanged
+    const newV1n = v2n;
+    const newV2n = v1n;
+
+    a.vx = newV1n * nx + v1t * tx;
+    a.vy = newV1n * ny + v1t * ty;
+    b.vx = newV2n * nx + v2t * tx;
+    b.vy = newV2n * ny + v2t * ty;
+
+    a.vx *= 0.98;
+    a.vy *= 0.98;
+    b.vx *= 0.98;
+    b.vy *= 0.98;
+  }
+
+  function normalizeAngle(angle) {
+    let a = angle % (2*Math.PI);
+    if (a < 0) a += 2*Math.PI;
+    return a;
+  }
+
+  function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  function angleIntervalContains(mid, half, start, end) {
+    const a = normalizeAngle(mid - half);
+    const b = normalizeAngle(mid + half);
+    start = normalizeAngle(start);
+    end = normalizeAngle(end);
+
+    if (start <= end) {
+      return a >= start && b <= end;
+    }
+    return (a >= start && a < 2*Math.PI) || (b <= end && b >= 0);
+  }
+
+  function applyPhysics() {
+    holeAngle += 0.01;
+    holeSpan = Math.min(holeLimit, holeSpan + holeGrowthRate);
+
+    activeBalls.forEach(ball => {
+      if (ball.destroyed) return;
+      ball.vy += 0.14;
+      ball.x += clamp(ball.vx, -7, 7);
+      ball.y += clamp(ball.vy, -7, 7);
+
+      // Apple collision & duplication
+      if (apple.active && apple.x !== null && apple.y !== null) {
+        const dApple = Math.hypot(ball.x - apple.x, ball.y - apple.y);
+        if (dApple <= ball.r + apple.r) {
+          apple.active = false;
+          const clone = {
+            x: ball.x + (Math.random()*2-1)*10,
+            y: ball.y + (Math.random()*2-1)*10,
+            r: ball.r,
+            vx: ball.vx * 0.9,
+            vy: ball.vy * 0.9,
+            owner: ball.owner,
+            destroyed: false
+          };
+          activeBalls.push(clone);
+          showStatus(`${ball.owner.name} a multiplié sa bille !`);
+          apple.active = false;
+          setAppleTimer();
+        }
+      }
+
+      // wall collision with ring
+      const vx = ball.x - center.x;
+      const vy = ball.y - center.y;
+      const dist = Math.hypot(vx,vy);
+      const insideWall = dist + ball.r >= ringInner;
+      const outsideWall = dist - ball.r <= ringOuter;
+
+      if (insideWall && outsideWall) {
+        const angle = normalizeAngle(Math.atan2(vy,vx));
+        const holeStart = normalizeAngle(holeAngle - holeSpan/2);
+        const holeEnd = normalizeAngle(holeAngle + holeSpan/2);
+        const ballAngleSpan = Math.asin(Math.min(ball.r / Math.max(dist, ball.r), 1));
+
+        const canPassHole = angleIntervalContains(angle, ballAngleSpan, holeStart, holeEnd);
+
+        if (canPassHole) {
+          if (dist - ball.r >= ringOuter) {
+            ball.destroyed = true;
+            console.log(`⚫ [GAME] ${ball.owner.name} perd une bille en sortant du cercle`);
+            showStatus(`${ball.owner.name} perd une bille !`);
+          }
+          return;
+        }
+
+        // Bounce on solid part of ring
+        const nx = vx/dist;
+        const ny = vy/dist;
+        const dot = ball.vx*nx + ball.vy*ny;
+        if (dot > 0) {
+          ball.vx -= 2*dot*nx;
+          ball.vy -= 2*dot*ny;
+        }
+        ball.vx *= 1.1;
+        ball.vy *= 1.1;
+
+        const bounceDist = ringInner - ball.r;
+        ball.x = center.x + nx*bounceDist;
+        ball.y = center.y + ny*bounceDist;
+      }
+
+      // Kill if completely outside beyond outer edge
+      if (dist - ball.r > ringOuter) {
+        if (!ball.destroyed) {
+          ball.destroyed = true;
+          console.log(`⚫ [GAME] ${ball.owner.name} perd une bille hors cercle`);
+          showStatus(`${ball.owner.name} perd une bille !`);
+        }
+      }
+      if (dist - ball.r < minRadius - ringThickness*1.5) {
+        // keep inside interior boundary soft
+      }
+    });
+
+    for (let i=0;i<activeBalls.length;i++){
+      for (let j=i+1;j<activeBalls.length;j++){
+        collideTwo(activeBalls[i], activeBalls[j]);
+      }
+    }
+
+    // apple particle update
+    for (let i = appleParticles.length - 1; i >= 0; i--) {
+      const p = appleParticles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life -= 0.016;
+      p.alpha = Math.max(0, p.life / 0.5);
+      if (p.life <= 0) appleParticles.splice(i, 1);
+    }
+
+    updateEliminations();
+  }
+
+  function finishGame() {
+      window.PourtyMiniGame?.finish();
+    phase='finished';
+    if (animationId) cancelAnimationFrame(animationId);
+
+    const results = playersOrder.map(p => {
+      const t = eliminationTimes[p.name]||Number.POSITIVE_INFINITY;
+      return {player:p, time:t};
+    }).sort((a,b)=>b.time-a.time);
+
+    const sorted = results.map((r,i)=>({player:r.player,status:r.time===Number.POSITIVE_INFINITY?'safe':'dead',time:r.time}));
+    updatePlayerBarRanking(sorted);
+
+    playerTurnEl.textContent='Terminé !';
+    statusText.textContent='Retour vers le menu disponible.';
+    exitButton.style.display='block';
+  }
+
+  function loop(){
+    if (phase==='simulate') {
+      applyPhysics();
+      const alive = playersOrder.filter(p=>!eliminationTimes[p.name]).length;
+      if (alive<=1) { finishGame(); return; }
+    }
+    drawScene();
+    animationId = requestAnimationFrame(loop);
+  }
+
+  canvas.addEventListener('click', (event)=>{
+    if (phase !== 'choose') return;
+    const rect=canvas.getBoundingClientRect();
+    const x=event.clientX-rect.left; const y=event.clientY-rect.top;
+    let picked=-1;
+    placeholders.forEach((ph,idx)=>{
+      if (ph.chosen) return;
+      const d=Math.hypot(ph.x-x, ph.y-y);
+      if (d <= ph.r+4) picked=idx;
+    });
+    if (picked < 0) return;
+    const player = playersOrder[currentPicker];
+    chosenBall[player.name]=picked;
+    placeholders[picked].chosen=true;
+    placeholders[picked].color = player.color || 'rgba(255,255,255,1)';
+    drawScene();
+    currentPicker++;
+    if (currentPicker < playersOrder.length) {
+      updatePlayerTurn();
+      showStatus(`Place pour ${player.name} gardée. ${playersOrder[currentPicker].name} à toi.`);
+    } else {
+      phase='countdown';
+      showStatus('Tous choisis. top départ dans 3...');
+      startCountdown(3, beginSimulation);
+    }
+  });
+
+  function updatePlayerBarRanking(sorted) {
+    const bar = document.querySelector('.player-bar');
+    if (!bar) return;
+    const pills = Array.from(bar.querySelectorAll('.player-pill'));
+    pills.forEach(pill => {
+      const nameElem = pill.querySelector('span:nth-child(2)');
+      const playerName = nameElem ? nameElem.textContent.trim() : pill.textContent.trim();
+      const result = sorted.find(r => r.player.name === playerName);
+      let rankBadge = pill.querySelector('.rank-badge');
+      if (!rankBadge) {
+        rankBadge = document.createElement('span');
+        rankBadge.className = 'rank-badge';
+        rankBadge.style.marginLeft = 'auto';
+        rankBadge.style.fontWeight = '900';
+        rankBadge.style.fontSize = '0.85rem';
+        rankBadge.style.padding = '2px 6px';
+        rankBadge.style.borderRadius = '99px';
+        rankBadge.style.background = 'rgba(255,255,255,0.8)';
+        rankBadge.style.color = '#000';
+        pill.appendChild(rankBadge);
+      }
+
+      if (!result) {
+        rankBadge.textContent = '';
+        pill.style.boxShadow = 'none';
+        pill.style.border = '1px solid rgba(255,255,255,0.28)';
+        pill.style.background = 'rgba(15,24,46,0.95)';
+        return;
+      }
+
+      const rank = sorted.findIndex(r => r.player.name === playerName) + 1;
+      const color = rank === 1 ? '#ffd700' : rank === 2 ? '#c0c0c0' : rank === 3 ? '#cd7f32' : '#8a2be2';
+      rankBadge.textContent = `#${rank}`;
+      pill.style.border = `1px solid ${color}`;
+      pill.style.boxShadow = `0 0 0 2px ${color}`;
+      pill.style.background = 'rgba(255,255,255,0.13)';
+      setACText(pill, rank, sorted.length);
+    });
+  }
+
+  function init() {
+    if (exitButton) {
+      const target = exitButton.getAttribute('data-target') || '../../index.html';
+      exitButton.addEventListener('click', () => {
+        window.location.href = target;
+      });
+    }
+
+    // announce order with brief animation, then show the choosing UI
+    announceOrder();
+  }
+
+  init();
+})();
+  </script>
+</body>
+</html>

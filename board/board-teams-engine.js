@@ -1,0 +1,6 @@
+(() => {
+  const base=window.PourtyBoardEngine,T=window.PourtyTeams,wrapped={};
+  for(const [name,fn]of Object.entries(base))if(typeof fn==='function'&&!['create','restore'].includes(name))wrapped[name]=(...args)=>{const before=args[0],result=fn(...args);if(!before?.teams?.length||!result?.wallets)return result;return T.sync(before,result===before?JSON.parse(JSON.stringify(result)):result);};
+  function restore(raw,session){const result=base.restore(raw,session);if(!result)return null;if(session.gameMode!=='teams')return result;try{T.validate(session.teams,session.players.length);if(JSON.stringify(raw.teams)!==JSON.stringify(session.teams))return null;for(const t of session.teams){const first=t.members[0];for(const id of t.members)if(['wallets','inventories','inventoryCaps'].some(field=>JSON.stringify(result[field]?.[id])!==JSON.stringify(result[field]?.[first])))return null;}return result;}catch{return null;}}
+  window.PourtyBoardEngine=Object.freeze({...base,...wrapped,restore});
+})();

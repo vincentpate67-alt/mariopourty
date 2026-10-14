@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <script src="../party-payout.js"></script>
+<script src="../board/board-minigame-bridge.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Plinkocoubeh</title>
+  <link rel="stylesheet" href="../style.css" />
+  <style>
+    body{background:#0a0f24;min-height:100vh;color:#fff;font-family:Segoe UI,Roboto,Ubuntu,sans-serif;margin:0;padding:0;}
+    main{width:100%;max-width:960px;margin:30px auto 160px;padding:16px;text-align:center;}
+    .slot{width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.65);background:rgba(255,255,255,.16);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;cursor:pointer;transition:transform .2s ease,background .2s ease;}
+    .slot.available:hover{transform:scale(1.2);}
+    .slot.selected{background:#fff;color:#000;cursor:default;}
+    .rank{flex:1 1 120px;background:rgba(9,18,39,0.86);border:1px solid rgba(255,255,255,0.2);border-radius:10px;padding:8px;color:#fff;font-weight:600;}
+  </style>
+</head>
+<body>
+  <main>
+    <div id="plinkocoubeh">
+      <button id="exit-button" style="position:absolute;top:12px;left:12px;padding:8px 12px;border:none;border-radius:8px;background:#ff7676;color:#fff;font-weight:700;cursor:pointer;display:none;z-index:10;">Exit</button>
+      <div id="player-turn" style="margin-bottom:8px;font-size:1.1rem;color:#dce6ff;"></div>
+      <div id="countdown" style="font-size:2rem;margin-bottom:12px;color:#fff;"></div>
+      <div class="selector" id="slot-selector" style="display:flex;justify-content:center;gap:8px;margin-bottom:14px;"></div>
+      <canvas id="board-canvas" width="960" height="680" style="width:100%;max-width:960px;height:680px;background:#07102b;border:1px solid rgba(255,255,255,.22);border-radius:14px;"></canvas>
+      <!-- receptacles and rankings are now represented in the persistent player-bar -->
+    </div>
+  </main>
+
+  <script src="commun/game-players.js"></script>
+  <script>
+(function(){
+    const playerList = JSON.parse(localStorage.getItem('mini-Jeux-host-players') || '[]');
+    const slotSelector = document.getElementById('slot-selector');
+    const playerTurnEl = document.getElementById('player-turn');
+    const countdownEl = document.getElementById('countdown');
+    const boardCanvas = document.getElementById('board-canvas');
+    const ctx = boardCanvas.getContext('2d');
+
+    if (playerList.length === 0) {
+      playerTurnEl.textContent = 'Aucun joueur trouvé : ajoute des joueurs dans le menu';
+      return;
+    }
+
+    const playersOrder = [...playerList].sort(() => Math.random() - 0.5);
+    const slots = Array(10).fill(null);
+    const choices = [];
+
+    let binConfig = [];
+
+    function prepareBinConfig() {
+      const safeCount = 4 + Math.floor(Math.random() * 3); // 4-6 safe
+      const bins = Array(10).fill('dead');
+      for (let i = 0; i < safeCount; i++) bins[i] = 'safe';
+      for (let i = bins.length - 1; i > 0; i--) {
+        const randomIndex = Math.floor(Math.random() * (i + 1));
+        [bins[i], bins[randomIndex]] = [bins[randomIndex], bins[i]];
+      }
+      binConfig = bins;
+    }
+
+    let playerIndex = 0;
+
+    const pinStartX = 72;
+    const pinStartY = 90;
+    const pinSpacingX = 86;
+    const rowSpacingY = 26;
+    const pinRows = 20;
+    const binTopY = pinStartY + pinRows * rowSpacingY + 18;
+
+    let binOffset = 0;
+    const binShiftSpeed = 0.5;
+
+    const pins = [];
+    const particles = [];
+
+    function initPins() {
+      pins.length = 0;
+      const total = pinRows * 10;
+      const allCells = [];
+      for (let row = 0; row < pinRows; row++) {
+        const rowOffset = (row % 2) * (pinSpacingX / 2);
+        for (let col = 0; col < 10; col++) {
+          allCells.push({
+            row,
+            col,
+            x: pinStartX + col * pinSpacingX + rowOffset,
+            y: pinStartY + row * rowSpacingY
+          });
+        }
+      }
+
+      // shuffle
+      for (let i = allCells.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [allCells[i], allCells[j]] = [allCells[j], allCells[i]];
+      }
+
+      const redCount = Math.min(10, 5 + Math.floor(Math.random() * 10));
+      const missingCount = Math.min(15, 10 + Math.floor(Math.random() * 15));
+
+      for (let i = 0; i < total; i++) {
+        if (i < missingCount) continue; // invisible slot
+        const cell = allCells[i];
+        const type = i < missingCount + redCount ? 'red' : 'normal';
+        pins.push({ x: cell.x, y: cell.y, radius: 6, type });
+      }
+    }
+
+    function hexToRgb(hex) {
+      const h = hex.replace('#', '');
+      const r = parseInt(h.slice(0,2), 16);
+      const g = parseInt(h.slice(2,4), 16);
+      const b = parseInt(h.slice(4,6), 16);
+      return `${r},${g},${b}`;
+    }
+
+    function renderSlots() {
+      slotSelector.innerHTML = '';
+      for (let i = 0; i < 10; i++) {
+        const slot = document.createElement('div');
+        slot.className = 'slot';
+        slot.textContent = i + 1;
+        if (slots[i] !== null) {
+          slot.classList.add('selected');
+          slot.style.background = slots[i].color;
+          slot.style.color = '#000';
+          slot.title = slots[i].name;
+        } else {
+          slot.classList.add('available');
+          slot.addEventListener('mouseenter', () => {
+            const current = playersOrder[playerIndex];
+            if (current) slot.style.background = `rgba(${hexToRgb(current.color || '#ffffff')},0.35)`;
+          });
+          slot.addEventListener('mouseleave', () => {
+            if (slots[i] === null) slot.style.background = 'rgba(255,255,255,0.16)';
+          });
+          slot.addEventListener('click', () => selectSlot(i));
+        }
+        slotSelector.appendChild(slot);
+      }
+    }
+
+
+    function showPlayerTurn() {
+      const player = playersOrder[playerIndex];
+      if (!player) return;
+      playerTurnEl.textContent = `${player.name} : pose ta bille`;
+      playerTurnEl.style.color = player.color || '#dce6ff';
+    }
+
+    function selectSlot(index) {
+      if (slots[index] !== null) return;
+      if (playerIndex >= playersOrder.length) return;
+      const player = playersOrder[playerIndex];
+      slots[index] = player;
+      choices.push({ player, slot: index });
+      playerIndex++;
+      renderSlots();
+      if (playerIndex >= playersOrder.length) {
+        playerTurnEl.textContent = 'Tous choisis. Décompte...';
+        playerTurnEl.style.color = '#fff';
+        startCountdown();
+      } else {
+        showPlayerTurn();
+      }
+    }
+
+    function startCountdown() {
+      let count = 3;
+      countdownEl.textContent = count;
+      const interval = setInterval(() => {
+        count -= 1;
+        countdownEl.textContent = count > 0 ? count : 'GO !';
+        if (count < 0) {
+          clearInterval(interval);
+          countdownEl.textContent = '';
+          startPlinko();
+        }
+      }, 1000);
+    }
+
+    function drawBoard() {
+      ctx.clearRect(0, 0, boardCanvas.width, boardCanvas.height);
+      ctx.fillStyle = '#07102b';
+      ctx.fillRect(0, 0, boardCanvas.width, boardCanvas.height);
+
+      // positions 1-10 en haut
+      for (let col = 0; col < 10; col++) {
+        const centerX = pinStartX + col * pinSpacingX;
+        const centerY = pinStartY - 40;
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 10, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '12px Segoe UI';
+        ctx.textAlign = 'center';
+        ctx.fillText(col + 1, centerX, centerY + 4);
+      }
+
+      // plinko pins
+      pins.forEach(pin => {
+        if (pin.type === 'red') {
+          ctx.fillStyle = 'rgba(240, 80, 80, 0.9)';
+        } else {
+          ctx.fillStyle = '#96b8ff';
+        }
+        ctx.beginPath();
+        ctx.arc(pin.x, pin.y, pin.radius, 0, 2 * Math.PI);
+        ctx.fill();
+      });
+
+      const floorY = binTopY - 20;
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(pinStartX - 40, floorY, pinSpacingX * 10 + 16, 4);
+
+      // bins on canvas for visuals
+      for (let i = 0; i < 10; i++) {
+        let bx = pinStartX - 32 + i * pinSpacingX + binOffset;
+        const wrapWidth = pinSpacingX * 10;
+        if (bx > pinStartX - 32 + wrapWidth) bx -= wrapWidth;
+        if (bx < pinStartX - 32) bx += wrapWidth;
+
+        ctx.fillStyle = binConfig[i] === 'safe' ? 'rgba(92,194,100,0.6)' : 'rgba(235,83,83,0.65)';
+        ctx.fillRect(bx, binTopY, 80, 46);
+      }
+
+      // triangles entre les slots (guide visuel + interaction avec panier)
+      for (let i = 0; i < 9; i++) {
+        let x0 = pinStartX - 32 + (i + 1) * pinSpacingX + binOffset;
+        const wrapWidth = pinSpacingX * 10;
+        if (x0 > pinStartX - 32 + wrapWidth) x0 -= wrapWidth;
+        if (x0 < pinStartX - 32) x0 += wrapWidth;
+        const topY = binTopY;
+        const baseY = binTopY + 70;
+        ctx.fillStyle = 'rgba(255,255,255,0.16)';
+        ctx.beginPath();
+        ctx.moveTo(x0, topY);
+        ctx.lineTo(x0 - 12, baseY);
+        ctx.lineTo(x0 + 12, baseY);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // basic guide line for slot positions
+      ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 10; i++) {
+        const x = pinStartX + i * pinSpacingX;
+        ctx.beginPath();
+        ctx.moveTo(x, 24);
+        ctx.lineTo(x, pinStartY - 20);
+        ctx.stroke();
+      }
+    }
+
+    function getBinFromX(x) {
+      const baseX = pinStartX - 32;
+      const wrapWidth = pinSpacingX * 10;
+      let adjusted = x - baseX - binOffset;
+      adjusted = ((adjusted % wrapWidth) + wrapWidth) % wrapWidth;
+
+      const leftSlot = Math.floor(adjusted / pinSpacingX);
+      const frac = (adjusted / pinSpacingX) - leftSlot;
+
+      if (leftSlot < 0) return 0;
+      if (leftSlot >= 9) return 9;
+      if (frac <= 0.3) return leftSlot;
+      if (frac >= 0.7) return leftSlot + 1;
+      return Math.random() < 0.5 ? leftSlot : leftSlot + 1;
+    }
+
+    function startPlinko() {
+      drawBoard();
+      if (choices.length === 0) {
+        playerTurnEl.textContent = 'Aucune bille à lancer.';
+        return;
+      }
+
+      const balls = choices.map(c => ({
+        player: c.player,
+        x: pinStartX + c.slot * pinSpacingX,
+        y: pinStartY - 30,
+        vx: (Math.random() - 0.5) * 1.6,
+        vy: 0,
+        finished: false,
+        bin: null,
+        status: 'active',
+        color: c.player.color || '#fafafa',
+        startTime: performance.now(),
+        endTime: null,
+        trail: []
+      }));
+
+      const gravity = 0.18;
+      const damping = 0.88;
+      const ballRadius = 16;
+
+      const simulation = setInterval(() => {
+        binOffset += binShiftSpeed;
+        const wrapWidth = pinSpacingX * 10;
+        if (binOffset > wrapWidth) binOffset -= wrapWidth;
+        if (binOffset < 0) binOffset += wrapWidth;
+
+        drawBoard();
+
+        balls.forEach(ball => {
+          if (ball.finished) return;
+
+          ball.vy += gravity;
+          ball.x += ball.vx;
+          ball.y += ball.vy;
+
+          // particules de vent derrière la bille
+          particles.push({
+            x: ball.x - ball.vx * 1.5,
+            y: ball.y - ball.vy * 1.5,
+            vx: -ball.vx * 0.2 + (Math.random() - 0.5) * 0.4,
+            vy: -ball.vy * 0.2 + (Math.random() - 0.1) * 0.3,
+            life: 12,
+            size: 2 + Math.random() * 2
+          });
+
+          // dérive légère pour plus de déviation X
+          ball.vx += (Math.random() - 0.5) * 0.05;
+
+          // bordures extérieures rapprochées pour éviter blocage contre le mur
+          const minX = pinStartX - 3;
+          const maxX = pinStartX + 18 * pinSpacingX;
+          if (ball.x <= minX) {
+            ball.x = minX;
+            ball.vx = Math.abs(ball.vx) * 0.95 + 0.8;
+            ball.vy = Math.abs(ball.vy) * 0.85;
+          }
+          if (ball.x >= maxX) {
+            ball.x = maxX;
+            ball.vx = -Math.abs(ball.vx) * 0.95 - 0.8;
+            ball.vy = Math.abs(ball.vy) * 0.85;
+          }
+
+          // collisions très robustes avec chaque pin
+          for (const pin of pins) {
+            const dx = ball.x - pin.x;
+            const dy = ball.y - pin.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const overlap = ballRadius + pin.radius - dist;
+            if (overlap > 0 && dist > 0) {
+              if (pin.type === 'red') {
+                ball.finished = true;
+                ball.endTime = performance.now();
+                ball.status = 'killed';
+                ball.bin = null;
+                ball.x = pin.x;
+                ball.y = pin.y + ballRadius + pin.radius + 1;
+                console.log(`%c${ball.player.name} (couleur ${ball.player.color}) touché pin rouge : KILLED`,'color:#ff4c4c;font-weight:bold');
+                break;
+              }
+
+              const nx = dx / dist;
+              const ny = dy / dist;
+              const velocityAlongNormal = ball.vx * nx + ball.vy * ny;
+
+              if (velocityAlongNormal < 0) {
+                ball.vx -= 1.9 * velocityAlongNormal * nx;
+                ball.vy -= 1.9 * velocityAlongNormal * ny;
+              }
+
+              // déviation marquée (x et y)
+              ball.vx += nx * 0.9 + (Math.random() - 0.5) * 0.5;
+              ball.vy += ny * 0.3 + Math.random() * 0.16;
+
+              // projection hors chevauchement
+              ball.x += nx * overlap;
+              ball.y += ny * overlap;
+
+              break;
+            }
+          }
+
+          // si déjà tué sur pin, on skip tout
+          if (ball.finished) return;
+
+          ball.vx *= damping;
+          ball.vx = Math.max(-6, Math.min(6, ball.vx));
+          ball.vy = Math.max(-12, Math.min(12, ball.vy));
+
+          // structure des triangles pour positionnement bin
+          if (ball.y > binTopY - 26 && ball.y < binTopY + 12) {
+            for (let i = 0; i < 9; i++) {
+              const boundaryX = pinStartX - 32 + (i + 1) * pinSpacingX;
+              const match = Math.abs(ball.x - boundaryX) < 14;
+              if (match) {
+                const direction = ball.x < boundaryX ? -1 : 1;
+                ball.x += direction * 2.2;
+                ball.vx += direction * 0.7;
+                break;
+              }
+            }
+          }
+
+          const bottomLine = binTopY - 4;
+          if (ball.y >= bottomLine) {
+            if (!ball.finished) {
+              ball.finished = true;
+              ball.endTime = performance.now();
+              ball.bin = getBinFromX(ball.x);
+              if (binConfig[ball.bin] === 'safe') {
+                ball.status = 'safe';
+                console.log(`%c${ball.player.name} (couleur ${ball.player.color}) a fini SAFE dans bin ${ball.bin + 1}`,'color:#6efc6e;font-weight:bold');
+              } else {
+                ball.status = 'dead';
+                console.log(`%c${ball.player.name} (couleur ${ball.player.color}) a fini DEAD dans bin ${ball.bin + 1}`,'color:#ffdb58;font-weight:bold');
+              }
+            }
+            ball.vx *= 0.5;
+            ball.vy *= 0.5;
+            ball.y = bottomLine;
+          }
+
+          ball.trail.push({ x: ball.x, y: ball.y });
+          if (ball.trail.length > 20) ball.trail.shift();
+        });
+
+        // update particles
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vx *= 0.96;
+          p.vy *= 0.96;
+          p.life -= 1;
+          if (p.life <= 0) { particles.splice(i, 1); continue; }
+          ctx.globalAlpha = (p.life / 12) * 0.35;
+          ctx.fillStyle = 'rgba(210, 235, 255, 1)';
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // draw trails + balls (finished stays visible)
+        balls.forEach(ball => {
+          ball.trail.forEach((p, idx) => {
+            ctx.globalAlpha = (idx + 1) / ball.trail.length * 0.62;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 8, 0, 2 * Math.PI);
+            ctx.fillStyle = ball.color;
+            ctx.fill();
+          });
+          ctx.globalAlpha = ball.finished ? 0.5 : 1;
+          ctx.beginPath();
+          ctx.arc(ball.x, ball.y, ballRadius, 0, 2 * Math.PI);
+          ctx.fillStyle = ball.color;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        });
+
+        const allDone = balls.every(b => b.finished);
+        if (allDone) {
+          clearInterval(simulation);
+          const results = balls.map(b => ({ player: b.player, bin: b.bin, time: b.endTime - b.startTime, status: b.status }));
+          finalizeRankings(results);
+        }
+      }, 24);
+    }
+
+    function getRankColor(rank) {
+      if (rank === 1) return '#ffd700';
+      if (rank === 2) return '#c0c0c0';
+      if (rank === 3) return '#cd7f32';
+      return '#8a2be2';
+    }
+
+    const exitButton = document.getElementById('exit-button');
+    if (exitButton) {
+      exitButton.addEventListener('click', () => {
+        window.location.href = '../index.html';
+      });
+    }
+
+    function updatePlayerBarRanking(sorted) {
+      const bar = document.querySelector('.player-bar');
+      if (!bar) return;
+      const pills = Array.from(bar.querySelectorAll('.player-pill'));
+      pills.forEach(pill => {
+        const nameElem = pill.querySelector('span:nth-child(2)');
+        const playerName = nameElem ? nameElem.textContent.trim() : pill.textContent.trim();
+        const result = sorted.find(r => r.player.name === playerName);
+        let rankBadge = pill.querySelector('.rank-badge');
+        if (!rankBadge) {
+          rankBadge = document.createElement('span');
+          rankBadge.className = 'rank-badge';
+          rankBadge.style.marginLeft = 'auto';
+          rankBadge.style.fontWeight = '900';
+          rankBadge.style.fontSize = '0.85rem';
+          rankBadge.style.padding = '2px 6px';
+          rankBadge.style.borderRadius = '99px';
+          rankBadge.style.background = 'rgba(255,255,255,0.8)';
+          rankBadge.style.color = '#000';
+          pill.appendChild(rankBadge);
+        }
+
+        if (!result) {
+          rankBadge.textContent = '';
+          pill.style.boxShadow = 'none';
+          pill.style.border = '1px solid rgba(255,255,255,0.28)';
+          pill.style.background = 'rgba(15,24,46,0.95)';
+          return;
+        }
+
+        const rank = sorted.findIndex(r => r.player.name === playerName) + 1;
+        const rankColor = getRankColor(rank);
+        rankBadge.textContent = `#${rank}`;
+        pill.style.border = `1px solid ${rankColor}`;
+        pill.style.boxShadow = `0 0 0 2px ${rankColor}`;
+        pill.style.background = 'rgba(255,255,255,0.13)';
+        setACText(pill, rank, sorted.length);
+      });
+    }
+
+    function finalizeRankings(results) {
+      window.PourtyMiniGame?.finish();
+      const safeResults = results
+        .filter(r => r.status === 'safe' && r.bin !== null && binConfig[r.bin] === 'safe')
+        .sort((a, b) => a.time - b.time);
+
+      const nonSafeResults = results
+        .filter(r => r.status !== 'safe')
+        .slice()
+        .sort((a, b) => b.time - a.time); // plus tard meurt mieux
+
+      const sorted = [...safeResults, ...nonSafeResults];
+
+      // assure tout le monde a un classement
+      const playerNames = playersOrder.map(p => p.name);
+      playerNames.forEach(name => {
+        if (!sorted.some(r => r.player.name === name)) {
+          const missing = { player: playersOrder.find(p => p.name === name), status: 'unknown', bin: null, time: Number.MAX_SAFE_INTEGER };
+          sorted.push(missing);
+        }
+      });
+
+      console.log('--- Résultats finaux ---');
+      sorted.forEach((r, index) => {
+        const status = r.status || (r.bin !== null ? 'safe' : 'unknown');
+        console.log(`#${index + 1}: ${r.player.name} (${status}) ${r.bin !== null ? 'bin '+(r.bin+1) : ''}`);
+      });
+
+      updatePlayerBarRanking(sorted);
+
+      const exitBtn = document.getElementById('exit-button');
+      if (exitBtn) {
+        exitBtn.style.display = 'block';
+      }
+
+      playerTurnEl.textContent = 'Classement final';
+      playerTurnEl.style.color = '#fff';
+      countdownEl.textContent = '';
+    }
+
+    prepareBinConfig();
+    initPins();
+    renderSlots();
+    drawBoard();
+    showPlayerTurn();
+})();
+  </script>
+</body>
+</html>

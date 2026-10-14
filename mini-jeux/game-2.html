@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <script src="../party-payout.js"></script>
+<script src="../board/board-minigame-bridge.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aboubaxplosion</title>
+  <link rel="stylesheet" href="../style.css" />
+  <style>
+    body{background:#0a0f24;min-height:100vh;color:#fff;font-family:Segoe UI,Roboto,Ubuntu,sans-serif;margin:0;padding:0;}
+    main{width:100%;max-width:960px;margin:40px auto 160px;padding:20px;text-align:center;}
+    h1{font-size:2.2rem;margin-bottom:10px;color:#f4f8ff;}
+    .player-order{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:16px 0;}
+    .player-chip{padding:8px 10px;border-radius:12px;background:rgba(255,255,255,0.11);border:1px solid rgba(255,255,255,0.25);font-weight:700;}
+    .player-chip.active{box-shadow:0 0 0 2px rgba(255,220,90,0.35);border-color:#ffd76d;}
+    #button-grid{display:grid;gap:12px;margin:20px auto 16px;max-width:600px;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));}
+    .game-btn{padding:16px;font-size:1rem;font-weight:800;border:none;border-radius:12px;background:rgba(17,34,64,0.95);color:#fff;cursor:pointer;transition:transform .15s ease,background .2s ease;}
+    .game-btn:hover{transform:scale(1.03);background:rgba(46,85,150,0.95);}
+    .game-btn.disabled{opacity:0.4;cursor:not-allowed;}
+    #status{margin:14px 0;font-size:1.2rem;min-height:30px;}
+    #timer{font-size:1.6rem;font-weight:800;color:#a3e0ff;}
+    #final-state{margin-top:18px;font-size:1rem;color:#dbe9ff;}
+    #return-btn{margin-top:16px;padding:10px 16px;font-size:1rem;font-weight:700;border:none;border-radius:10px;background:#ff776d;color:#fff;cursor:pointer;display:none;}
+    #reveal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.72);z-index:9999;align-items:center;justify-content:center;color:#fff;font-size:3rem;font-weight:900;text-shadow:0 0 12px #000;}
+    .explosion-particle{position:absolute;border-radius:50%;background:#ffdc77;pointer-events:none;opacity:0.9;animation:explosion-anim 0.8s ease-out forwards;}
+    @keyframes explosion-anim{0%{transform:scale(1);opacity:1}100%{transform:translate(var(--x,0px),var(--y,0px)) scale(0.1);opacity:0}}      
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Aboubaxplosion</h1>
+    <div id="status">Chargement des joueurs...</div>
+    <div id="timer"></div>
+    <div id="order" class="player-order"></div>
+    <div id="button-grid"></div>
+    <div id="final-state"></div>
+    <button id="return-btn">Retour au menu</button>
+  </main>
+  <div id="reveal-overlay"></div>
+
+  <script src="commun/game-players.js"></script>
+  <script>
+(function(){
+  const playerList = JSON.parse(localStorage.getItem('mini-Jeux-host-players') || '[]');
+  const statusEl = document.getElementById('status');
+  const timerEl = document.getElementById('timer');
+  const orderEl = document.getElementById('order');
+  const gridEl = document.getElementById('button-grid');
+  const finalEl = document.getElementById('final-state');
+  const revealOverlay = document.getElementById('reveal-overlay');
+  const returnBtn = document.getElementById('return-btn');
+
+  function setGameplayVisibility(visible) {
+    orderEl.style.display = visible ? 'flex' : 'none';
+    gridEl.style.display = visible ? 'grid' : 'none';
+    timerEl.style.visibility = visible ? 'visible' : 'hidden';
+  }
+
+  function showRevealOverlay(message, background) {
+    revealOverlay.textContent = message;
+    revealOverlay.style.background = background;
+    revealOverlay.style.display = 'flex';
+  }
+
+  function hideRevealOverlay() {
+    revealOverlay.style.display = 'none';
+  }
+
+  function createExplosion(x, y) {
+    for (let j = 0; j < 18; j += 1) {
+      const particle = document.createElement('div');
+      particle.className = 'explosion-particle';
+      const angle = Math.random() * Math.PI * 2;
+      const distance = 45 + Math.random() * 60;
+      const dx = Math.cos(angle) * distance;
+      const dy = Math.sin(angle) * distance;
+      particle.style.left = `${x}px`;
+      particle.style.top = `${y}px`;
+      particle.style.setProperty('--x', `${dx}px`);
+      particle.style.setProperty('--y', `${dy}px`);
+      document.body.appendChild(particle);
+      setTimeout(() => particle.remove(), 900);
+    }
+  }
+
+  if (playerList.length === 0) {
+    statusEl.textContent = 'Aucun joueur; ajoutez des joueurs depuis l’accueil.';
+    return;
+  }
+
+  const shuffle = arr => arr.slice().sort(() => Math.random() - 0.5);
+
+  const playersOrder = shuffle(playerList);
+  let alivePlayers = [...playersOrder];
+  let eliminated = [];
+  let currentIdx = 0;
+
+  let buttonState = [];
+  let trapIndex = -1;
+  let timeLeft = 0;
+  let timerId = null;
+  let inSuspense = false;
+
+  function renderOrder(active) {
+    orderEl.innerHTML = '';
+    active.forEach((p, idx) => {
+      const chip = document.createElement('div');
+      chip.className = 'player-chip' + (idx === currentIdx ? ' active' : '');
+      chip.style.borderColor = p.color || '#fff';
+      chip.textContent = p.name;
+      orderEl.appendChild(chip);
+    });
+  }
+
+  function setStatus(text, color) {
+    statusEl.textContent = text;
+    statusEl.style.color = color || '#e0f4ff';
+  }
+
+  function setTimer(n) {
+    timerEl.textContent = `Temps restant : ${n}s`;
+  }
+
+  function clearTimer() {
+    if (timerId) {
+      clearInterval(timerId);
+      timerId = null;
+    }
+  }
+
+  function startTimer() {
+    clearTimer();
+    timeLeft = 10;
+    setTimer(timeLeft);
+    timerId = setInterval(() => {
+      timeLeft -= 1;
+      if (timeLeft <= 0) {
+        clearTimer();
+        setStatus('Temps écoulé ! Explosion automatique.', '#ff9d5a');
+        setupResolve(true);
+      } else {
+        setTimer(timeLeft);
+      }
+    }, 1000);
+  }
+
+  function updateButtons() {
+    gridEl.innerHTML = '';
+    const count = alivePlayers.length;
+    gridEl.style.gridTemplateColumns = `repeat(${Math.min(count, 6)}, minmax(100px, 1fr))`;
+    buttonState.forEach((_, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'game-btn';
+      btn.textContent = `Choix ${i + 1}`;
+      btn.disabled = inSuspense;
+      if (inSuspense) btn.classList.add('disabled');
+      btn.addEventListener('click', () => choose(i));
+      gridEl.appendChild(btn);
+    });
+  }
+
+  function beginTurn() {
+    const states = buttonState.map((b, i) => `${i + 1}:${b.safe ? 'SAFE' : 'TRAP'}`).join(', ');
+    console.log(`Début tour ${alivePlayers[currentIdx].name} - état cases : ${states}`);
+
+    setStatus(`Tour de ${alivePlayers[currentIdx].name} : choisis une case (1 piégée sur ${buttonState.length}).`, alivePlayers[currentIdx].color);
+    inSuspense = false;
+    renderOrder(alivePlayers);
+    updateButtons();
+    startTimer();
+  }
+
+  function initButtons() {
+    setGameplayVisibility(true);
+    hideRevealOverlay();
+
+    const n = alivePlayers.length;
+    buttonState = Array.from({length: n}, (_, i) => ({safe: true, index: i }));
+    trapIndex = Math.floor(Math.random() * n);
+    buttonState[trapIndex].safe = false;
+
+    beginTurn();
+  }
+
+  function unlockButtons() {
+    inSuspense = false;
+    const btns = gridEl.querySelectorAll('button');
+    btns.forEach(b => { b.disabled = false; b.classList.remove('disabled'); });
+  }
+
+  let selectedIndex = -1;
+  let selectedButtonRect = null;
+
+  function setupResolve(isTrap, chosenIndex) {
+    clearTimer();
+    inSuspense = true;
+    const player = alivePlayers[currentIdx];
+
+    if (isTrap) {
+      showRevealOverlay('💥 BOOM ! case piégée', 'rgba(255,76,76,0.86)');
+      setStatus(`${player.name} a appuyé sur la case piégée ! BOOM !`, '#ff4c4c');
+      console.log(`Case ${chosenIndex + 1} piège`);
+      if (selectedButtonRect) {
+        createExplosion(selectedButtonRect.left + selectedButtonRect.width / 2, selectedButtonRect.top + selectedButtonRect.height / 2);
+      }
+
+      eliminated.push(player);
+      alivePlayers.splice(currentIdx, 1);
+
+      setTimeout(() => {
+        hideRevealOverlay();
+        if (alivePlayers.length === 0) {
+          gameOver();
+          return;
+        }
+        if (currentIdx >= alivePlayers.length) currentIdx = 0;
+        if (alivePlayers.length === 1) {
+          gameOver();
+        } else {
+          setStatus('Count reduced après explosion : reset des cases, nouvelle vague.', '#ffee7b');
+          console.log('Explosion -> reset des cases, nouvelle taille:', alivePlayers.length);
+          setGameplayVisibility(true);
+          initButtons();
+        }
+      }, 1500);
+      return;
+    }
+
+    showRevealOverlay('✅ SAFE !', 'rgba(122,242,136,0.82)');
+    setStatus(`${player.name} est SAFE !`, '#7af288');
+    console.log(`Case ${chosenIndex + 1} safe`);
+
+    // supprime la case safe choisie et passe au joueur suivant
+    const before = buttonState.length;
+    if (before > 2) {
+      buttonState = buttonState.filter((_, i) => i !== chosenIndex);
+      console.log(`Safe choisi, suppression case ${chosenIndex + 1}, reste ${buttonState.length}`);
+    } else {
+      // Même si <=2 on conserve la logique pour atteindre la reposition automatique.
+      buttonState = buttonState.filter((_, i) => i !== chosenIndex);
+      console.log(`Safe choisi (petit set), suppression case ${chosenIndex + 1}, reste ${buttonState.length}`);
+    }
+
+    setTimeout(() => {
+      hideRevealOverlay();
+      if (buttonState.length === 1 && buttonState[0].safe === false) {
+        currentIdx = (currentIdx + 1) % alivePlayers.length;
+        setStatus('Toutes les cases sûres ont été choisies, nouvelle vague !', '#ffd96d');
+        setTimeout(() => {
+          setGameplayVisibility(true);
+          initButtons();
+        }, 500);
+        return;
+      }
+
+      currentIdx = (currentIdx + 1) % alivePlayers.length;
+      if (alivePlayers.length === 1) {
+        gameOver();
+        return;
+      }
+      setGameplayVisibility(true);
+      beginTurn();
+    }, 1400);
+  }
+
+  function choose(i) {
+    if (inSuspense) return;
+    selectedIndex = i;
+    selectedButtonRect = gridEl.querySelectorAll('button')[i]?.getBoundingClientRect() || null;
+    const choice = buttonState[i];
+    const isTrap = !choice.safe;
+
+    setStatus('Suspens... révélation dans 3 secondes', '#ffffaa');
+    inSuspense = true;
+    setGameplayVisibility(false);
+    showRevealOverlay('🔎 Suspens...', 'rgba(0, 0, 0, 0.85)');
+    gridEl.querySelectorAll('button').forEach(b => { b.disabled = true; b.classList.add('disabled'); });
+    clearTimer();
+
+    setTimeout(() => setupResolve(isTrap, i), 3000);
+  }
+
+  function announceOrder() {
+    let step = 0;
+    const preview = setInterval(() => {
+      const randomName = playerList[Math.floor(Math.random()*playerList.length)].name;
+      statusEl.textContent = `Ordre aléatoire ... ${randomName}`;
+      step += 1;
+      if (step >= 20) {
+        clearInterval(preview);
+        statusEl.textContent = `Ordre fixé : ${playersOrder.map(p => p.name).join(' → ')}`;
+        renderOrder(alivePlayers);
+        setTimeout(() => initButtons(), 900);
+      }
+    }, 80);
+  }
+
+  function updatePlayerBarRanking(sorted) {
+    const bar = document.querySelector('.player-bar');
+    if (!bar) return;
+    const pills = Array.from(bar.querySelectorAll('.player-pill'));
+    pills.forEach(pill => {
+      const name = pill.querySelector('span:nth-child(2)')?.textContent?.trim();
+      const res = sorted.find(r => r.name === name);
+      let badge = pill.querySelector('.rank-badge');
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'rank-badge';
+        badge.style.marginLeft = 'auto';
+        badge.style.fontWeight = '900';
+        badge.style.fontSize = '0.85rem';
+        badge.style.padding = '2px 6px';
+        badge.style.borderRadius = '99px';
+        badge.style.background = 'rgba(255,255,255,0.8)';
+        badge.style.color = '#000';
+        pill.appendChild(badge);
+      }
+      if (!res) {
+        badge.textContent = '';
+        pill.style.boxShadow = 'none';
+        pill.style.border = '1px solid rgba(255,255,255,0.28)';
+        pill.style.background = 'rgba(15,24,46,0.95)';
+      } else {
+        const rank = sorted.findIndex(r => r.name === name) + 1;
+        const rankColor = rank === 1 ? '#ffd700' : rank === 2 ? '#c0c0c0' : rank === 3 ? '#cd7f32' : '#8a2be2';
+        badge.textContent = `#${rank}`;
+        pill.style.border = `1px solid ${rankColor}`;
+        pill.style.boxShadow = `0 0 0 2px ${rankColor}`;
+        pill.style.background = 'rgba(255,255,255,0.13)';
+        setACText(pill, rank, sorted.length);
+      }
+    });
+  }
+
+  function gameOver() {
+      window.PourtyMiniGame?.finish();
+    clearTimer();
+    hideRevealOverlay();
+    setGameplayVisibility(false);
+
+    if (alivePlayers.length === 1) {
+      setStatus(`${alivePlayers[0].name} est le dernier survivant !`, '#a5ff9f');
+      finalEl.textContent = `Vainqueur : ${alivePlayers[0].name}`;
+    } else {
+      setStatus('Fin de partie !', '#f1dd8e');
+      finalEl.textContent = 'Aucun survivant ?';
+    }
+    const ranked = [];
+    if (alivePlayers.length === 1) ranked.push(alivePlayers[0]);
+    ranked.push(...eliminated.slice().reverse());
+    updatePlayerBarRanking(ranked);
+
+    gridEl.innerHTML = '';
+    timerEl.textContent = '';
+    orderEl.innerHTML = '';
+    returnBtn.style.display = 'inline-block';
+  }
+
+  returnBtn.addEventListener('click', () => {
+    window.location.href = '../index.html';
+  });
+
+  // démarrage
+  setStatus('Animation de sélection de l’ordre...');
+  announceOrder();
+})();
+  </script>
+</body>
+</html>

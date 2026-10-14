@@ -1,0 +1,34 @@
+# Sauvegardes locales : ne jamais envoyer sur GitHub
+/save/
+*.bak
+*.tmp
+*.log
+*~
+
+# Dépendances, caches et réglages locaux
+node_modules/
+.cache/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Secrets éventuels (la configuration publique Firebase reste incluse)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*service-account*.json
+*serviceAccount*.json
+
+# Notes de travail, non nécessaires au site
+/ORGANISATION.md
+/PARTIE-PLATEAU.md
+/PLATEAUX.md
+/board/BOARD-SETTINGS.md
+/mini-jeux/*/REGLES.md
+/mini-jeux/aboubaphoto/SETUP.md
+/mini-jeux/aboubapixel/BANQUE-IMAGES.md
+/assets/items/noms-images.txt

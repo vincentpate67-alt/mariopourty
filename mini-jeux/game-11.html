@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <script src="../party-payout.js"></script>
+<script src="../board/board-minigame-bridge.js"></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mot amed</title>
+  <link rel="stylesheet" href="../style.css" />
+  <style>
+    body{background:#081028;color:#fff;font-family:Segoe UI,Roboto,Arial;margin:0;padding:18px}
+    main{max-width:980px;margin:8px auto;text-align:center}
+    h1{margin:8px 0 12px;font-size:2.4rem}
+    #status{min-height:34px;margin-bottom:12px;font-weight:900;font-size:1.2rem}
+    .player-order{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:8px 0}
+    .player-chip{padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);font-weight:800}
+    .player-chip.active{transform:translateY(-3px);box-shadow:0 0 18px rgba(255,255,255,0.06);}
+
+    #word-area{margin-top:14px;display:none;flex-direction:column;align-items:center;gap:12px}
+    #wordDisplay{font-size:2.4rem;letter-spacing:8px;font-weight:900}
+    #letterCount{color:#cbd8ff;font-weight:700}
+    #prompt{font-size:1.4rem;font-weight:900}
+    #letter-lists{display:flex;gap:18px;align-items:flex-start;margin-top:6px}
+    .letter-list{min-width:160px;background:rgba(8,14,30,0.6);padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04)}
+    .letter-list h4{margin:0 0 6px 0;font-size:0.95rem}
+    .letter-chip{display:inline-flex;align-items:center;justify-content:center;padding:6px 8px;border-radius:6px;font-weight:800;min-width:36px}
+    /* place letter chips in rows: 3 per row on small widths, 4 per row on wider */
+    #validLetters, #absentLetters{
+      display:grid;
+      grid-template-columns:repeat(3, auto);
+      gap:6px;
+      justify-content:start;
+      align-items:center;
+    }
+    @media(min-width:420px){
+      #validLetters, #absentLetters{ grid-template-columns:repeat(4, auto); }
+    }
+    .letter-valid{background:rgba(72,201,116,0.12);color:#8ff1a1;border:1px solid rgba(72,201,116,0.22)}
+    .letter-absent{background:rgba(255,96,96,0.06);color:#ff9aa6;border:1px solid rgba(255,96,96,0.08)}
+    .letter-slot{display:inline-block;width:34px;height:44px;text-align:center;margin:0 6px;position:relative;font-size:1.6rem}
+    .letter-slot .char{display:block}
+    .plus-fly{position:absolute;top:-26px;left:50%;transform:translateX(-50%) translateY(0);opacity:0;transition:transform .42s cubic-bezier(.2,.9,.2,1),opacity .42s;pointer-events:none;font-weight:900;color:#9fffb0}
+    .plus-fly.show{opacity:1;transform:translateX(-50%) translateY(-14px)}
+    #controls{display:flex;gap:8px;align-items:center}
+    #letterInput{width:72px;padding:12px 8px;font-size:1.6rem;text-align:center;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(8,14,30,0.75);color:#fff}
+    #submitLetter{padding:10px 12px;border-radius:8px;border:none;background:#6bc0ff;color:#072035;font-weight:900;cursor:pointer}
+
+    #elimOverlay{position:fixed;left:0;top:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:100005;transition:background .25s}
+    .feedback-overlay{position:fixed;inset:0;pointer-events:none;z-index:100004;opacity:0;transition:opacity .18s ease}
+    .feedback-overlay.show{opacity:1}
+    .feedback-green{background:rgba(34,177,76,0.12)}
+    .feedback-red{background:rgba(255,77,77,0.10)}
+
+    /* timer slider */
+    .turn-timer{width:260px;height:10px;background:rgba(255,255,255,0.06);border-radius:999px;overflow:hidden}
+    .turn-timer .fill{height:100%;background:linear-gradient(90deg,#8ff1a1,#45d27a);width:100%;transition:width linear}
+    .timer-row{display:flex;align-items:center;gap:10px;margin-top:6px}
+    #elimOverlay .text{font-size:72px;color:#ff4242;font-weight:900;text-shadow:0 6px 18px rgba(0,0,0,0.6);transform:scale(0.6);opacity:0;transition:transform .35s cubic-bezier(.2,.9,.2,1),opacity .35s}
+    #elimOverlay.show{background:rgba(255,64,64,0.10)}
+    #elimOverlay.show .text{transform:scale(1);opacity:1}
+
+    #endLeaderboard{max-width:720px;margin:14px auto 0;text-align:left}
+    #endLeaderboard h3{margin:0 0 8px}
+    .pill-crosses{display:flex;gap:6px;margin-left:auto;align-items:center}
+    .cross-box{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:6px;border:1px solid rgba(255,96,96,0.16);background:rgba(255,255,255,0.02);color:#ff6b6b;font-weight:900;font-size:0.95rem}
+    .pill-crosses span{font-weight:900;color:#ff6b6b}
+
+    /* arena layout: keep word-area centered; left/right lists positioned absolutely */
+    #arena{position:relative}
+    /* rapprocher les colonnes vers le centre */
+    #left-col{position:absolute;left:50px;top:0}
+    #right-col{position:absolute;right:50px;top:0}
+    @media(max-width:720px){ #left-col,#right-col{display:none!important} }
+
+    /* return button styling */
+    .return-btn{margin-top:12px;padding:10px 14px;border-radius:10px;background:#ff776d;color:#fff;border:none;font-weight:700;cursor:pointer;border:1px solid rgba(0,0,0,0.08);box-shadow:0 8px 20px rgba(0,0,0,0.32)}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Mot amed</h1>
+    <div id="status">Chargement des joueurs...</div>
+    <div id="turnTimer" style="display:none;max-width:720px;margin:6px auto 0;justify-content:center;align-items:center">
+      <div class="timer-row" style="justify-content:center">
+        <div class="turn-timer" style="width:320px"><div id="timerFill" class="fill"></div></div>
+        <div id="timerLabel" style="min-width:52px;font-weight:900;color:#cfeffd">10.0s</div>
+      </div>
+    </div>
+
+    <div id="order" class="player-order"></div>
+
+    <div id="arena" style="display:none;align-items:flex-start;justify-content:center;gap:18px">
+      <div id="left-col" class="letter-list" style="display:none">
+        <h4 style="color:#7fffa1">Lettres validées</h4>
+        <div id="validLetters"></div>
+      </div>
+
+      <div id="word-area">
+        <div id="wordPreview" style="color:#9fbfff;font-weight:900"></div>
+        <div id="wordDisplay" aria-live="polite"></div>
+        <div id="letterCount">(0 lettres)</div>
+        <div id="controls">
+          <input id="letterInput" maxlength="1" aria-label="Lettre" />
+          <button id="submitLetter">Proposer</button>
+        </div>
+      </div>
+
+      <div id="right-col" class="letter-list" style="display:none">
+        <h4 style="color:#ff9aa6">Lettres absentes</h4>
+        <div id="absentLetters"></div>
+      </div>
+    </div>
+
+    <div style="width:100%;max-width:920px;margin-top:8px">
+      <script src="commun/game-players.js"></script>
+    </div>
+
+    <div id="feedbackOverlay" class="feedback-overlay" aria-hidden="true"></div>
+    <div id="elimOverlay" class="hidden"><div class="text">ÉLIMINÉ 💀</div></div>
+  </main>
+
+  <script>
+  (function(){
+    const stored = JSON.parse(localStorage.getItem('mini-Jeux-host-players') || '[]');
+    const statusEl = document.getElementById('status');
+    const turnTimer = document.getElementById('turnTimer');
+    const timerFill = document.getElementById('timerFill');
+    const timerLabel = document.getElementById('timerLabel');
+    const orderEl = document.getElementById('order');
+    const arenaEl = document.getElementById('arena');
+    // hide order initially; it will be shown after the announce animation
+    orderEl.style.display = 'none';
+    const wordArea = document.getElementById('word-area');
+    const leftCol = document.getElementById('left-col');
+    const rightCol = document.getElementById('right-col');
+    const validLettersEl = document.getElementById('validLetters');
+    const absentLettersEl = document.getElementById('absentLetters');
+    const wordDisplay = document.getElementById('wordDisplay');
+    const letterCountEl = document.getElementById('letterCount');
+    const letterInput = document.getElementById('letterInput');
+    const submitBtn = document.getElementById('submitLetter');
+    const wordPreview = document.getElementById('wordPreview');
+    const feedbackOverlay = document.getElementById('feedbackOverlay');
+    const elimOverlay = document.getElementById('elimOverlay');
+
+
+    if (!stored.length){ statusEl.textContent = 'Aucun joueur enregistré.'; letterInput && (letterInput.disabled = true); submitBtn && (submitBtn.disabled = true); return; }
+
+    let players = stored.map(p=>({ name: p.name, color: p.color || '#8ac6ff', score:0, wrongs:0, eliminated:false, lastPointTime: null }));
+    // compute max wrongs according to starting player count
+    function computeMaxWrongs(n){ if (n <= 2) return 5; if (n === 3) return 4; if (n === 4) return 3; return 2; }
+    const startingPlayersCount = players.length;
+    players.forEach(p => p.maxWrongs = computeMaxWrongs(startingPlayersCount));
+    let order = shuffle(players.slice());
+    let currentIdx = -1;
+
+    const wordList = ['abeille','abricot','acier','addition','adresse','adulte','agenda','agence','agriculteur','aiguille',
+  'aileron','alarme','album','algorithme','alliance','allumette','alphabet','ambulance','amiral','amour',
+  'ampoule','analyse','ancre','ange','animal','antenne','antilope','apache','appareil','applaudissement',
+  'aquarium','araignee','arcade','armoire','armure','artiste','ascenseur','aspirateur','assiette','atelier',
+  'atome','auberge','audience','aurore','autobus','autoroute','avalanche','avenir','baleine','ballon',
+  'bambou','banquier','barbecue','barriere','bateau','bazar','belette','belgique','bibliotheque','bijou',
+  'biscuit','blizzard','bocal','boisson','bombardier','bonbon','botanique','bouclier','boulanger','bourdon',
+  'bracelet','bravo','brioche','brocoli','brouillard','bruit','brume','buffet','bureaucrate','cabane',
+  'cabinet','cactus','cadeau','caillou','calculatrice','calendrier','calme','camarade','camouflage','campagne',
+  'canape','canard','caniveau','canoe','capitaine','capuche','caravane','carburant','carrefour','casquette',
+  'cassette','castor','catalogue','cathedrale','caverne','ceinture','celebration','cellule','cerveau','cerf',
+  'chaudron','chaussette','chemin','cheminee','chenille','cheque','cheval','chiffre','chimie','chimpanze',
+  'chronometre','cigogne','ciment','citadelle','citron','citrouille','cloche','clown','coffre','colline',
+  'colombe','combat','comedie','commande','comete','compagnie','compas','concert','confiture','conseil',
+  'constellation','construction','contact','copain','coquillage','corail','corde','couronne','courrier','couteau',
+  'crabe','cristal','crocodile','croissant','cuillere','cuisine','cyclone','danseur','dauphin','debardeur',
+  'decouverte','defenseur','delicieux','demande','dentiste','departement','dessert','destinee','detective','diamant',
+  'dictionnaire','dinosaure','diplome','directeur','distance','docteur','domino','donjon','drapeau','dragonne',
+  'dynamite','ecarlate','ecole','economie','ecureuil','edition','effort','eglise','election','electricite',
+  'emballage','empereur','enfant','enigme','enveloppe','epinard','epoque','equipage','escargot','escrime',
+  'espadon','essence','estomac','etagere','etincelle','explosion','fabrique','facture','fakir','falcon',
+  'famille','fantaisie','farine','festival','feuille','fiction','fidelite','figurine','filature','flamme',
+  'flocon','flute','fortune','fougere','fourchette','fraction','framboise','fraternite','frequence','frontiere',
+  'galerie','garage','gardien','gazelle','gelatine','generateur','genie','glacier','gobelin','gouvernement',
+  'grain','grenouille','griffe','grimoire','grizzli','grotte','guerier','gymnase','habitude','hamburger',
+  'harmonie','helicoptere','herisson','histoire','horizon','horloge','huitre','hydrogene','identite','illusion',
+  'imagination','immeuble','imprimerie','incendie','indice','industrie','infirmier','informatique','insecte','instrument',
+  'intelligence','invitation','isolation','jaguar','jambon','jardinier','jasmin','jongleur','journal','kangourou',
+  'karaoke','kayak','kiwi','labyrinthe','lagon','langage','lanterne','lecture','legende','levrier',
+  'licorne','limonade','lionceau','livraison','locomotive','loterie','loupe','lumiere','lunette','machine',
+  'macaron','madame','magazine','maillot','maison','mallette','mandarine','mangue','manivelle','manteau',
+  'marathon','marteau','mascotte','matelas','medaille','melodie','menthe','message','meteorite','metier',
+  'microphone','militaire','minuscule','mirabelle','missile','moisson','monarque','monument','moustache','mouvement',
+  'mystique','naufrage','navette','nectarine','neige','nervure','notaire','nougat','nuance','objectif',
+  'observatoire','oceanie','octogone','operation','opinion','orangeade','orchestre','ordinateur','oreille','ornement',
+  'oursin','outillage','ouverture','oxygene','pagaille','paillasson','palais','palissade','pandemie','papaye',
+  'parachute','parfum','parlement','passerelle','patrouille','paysage','peinture','peluche','pendule','pepiniere',
+  'perroquet','pharaon','philosophe','photographie','piano','pilote','pinceau','piramide','piscine','pistache',
+  'planche','plastron','plateforme','plomberie','poisson','policier','population','portrait','poubelle','poussiere',
+  'prairie','princesse','prisonnier','projecteur','propulseur','protection','puzzle','pyramide','quadrillage','quartier',
+  'question','quittance','radiateur','raisin','ramassage','rapide','ravin','rectangle','refrigirateur','reine',
+  'relique','remorque','renard','rencontre','reparation','republique','restaurant','retour','revanche','reveil',
+  'revolution','richesse','robotique','rocher','royaume','rubrique','ruisseau','sablier','sacoche','saisonnier',
+  'salade','samourai','sandwich','sapin','sarcophage','saturne','sauterelle','savonnette','science','scorpion',
+  'sculpture','securite','seisme','senateur','serrure','serveur','sifflet','signal','silhouette','sirene',
+  'situation','skateur','solution','sommet','sorcellerie','souffleur','souvenir','spectacle','spirale','sportif',
+  'stadium','statistique','stylo','submarine','sucrerie','surprise','symbole','tabouret','tambour','tapisserie',
+  'temporaire','tentacule','terminal','terrain','thermometre','toboggan','tomate','tourbillon','tracteur','tradition',
+  'train','triangle','trompette','trousse','tunnel','typhon','uniforme','universite','vacarme','valise',
+  'vampire','vapeur','vegetation','velocite','vendredi','ventilateur','verdict','verre','vestiaire','vibration',
+  'victoire','village','vinaigre','violence','virage','visionnaire','vitamine','volcan','voyageur','wagon',
+  'xylophone','yaourt','zebre','zeppelin','zodiaque','zombie'
+];
+    let secret = '';
+    let revealed = [];
+    let lastLetterScorer = null;
+    let guessedLetters = new Set();
+
+    let timerDuration = 10; // seconds
+    let timerInterval = null;
+    let timerStart = 0;
+    let currentPrompt = '';
+
+    function shuffle(a){ return a.slice().sort(()=>Math.random()-0.5); }
+
+
+    function renderOrder(){ orderEl.innerHTML=''; orderEl.style.display = 'flex'; order.forEach(p=>{ const chip = document.createElement('div'); chip.className='player-chip'; chip.dataset.player = p.name; chip.style.borderColor = p.color; chip.textContent = p.name; orderEl.appendChild(chip); }); }
+
+    function showStatus(html, transientMs){ statusEl.innerHTML = html; if (transientMs){ clearTimeout(statusEl._timer); statusEl._timer = setTimeout(()=> { statusEl.innerHTML = currentPrompt || statusEl.innerHTML; }, transientMs); } }
+
+    function announceOrder(){ let step=0; const preview = setInterval(()=>{ statusEl.textContent = 'Ordre aléatoire... ' + stored[Math.floor(Math.random()*stored.length)].name; step++; if (step>18){ clearInterval(preview); renderOrder(); setTimeout(()=> startGame(), 700); } }, 80); }
+
+    function startGame(){ showStatus('Tirage du mot...'); let i=0; const cycle = setInterval(()=>{ wordPreview.textContent = wordList[i++%wordList.length].replace(/./g,'•'); }, 120); setTimeout(()=>{ clearInterval(cycle); secret = wordList[Math.floor(Math.random()*wordList.length)].toLowerCase(); revealed = Array(secret.length).fill(false); wordPreview.textContent = ''; guessedLetters.clear(); validLettersEl.innerHTML=''; absentLettersEl.innerHTML=''; leftCol.style.display='none'; rightCol.style.display='none'; arenaEl.style.display='flex'; wordArea.style.display='flex'; turnTimer.style.display='block'; renderBlanks(); startTurn(0); }, 1000); }
+
+    function renderBlanks(){ wordDisplay.innerHTML=''; for(let i=0;i<revealed.length;i++){ const span = document.createElement('span'); span.className='letter-slot'; span.dataset.index = i; const ch = document.createElement('span'); ch.className='char'; ch.textContent = revealed[i] ? secret[i] : '_'; span.appendChild(ch); wordDisplay.appendChild(span); } letterCountEl.textContent = `(${secret.length} lettres)`; }
+
+
+    function getNextAliveIndex(start){ for(let i=0;i<order.length;i++){ const j=(start + i) % order.length; if (!order[j].eliminated) return j; } return -1; }
+
+    function highlightPlayerChip(player){ // remove prior
+      Array.from(orderEl.children).forEach(c=>{ c.classList.remove('active'); c.style.boxShadow = ''; });
+      const chip = orderEl.querySelector(`[data-player="${player.name}"]`);
+      if (chip){ chip.classList.add('active'); chip.style.boxShadow = `0 0 18px ${player.color}55`; }
+    }
+
+    function startTimer(){
+      stopTimer();
+      // ensure the transition is reset so the fill always animates
+      timerFill.style.transition = 'none';
+      timerFill.style.width = '100%';
+      // force reflow
+      void timerFill.offsetWidth;
+      timerStart = Date.now();
+      timerFill.style.transition = `width ${timerDuration}s linear`;
+      requestAnimationFrame(()=> timerFill.style.width = '0%');
+      timerLabel.textContent = `${timerDuration.toFixed(1)}s`;
+      timerInterval = setInterval(()=>{
+        const elapsed = (Date.now() - timerStart)/1000;
+        const rem = Math.max(0, timerDuration - elapsed);
+        timerLabel.textContent = rem.toFixed(1) + 's';
+        if (rem <= 0){
+          stopTimer();
+          showStatus('<strong style="color:#ffb86b">Temps écoulé!</strong>', 1200);
+          handleTimeout();
+        }
+      }, 100);
+    }
+
+    function stopTimer(){ if (timerInterval){ clearInterval(timerInterval); timerInterval = null; } timerFill.style.transition = 'none'; timerFill.style.width = '100%'; timerLabel.textContent = ''; }
+
+    function handleTimeout(){ const p = order[currentIdx]; if (!p || p.eliminated){ startTurn(currentIdx+1); return; } p.wrongs += 1; updatePlayerPillCrosses(p); showFeedback('red'); if (p.wrongs >= p.maxWrongs){ p.eliminated = true; removePlayerChip(p.name); showElimOverlay(900); setTimeout(()=>{ const nextIdx = getNextAliveIndex(currentIdx+1); if (nextIdx === -1) endGame(); else startTurn(nextIdx); }, 900); } else { setTimeout(()=> startTurn(currentIdx+1), 500); } }
+
+    function startTurn(idx){ stopTimer(); const alive = order.filter(p=>!p.eliminated).length; if (alive === 1){ lastLetterScorer = order.find(p=>!p.eliminated); endGame(); return; } let next = getNextAliveIndex(idx); if (next === -1){ endGame(); return; } currentIdx = next; const p = order[currentIdx]; highlightPlayerChip(p); currentPrompt = `<strong style="font-size:1.2rem;color:${p.color}">${p.name}, choisis une lettre!</strong>`; showStatus(currentPrompt); letterInput.value = ''; letterInput.disabled = false; submitBtn.disabled = false; setTimeout(()=> letterInput.focus(), 60); startTimer(); }
+
+    function updatePlayerScoreInPill(player){ const bar = document.querySelector('.player-bar'); if (!bar){ window.addEventListener('load', function onLoad(){ window.removeEventListener('load', onLoad); updatePlayerScoreInPill(player); }); return; } const pills = Array.from(bar.querySelectorAll('.player-pill')); pills.forEach(pill=>{ const name = pill.querySelector('span:nth-child(2)')?.textContent?.trim(); if (name === player.name){ if (!pill.style.position) pill.style.position='relative'; let el = pill.querySelector('.pill-score'); if (!el){ el = document.createElement('div'); el.className='pill-score'; Object.assign(el.style,{ position:'absolute', right:'8px', top:'50%', transform:'translateY(-50%)', fontWeight:'900', color:'#fff', background:'rgba(0,0,0,0.16)', padding:'2px 6px', borderRadius:'8px', fontSize:'0.85rem' }); pill.appendChild(el); } el.textContent = `${player.score} pts`; } }); }
+
+    function updatePlayerPillCrosses(player){ const bar = document.querySelector('.player-bar'); if (!bar) return; const pills = Array.from(bar.querySelectorAll('.player-pill')); pills.forEach(pill=>{ const name = pill.querySelector('span:nth-child(2)')?.textContent?.trim(); if (name === player.name){ let container = pill.querySelector('.pill-crosses'); if (!container){ container = document.createElement('div'); container.className='pill-crosses'; container.style.marginLeft='8px'; pill.appendChild(container); } container.innerHTML = ''; for(let i=0;i<player.wrongs;i++){ const s = document.createElement('span'); s.textContent = '✖'; container.appendChild(s); } } }); }
+
+    function showElimOverlay(duration=900){ const el = document.getElementById('elimOverlay'); if (!el) return; el.classList.remove('hidden'); requestAnimationFrame(()=> el.classList.add('show')); setTimeout(()=>{ el.classList.remove('show'); setTimeout(()=> el.classList.add('hidden'), 260); }, duration); }
+
+    function removePlayerChip(name){ try{ const chip = orderEl.querySelector(`[data-player="${name}"]`); if (chip && chip.parentNode) chip.parentNode.removeChild(chip); }catch(e){} }
+
+    function showFeedback(type='green', ms=260){ if (!feedbackOverlay) return; feedbackOverlay.classList.remove('feedback-green','feedback-red'); feedbackOverlay.classList.add('show'); if (type === 'green') feedbackOverlay.classList.add('feedback-green'); else feedbackOverlay.classList.add('feedback-red'); setTimeout(()=>{ feedbackOverlay.classList.remove('show','feedback-green','feedback-red'); }, ms); }
+
+    function animatePlusAt(index, value=1){ const slot = wordDisplay.querySelector(`.letter-slot[data-index='${index}']`); if (!slot) return; const plus = document.createElement('div'); plus.className = 'plus-fly'; plus.textContent = `+${value}`; plus.style.fontSize = '0.9rem'; plus.style.fontWeight = '900'; slot.appendChild(plus); requestAnimationFrame(()=> plus.classList.add('show')); setTimeout(()=>{ plus.classList.remove('show'); setTimeout(()=> plus.remove(), 360); }, 700); }
+
+    function addToValid(letter){ if (!leftCol || !validLettersEl) return; leftCol.style.display = 'block'; const existing = validLettersEl.querySelector(`[data-letter="${letter}"]`); if (existing) return; const el = document.createElement('div'); el.className = 'letter-chip letter-valid'; el.dataset.letter = letter; el.textContent = letter.toUpperCase(); validLettersEl.appendChild(el); }
+
+    function addToAbsent(letter){ if (!rightCol || !absentLettersEl) return; rightCol.style.display = 'block'; const existing = absentLettersEl.querySelector(`[data-letter="${letter}"]`); if (existing) return; const el = document.createElement('div'); el.className = 'letter-chip letter-absent'; el.dataset.letter = letter; el.textContent = letter.toUpperCase(); absentLettersEl.appendChild(el); }
+
+    // Override: render crosses as three boxed indicators (filled = wrong)
+    function updatePlayerPillCrosses(player){
+      const bar = document.querySelector('.player-bar'); if (!bar) return;
+      const pills = Array.from(bar.querySelectorAll('.player-pill'));
+      pills.forEach(pill => {
+        const name = pill.querySelector('span:nth-child(2)')?.textContent?.trim();
+        if (name === player.name){
+          let container = pill.querySelector('.pill-crosses');
+          if (!container){
+            container = document.createElement('div');
+            container.className = 'pill-crosses';
+            container.style.marginLeft = '8px';
+            container.style.display = 'flex';
+            container.style.gap = '6px';
+            container.style.alignItems = 'center';
+            pill.appendChild(container);
+          }
+          container.innerHTML = '';
+          for (let i = 0; i < player.maxWrongs; i++){
+            const box = document.createElement('div');
+            box.className = 'cross-box';
+            if (i < player.wrongs){ box.textContent = '✖'; box.style.background = 'rgba(255,96,96,0.12)'; }
+            else { box.textContent = ''; box.style.background = 'rgba(255,255,255,0.02)'; }
+            container.appendChild(box);
+          }
+        }
+      });
+    }
+
+    function endGame(){
+      window.PourtyMiniGame?.finish();
+      stopTimer();
+      letterInput.disabled = true; submitBtn.disabled = true;
+      // hide gameplay areas and timer to show leaderboard clearly
+      try{ orderEl.style.display = 'none'; arenaEl.style.display = 'none'; turnTimer.style.display = 'none'; }catch(e){}
+      // preserve prior status and show final title
+      const previousStatusHTML = statusEl.innerHTML || '';
+      showStatus('Fin du jeu'); statusEl.style.color = '#fff';
+
+      const alivePlayers = order.filter(p=>!p.eliminated);
+      const rest = order.slice().filter(p => !lastLetterScorer || p.name !== lastLetterScorer.name);
+      rest.sort((a,b)=>{ if (b.score !== a.score) return b.score - a.score; const ta = a.lastPointTime || Infinity; const tb = b.lastPointTime || Infinity; if (ta !== tb) return ta - tb; return 0; });
+      let ranking = [];
+      if (lastLetterScorer) ranking.push(lastLetterScorer);
+      ranking = ranking.concat(rest);
+
+      // prepare a small status line to display under "Fin du jeu"
+      const statusBelow = document.createElement('div');
+      statusBelow.id = 'finalStatus';
+      statusBelow.style.marginTop = '6px';
+      statusBelow.style.fontWeight = '600';
+      statusBelow.style.color = '#cfeffd';
+      statusBelow.innerHTML = previousStatusHTML;
+
+      const board = document.createElement('div'); board.id='endLeaderboard'; const title = document.createElement('h3'); title.textContent = 'CLASSEMENT'; board.appendChild(title);
+      ranking.forEach((p, idx)=>{ const r = document.createElement('div'); r.style.display='flex'; r.style.justifyContent='space-between'; r.style.padding='8px'; r.style.borderBottom='1px solid rgba(255,255,255,0.04)'; const suffix = (alivePlayers.length === 1 && p && !p.eliminated) ? ' (Survivant)' : ''; r.innerHTML = `<div>#${idx+1} ${p.name}${suffix}</div><div style="font-weight:900">${p.score} pts</div>`; board.appendChild(r); });
+
+      // show the secret word at the end of the ranking
+      const finalWord = document.createElement('div');
+      finalWord.style.marginTop = '10px';
+      finalWord.style.fontWeight = '700';
+      finalWord.style.color = '#ffd7a6';
+      finalWord.textContent = 'Le mot était: ' + secret;
+      board.appendChild(finalWord);
+
+      const ret = document.createElement('button'); ret.className='return-btn'; ret.textContent='Retour'; ret.addEventListener('click', ()=> window.location.href='../index.html'); board.appendChild(ret);
+
+      // insert the preserved status then the leaderboard after the status element
+      statusEl.parentNode.insertBefore(statusBelow, statusEl.nextSibling);
+      statusEl.parentNode.insertBefore(board, statusBelow.nextSibling);
+
+      setTimeout(()=>{ updatePlayerBarRanking(ranking); document.querySelectorAll('.player-pill .pill-score').forEach(el=> el.style.display='none'); }, 120);
+    }
+
+    function updatePlayerBarRanking(sorted){ const bar = document.querySelector('.player-bar'); if (!bar) return; const pills = Array.from(bar.querySelectorAll('.player-pill')); pills.forEach(pill=>{ const name = pill.querySelector('span:nth-child(2)')?.textContent?.trim(); const idx = sorted.findIndex(p=> p.name === name); let badge = pill.querySelector('.rank-badge'); if (!badge){ badge = document.createElement('span'); badge.className = 'rank-badge'; Object.assign(badge.style,{ marginLeft:'auto', fontWeight:'900', fontSize:'0.85rem', padding:'2px 6px', borderRadius:'99px', background:'rgba(255,255,255,0.8)', color:'#000' }); pill.appendChild(badge); } if (idx === -1){ badge.textContent=''; pill.style.boxShadow='none'; pill.style.border='1px solid rgba(255,255,255,0.28)'; pill.style.background='rgba(15,24,46,0.95)'; } else { const rank = idx + 1; const rankColor = rank === 1 ? '#ffd700' : rank === 2 ? '#c0c0c0' : rank === 3 ? '#cd7f32' : '#8a2be2'; badge.textContent = `#${rank}`; pill.style.border = `1px solid ${rankColor}`; pill.style.boxShadow = `0 0 0 2px ${rankColor}`; pill.style.background = 'rgba(255,255,255,0.13)'; if (typeof setACText === 'function') setACText(pill, rank, sorted.length); } }); }
+
+    function handleSubmit(){
+      const p = order[currentIdx];
+      if (!p || p.eliminated) { startTurn(currentIdx+1); return; }
+      let val = (letterInput.value || '').trim().toLowerCase();
+      if (!val) return;
+      if (!/^\p{L}$/u.test(val)) { showStatus('<strong>Entrez une seule lettre.</strong>', 1400); return; }
+      if (guessedLetters.has(val)) { showStatus('<strong>Lettre déjà proposée!</strong>', 1400); letterInput.value = ''; return; }
+      guessedLetters.add(val);
+      letterInput.disabled = true; submitBtn.disabled = true;
+      showStatus('...');
+      stopTimer();
+
+      setTimeout(()=>{
+        const foundIndices = [];
+        for(let i=0;i<secret.length;i++){
+          if (!revealed[i] && secret[i] === val) foundIndices.push(i);
+        }
+
+        if (foundIndices.length > 0){
+          // reveal and award points per occurrence
+          foundIndices.forEach(idx => revealed[idx] = true);
+          p.score += foundIndices.length;
+          p.lastPointTime = Date.now();
+          // update blanks first then animate +1 on each revealed letter
+          renderBlanks();
+          foundIndices.forEach(idx => animatePlusAt(idx, 1));
+          updatePlayerScoreInPill(p);
+          addToValid(val);
+          showFeedback('green');
+          if (revealed.every(Boolean)) { lastLetterScorer = p; endGame(); return; }
+          // joueur rejoue en cas de lettre valide
+          setTimeout(()=> startTurn(currentIdx), 700);
+        } else {
+          // wrong guess
+          p.wrongs += 1;
+          updatePlayerPillCrosses(p);
+          addToAbsent(val);
+          showFeedback('red');
+          if (p.wrongs >= p.maxWrongs){
+            p.eliminated = true;
+            removePlayerChip(p.name);
+            showElimOverlay(900);
+            setTimeout(()=>{
+              const nextIdx = getNextAliveIndex(currentIdx+1);
+              if (nextIdx === -1) endGame(); else startTurn(nextIdx);
+            }, 900);
+          } else {
+            setTimeout(()=> startTurn(currentIdx+1), 700);
+          }
+        }
+      }, 350);
+    }
+
+    submitBtn.addEventListener('click', handleSubmit);
+    letterInput.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') handleSubmit(); });
+
+    announceOrder();
+  })();
+  </script>
+</body>
+</html>

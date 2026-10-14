@@ -1,0 +1,3 @@
+// Catalogue réservé au menu Spéciaux. Ne pas ajouter ces jeux dans games.js.
+// Format : { id: 'special-1', title: 'Nom', description: 'Description', file: 'mini-jeux/.../index.html', icon: 'assets/minigames/...' }
+const specialGames = [{ id: 'aboubacover', title: 'Aboubacover', description: 'Un mot secret, des undercovers et un vote pour démasquer les imposteurs.', file: 'mini-jeux/aboubacover/index.html', icon: 'assets/minigames/aboubacover.svg' }, { id: 'aboubaphoto', title: 'Aboubaphoto', description: 'Scanne ton QR code et partage tes photos sur le grand écran.', file: 'mini-jeux/aboubaphoto/index.html', icon: 'assets/minigames/aboubaphoto.svg' }];

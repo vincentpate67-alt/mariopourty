@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <script src="../../party-payout.js"></script>
+<script src="../../board/board-minigame-bridge.js"></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Aboubakar Burger</title>
+  <link rel="stylesheet" href="../../style.css" />
+  <style>
+    body{background:#081028;color:#fff;font-family:Segoe UI,Roboto,Arial;margin:0;padding:18px}
+    main{max-width:980px;margin:8px auto;text-align:center}
+    h1{margin:8px 0 12px;font-size:2.4rem}
+    #status{min-height:34px;margin-bottom:12px;font-weight:900;font-size:1.4rem}
+    .player-order{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:8px 0}
+    .player-chip{padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);font-weight:800}
+
+    .game-area{display:flex;flex-direction:column;align-items:center;gap:16px;margin-top:8px}
+
+    .plates-row{display:flex;gap:10px;justify-content:center;align-items:center;overflow:hidden;width:100%;max-width:760px}
+    .plate{width:76px;height:76px;border-radius:12px;background:linear-gradient(180deg,#0b1830,#071225);display:flex;align-items:center;justify-content:center;font-size:44px;border:1px solid rgba(255,255,255,0.04);transition:transform .36s cubic-bezier(.2,.9,.2,1),opacity .36s}
+    .plate .symbol{pointer-events:none}
+    .plate.eaten{transform:translateY(-20px) scale(.5) rotate(-14deg);opacity:0}
+    .plate.incoming{transform:translateY(12px) scale(.85);opacity:0}
+
+    .controls{display:none;gap:12px;align-items:center;justify-content:center;margin-top:8px}
+    .big-btn{padding:10px 14px;border-radius:8px;border:none;background:#6bc0ff;color:#071a3a;font-weight:900;cursor:pointer}
+    .big-btn.secondary{background:#ff9d5a}
+
+    .timer{display:flex;align-items:center;gap:8px}
+    .timer-bar{width:260px;height:14px;background:rgba(255,255,255,0.06);border-radius:10px;overflow:hidden}
+    .timer-bar .fill{height:100%;background:linear-gradient(90deg,#ffb86b,#ff6b6b);width:100%;transition:width linear}
+    #timeLabel{font-weight:800}
+
+    #message{min-height:26px;margin-top:8px;font-weight:900}
+
+    #elimOverlay{position:fixed;left:0;top:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:100005;transition:background .25s}
+    #elimOverlay .text{font-size:72px;color:#ff4242;font-weight:900;text-shadow:0 6px 18px rgba(0,0,0,0.6);transform:scale(0.6);opacity:0;transition:transform .35s cubic-bezier(.2,.9,.2,1),opacity .35s}
+    #elimOverlay.show{background:rgba(255,64,64,0.10)}
+    #elimOverlay.show .text{transform:scale(1);opacity:1}
+
+    .return-btn{margin-top:12px;padding:10px 14px;border-radius:10px;background:#ff776d;color:#fff;border:none;font-weight:700;cursor:pointer}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Aboubakar Burger</h1>
+    <div id="status">Chargement des joueurs...</div>
+    <div id="order" class="player-order"></div>
+
+    <div id="gameContainer" class="game-area">
+      <div id="plates" class="plates-row" aria-hidden="false"></div>
+
+      <div class="controls">
+        <button id="eat1" class="big-btn">Manger 1</button>
+        <button id="eat2" class="big-btn secondary">Manger 2</button>
+        <div class="timer">
+          <div class="timer-bar"><div class="fill"></div></div>
+          <div id="timeLabel">10.00s</div>
+        </div>
+      </div>
+
+      <div id="message"></div>
+
+      <div style="width:100%;max-width:920px;margin-top:8px">
+        <script src="../commun/game-players.js"></script>
+      </div>
+    </div>
+
+    <div id="elimOverlay" class="hidden"><div class="text">ELIMINE 💀</div></div>
+  </main>
+
+  <script>
+  (function(){
+    const stored = JSON.parse(localStorage.getItem('mini-Jeux-host-players') || '[]');
+    const statusEl = document.getElementById('status');
+    const orderEl = document.getElementById('order');
+    const platesEl = document.getElementById('plates');
+    const eat1 = document.getElementById('eat1');
+    const eat2 = document.getElementById('eat2');
+    const timerFill = document.querySelector('.timer-bar .fill');
+    const timeLabel = document.getElementById('timeLabel');
+    const messageEl = document.getElementById('message');
+    const elimOverlay = document.getElementById('elimOverlay');
+
+    if (!stored.length){ statusEl.textContent = 'Aucun joueur enregistré.'; return; }
+
+    let players = stored.map(p => ({ name: p.name, color: p.color || '#8ac6ff', alive:true, score:0, eliminatedAt:null, _playing:false }));
+    let order = shuffle(players.slice());
+    let currentIdx = 0;
+
+    const NUM_PLATES = 10;
+    let plates = [];
+    let platesGenerated = 0;
+    let totalPoopsGenerated = 0;
+    const GOLD_CHANCE = 0.05; // 5% gold burger
+    let platesSinceLastPoop = 0;
+    let burgersSinceLastPoop = 0;
+    let stopFood = false; // when true, genPlate returns no food
+    let decisionTime = 10.0; // seconds
+    const DECISION_DECREASE_PER_PLATE = 0.5; // per plate eaten
+    let turnTimeout = null; let timerInterval = null; let timerStart = 0;
+    let eliminationCounter = 0;
+
+    function shuffle(a){ return a.slice().sort(()=>Math.random()-0.5); }
+    function genPlate(){
+      const minFirstPoop = Math.max(players.length, 5);
+      const prob = Math.max(0.1, 1 / Math.max(1, players.length));
+      const idx = platesGenerated; // index for this generation
+      platesGenerated++;
+
+      const maxPoops = Math.max(0, players.length - 1);
+      const last1 = plates[plates.length - 1];
+
+      // If we've already generated the maximum allowed poops, stop generating any food
+      if (totalPoopsGenerated >= maxPoops){
+        stopFood = true;
+        return '';
+      }
+
+      // Before the minimum first-poop index, always return a burger/gold
+      if (idx < minFirstPoop){
+        // golden burger chance - ensure not adjacent to another GOLD
+        if (Math.random() < GOLD_CHANCE && last1 !== 'GOLD'){
+          platesSinceLastPoop++; burgersSinceLastPoop++;
+          return 'GOLD';
+        }
+        platesSinceLastPoop++; burgersSinceLastPoop++;
+        return '🍔';
+      }
+
+      // Force at least one poop every 12 plates (counting plates since last poop)
+      if (platesSinceLastPoop >= 12 && totalPoopsGenerated < maxPoops){
+        totalPoopsGenerated++;
+        platesSinceLastPoop = 0; burgersSinceLastPoop = 0;
+        if (totalPoopsGenerated >= maxPoops) stopFood = true;
+        return '💩';
+      }
+
+      // try to spawn a poop with probability, but ensure there's at least x burgers since last poop
+      if (Math.random() < prob && burgersSinceLastPoop >= players.length){
+        totalPoopsGenerated++;
+        platesSinceLastPoop = 0; burgersSinceLastPoop = 0;
+        if (totalPoopsGenerated >= maxPoops) stopFood = true;
+        return '💩';
+      }
+
+      // golden burger chance - ensure not adjacent to another GOLD
+      if (Math.random() < GOLD_CHANCE && last1 !== 'GOLD'){
+        platesSinceLastPoop++; burgersSinceLastPoop++;
+        return 'GOLD';
+      }
+
+      // if stopFood has been set, return empty
+      if (stopFood) return '';
+      platesSinceLastPoop++; burgersSinceLastPoop++;
+      return '🍔';
+    }
+
+    function initPlates(){ plates = []; for(let i=0;i<NUM_PLATES;i++) plates.push(genPlate()); renderPlates(); }
+
+    function renderPlates(){
+      platesEl.innerHTML = '';
+      plates.forEach((sym)=>{
+        const d = document.createElement('div'); d.className='plate';
+        const s = document.createElement('div'); s.className='symbol';
+        if (sym === 'GOLD'){
+          const img = document.createElement('img'); img.src = 'assets/burgeror.png'; img.style.width = '44px'; img.style.height = 'auto'; img.style.display='block'; s.appendChild(img);
+        } else if (sym === '💩' || sym === '🍔'){
+          s.textContent = sym;
+        } else {
+          s.textContent = '';
+        }
+        d.appendChild(s);
+        platesEl.appendChild(d);
+      });
+      // show controls when plates are rendered
+      const ctr = document.querySelector('.controls'); if (ctr) ctr.style.display = 'flex';
+    }
+
+    function animateRemoveAndShift(n, cb){
+      const nodes = Array.from(platesEl.children);
+      const toRemove = nodes.slice(0, n);
+      toRemove.forEach(el => el.classList.add('eaten'));
+      setTimeout(()=>{
+        plates.splice(0, n);
+        for(let i=0;i<n;i++) plates.push(genPlate());
+        renderPlates();
+        // animate incoming
+        const newNodes = Array.from(platesEl.children).slice(-n);
+        newNodes.forEach(el => { el.classList.add('incoming'); requestAnimationFrame(()=> el.classList.remove('incoming')); });
+        setTimeout(()=> cb && cb(), 380);
+      }, 320);
+    }
+
+    function announceOrder(){
+      orderEl.innerHTML = '';
+      let step=0; const preview = setInterval(()=>{
+        statusEl.textContent = 'Ordre aléatoire... ' + stored[Math.floor(Math.random()*stored.length)].name;
+        step++; if (step>18){ clearInterval(preview); renderOrder(); setTimeout(()=>{ initPlates(); startTurn(0); }, 700); }
+      }, 80);
+    }
+
+    function renderOrder(){ orderEl.innerHTML=''; order.forEach(p=>{ const chip = document.createElement('div'); chip.className='player-chip'; chip.style.borderColor = p.color; chip.textContent = p.name; orderEl.appendChild(chip); }); }
+
+    function startTurn(idx){
+      // if only one player is alive, declare them winner immediately
+      const aliveCount = order.filter(p=>p.alive).length;
+      if (aliveCount === 1){
+        const winnerIndex = order.findIndex(p=>p.alive);
+        if (winnerIndex !== -1){ currentIdx = winnerIndex; endGame(); return; }
+      }
+      // find next alive from idx (inclusive)
+      let next = -1; for(let i=0;i<order.length;i++){ const j = (idx + i) % order.length; if (order[j].alive){ next = j; break; } }
+      if (next === -1){ endGame(); return; }
+      currentIdx = next;
+      const p = order[currentIdx];
+      statusEl.textContent = `${p.name}, à toi de jouer !`;
+      statusEl.style.color = p.color;
+      // mark playing flags
+      order.forEach(o=> o._playing = false);
+      p._playing = true;
+      messageEl.textContent = '';
+      eat1.disabled = false; eat2.disabled = false;
+      // show player's current score on their pill
+      try{ updatePlayerScoreInPill(p); }catch(e){}
+      startTimer();
+    }
+
+    function startTimer(){
+      clearTimer();
+      timerStart = Date.now();
+      timerFill.style.transition = `width ${decisionTime}s linear`;
+      timerFill.style.width = '100%';
+      requestAnimationFrame(()=> timerFill.style.width = '0%');
+      timeLabel.textContent = decisionTime.toFixed(2) + 's';
+      timerInterval = setInterval(()=>{
+        const elapsed = (Date.now() - timerStart)/1000;
+        const rem = Math.max(0, decisionTime - elapsed);
+        timeLabel.textContent = rem.toFixed(2) + 's';
+      }, 120);
+      turnTimeout = setTimeout(()=>{ // auto eat 2
+        eatPlates(2, true);
+      }, Math.round(decisionTime*1000));
+    }
+
+    function clearTimer(){ if (turnTimeout) { clearTimeout(turnTimeout); turnTimeout=null; } if (timerInterval){ clearInterval(timerInterval); timerInterval=null; } timerFill.style.transition='none'; timerFill.style.width='100%'; }
+
+    function eatPlates(count, isAuto){
+      const p = order[currentIdx];
+      if (!p || !p.alive) return;
+      clearTimer();
+      eat1.disabled = true; eat2.disabled = true;
+      const realCount = Math.min(count, plates.length);
+      let eliminated = false;
+      let gained = 0;
+
+      // capture plate DOM nodes for score popups
+      const nodes = Array.from(platesEl.children).slice(0, realCount);
+
+      for(let i=0;i<realCount;i++){
+        const sym = plates[i];
+        const node = nodes[i];
+        if (sym === '🍔') { p.score += 1; gained++; showScorePopup(node, '+1', '#3cff6b'); }
+        else if (sym === 'GOLD') { p.score += 5; gained += 5; showScorePopup(node, '+5', '#ffd700'); }
+        else if (sym === '💩') { p.alive = false; eliminated = true; eliminationCounter++; p.eliminatedAt = eliminationCounter; removePlayerChip(p.name); break; }
+      }
+      // reduce decision time per plate eaten (0.5s per plate), minimum 5s
+      decisionTime = Math.max(5.0, decisionTime - DECISION_DECREASE_PER_PLATE * realCount);
+
+      // animate and shift
+      animateRemoveAndShift(realCount, ()=>{
+        // update pill score
+        try{ updatePlayerScoreInPill(p); }catch(e){}
+        const remaining = order.filter(o => o.alive).length;
+        if (remaining === 1){
+          // if only one survivor left, end game (show overlay first if someone was eliminated)
+          if (eliminated){
+            showElimOverlay(1100);
+            setTimeout(()=> endGame(), 1200);
+          } else {
+            endGame();
+          }
+          return;
+        }
+        if (eliminated){
+          // show red overlay then continue
+          showElimOverlay(1100);
+          setTimeout(()=>{ // after overlay
+            // next alive
+            const next = getNextAliveIndex(currentIdx+1);
+            if (next === -1) endGame(); else startTurn(next);
+          }, 1200);
+        } else {
+          // not eliminated: continue to next alive player
+          const next = getNextAliveIndex(currentIdx+1);
+          if (next === -1) endGame(); else startTurn(next);
+        }
+      });
+    }
+
+    function getNextAliveIndex(start){ for(let i=0;i<order.length;i++){ const j=(start + i) % order.length; if (order[j].alive) return j; } return -1; }
+
+    function showElimOverlay(duration=1000){ const el = document.getElementById('elimOverlay'); if (!el) return; el.classList.remove('hidden'); requestAnimationFrame(()=> el.classList.add('show')); setTimeout(()=>{ el.classList.remove('show'); setTimeout(()=> el.classList.add('hidden'), 260); }, duration); }
+
+    function showScorePopup(node, text, color){
+      if (!node) return;
+      try{
+        const rect = node.getBoundingClientRect();
+        const pop = document.createElement('div'); pop.textContent = text;
+        Object.assign(pop.style, { position:'fixed', left: (rect.left + rect.width/2) + 'px', top: (rect.top) + 'px', transform:'translate(-50%, -12px)', color: color || '#3cff6b', fontWeight:'900', fontSize:'18px', pointerEvents:'none', zIndex:100010, opacity:'1', transition:'transform .7s ease, opacity .7s ease' });
+        document.body.appendChild(pop);
+        requestAnimationFrame(()=>{ pop.style.transform='translate(-50%, -30px)'; pop.style.opacity='0'; });
+        setTimeout(()=>{ if (pop && pop.parentNode) pop.parentNode.removeChild(pop); }, 800);
+      }catch(e){}
+    }
+
+    function removePlayerChip(name){
+      try{
+        const chips = Array.from(orderEl.children);
+        chips.forEach(chip => { if (chip.textContent && chip.textContent.trim() === name) chip.remove(); });
+      }catch(e){}
+    }
+
+    function updatePlayerScoreInPill(player){
+      const bar = document.querySelector('.player-bar');
+      if (!bar){ window.addEventListener('load', function onLoad(){ window.removeEventListener('load', onLoad); updatePlayerScoreInPill(player); }); return; }
+      const pills = Array.from(bar.querySelectorAll('.player-pill'));
+      pills.forEach(pill=>{
+        const name = pill.querySelector('span:nth-child(2)')?.textContent?.trim();
+        if (name === player.name){
+          if (!pill.style.position) pill.style.position='relative';
+          let el = pill.querySelector('.pill-score');
+          if (!el){ el = document.createElement('div'); el.className='pill-score'; el.style.position='absolute'; el.style.right='8px'; el.style.top='50%'; el.style.transform='translateY(-50%)'; el.style.fontWeight='900'; el.style.color='#fff'; el.style.background='rgba(0,0,0,0.16)'; el.style.padding='2px 6px'; el.style.borderRadius='8px'; el.style.fontSize='0.85rem'; pill.appendChild(el); }
+          el.textContent = `${player.score} pts`;
+        }
+      });
+    }
+
+    function updatePlayerBarRanking(sorted){
+      const bar = document.querySelector('.player-bar'); if (!bar) return;
+      const pills = Array.from(bar.querySelectorAll('.player-pill'));
+      pills.forEach(pill => {
+        const name = pill.querySelector('span:nth-child(2)')?.textContent?.trim();
+        const res = sorted.find(r => r.name === name);
+        let badge = pill.querySelector('.rank-badge');
+        if (!badge){ badge = document.createElement('span'); badge.className='rank-badge'; badge.style.marginLeft='auto'; badge.style.fontWeight='900'; badge.style.fontSize='0.85rem'; badge.style.padding='2px 6px'; badge.style.borderRadius='99px'; badge.style.background='rgba(255,255,255,0.8)'; badge.style.color='#000'; pill.appendChild(badge); }
+        if (!res){ badge.textContent=''; pill.style.boxShadow='none'; pill.style.border='1px solid rgba(255,255,255,0.28)'; pill.style.background='rgba(15,24,46,0.95)'; }
+        else { const rank = sorted.findIndex(r=>r.name===name) + 1; const rankColor = rank === 1 ? '#ffd700' : rank === 2 ? '#c0c0c0' : rank === 3 ? '#cd7f32' : '#8a2be2'; badge.textContent = `#${rank}`; pill.style.border = `1px solid ${rankColor}`; pill.style.boxShadow = `0 0 0 2px ${rankColor}`; pill.style.background = 'rgba(255,255,255,0.13)'; if (typeof setACText === 'function') setACText(pill, rank, sorted.length); }
+      });
+    }
+
+    function endGame(){
+      window.PourtyMiniGame?.finish();
+      document.querySelectorAll('main > .game-area, #gameContainer').forEach(el=>{ if (el) el.style.display='none'; });
+      orderEl.style.display = 'none';
+      // build ranking: sort by points (desc). Tiebreaker: alive before eliminated;
+      // if scores equal and both eliminated, the one eliminated later ranks higher
+      const alivePlayers = order.filter(p=>p.alive);
+      const sortedByScore = order.slice().sort((a,b)=>{
+        if (b.score !== a.score) return b.score - a.score;
+        // same score
+        if (a.alive !== b.alive) return a.alive ? -1 : 1; // alive first
+        // both same alive state
+        if (!a.alive && !b.alive){
+          // later elimination (higher eliminatedAt) ranks higher
+          return (b.eliminatedAt || 0) - (a.eliminatedAt || 0);
+        }
+        return 0;
+      });
+      let ranking;
+      if (alivePlayers.length === 1){
+        const survivor = alivePlayers[0];
+        ranking = [survivor].concat(sortedByScore.filter(p => p.name !== survivor.name));
+      } else {
+        ranking = sortedByScore;
+      }
+      const winner = ranking[0];
+      statusEl.textContent = winner ? `${winner.name} a gagné!` : 'Fin du jeu';
+      statusEl.style.color = winner ? winner.color : '#fff';
+
+      const board = document.createElement('div'); board.id='endLeaderboard'; board.style.marginTop='12px'; board.style.maxWidth='720px'; board.style.marginLeft='auto'; board.style.marginRight='auto';
+      const title = document.createElement('h3'); title.textContent = 'CLASSEMENT'; title.style.margin='0 0 8px 0'; board.appendChild(title);
+      const aliveCountForLabel = alivePlayers.length;
+      ranking.forEach((p, idx)=>{ const r = document.createElement('div'); r.style.display='flex'; r.style.justifyContent='space-between'; r.style.padding='8px'; r.style.borderBottom='1px solid rgba(255,255,255,0.04)'; const suffix = (aliveCountForLabel === 1 && p.alive) ? ' (Survivant)' : ''; r.innerHTML = `<div>#${idx+1} ${p.name}</div><div style="font-weight:900">${p.score} pts${suffix}</div>`; board.appendChild(r); });
+      statusEl.parentNode.insertBefore(board, statusEl.nextSibling);
+
+      // annotate player-bar ranks and hide temporary pill-scores
+      setTimeout(()=>{ updatePlayerBarRanking(ranking); document.querySelectorAll('.player-pill .pill-score').forEach(el=> el.style.display='none'); }, 120);
+
+      const ret = document.createElement('button'); ret.className='return-btn'; ret.textContent='Retour'; ret.addEventListener('click', ()=> window.location.href='../../index.html'); board.appendChild(ret);
+    }
+
+    // wire buttons
+    eat1.addEventListener('click', ()=> eatPlates(1, false));
+    eat2.addEventListener('click', ()=> eatPlates(2, false));
+
+    // init
+    renderOrder(); announceOrder();
+
+  })();
+  </script>
+</body>
+</html>
