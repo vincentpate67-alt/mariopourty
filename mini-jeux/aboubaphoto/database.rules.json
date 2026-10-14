@@ -5,7 +5,7 @@
     "photoRooms": {
       "$room": {
         ".read": "auth != null && root.child('photoRooms').child($room).child('host').val() === auth.uid && root.child('photoRooms').child($room).child('expiresAt').val() > now",
-        ".write": "auth != null && ((!data.exists() && newData.child('host').val() === auth.uid) || data.child('host').val() === auth.uid)",
+        ".write": "auth != null && (!newData.exists() || (!data.exists() && newData.child('host').val() === auth.uid) || data.child('host').val() === auth.uid)",
         ".validate": "newData.hasChildren(['host','createdAt','expiresAt','players']) && $room.matches(/^[a-f0-9]{36}$/)",
         "host": {
           ".validate": "newData.isString() && (data.exists() ? newData.val() === data.val() : newData.val() === auth.uid)"
@@ -20,7 +20,7 @@
           ".validate": "newData.hasChildren()",
           "$player": {
             ".read": "auth != null && root.child('photoRooms').child($room).child('expiresAt').val() > now && (!data.child('uid').exists() || data.child('uid').val() === auth.uid || root.child('photoRooms').child($room).child('host').val() === auth.uid)",
-            ".write": "auth != null && root.child('photoRooms').child($room).child('expiresAt').val() > now && data.exists() && (!data.child('uid').exists() || data.child('uid').val() === auth.uid) && newData.child('uid').val() === auth.uid && newData.child('name').val() === data.child('name').val() && newData.child('color').val() === data.child('color').val() && newData.child('index').val() === data.child('index').val()",
+            ".write": "auth != null && root.child('photoRooms').child($room).child('expiresAt').val() > now && data.exists() && (!data.child('uid').exists() || data.child('uid').val() === auth.uid) && newData.child('uid').val() === auth.uid && newData.child('name').val() === data.child('name').val() && newData.child('color').val() === data.child('color').val() && newData.child('index').val() === data.child('index').val() && newData.child('clientId').val() === data.child('clientId').val() && newData.child('activity').val() === data.child('activity').val()",
             ".validate": "newData.hasChildren(['name','color','index','online']) && $player.matches(/^[a-f0-9]{36}$/)",
             "name": {
               ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40"
@@ -51,6 +51,45 @@
               "$other": {
                 ".validate": false
               }
+            },
+            "$other": {
+              ".validate": false
+            },
+            "clientId": {
+              ".validate": "newData.isString() && newData.val().length <= 64 && (root.child('photoRooms').child($room).child('host').val() === auth.uid || !data.exists() || newData.val() === data.val())"
+            },
+            "activity": {
+              ".validate": "newData.val() === 'lobby' || newData.val() === 'photo'"
+            }
+          }
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "roomDirectory": {
+      ".read": "auth != null",
+      "$room": {
+        ".write": "auth != null && (!newData.exists() || (newData.child('host').val() === auth.uid && (!data.exists() || data.child('host').val() === auth.uid)))",
+        ".validate": "$room.matches(/^[a-f0-9]{36}$/) && newData.hasChildren(['host','createdAt','expiresAt','players'])",
+        "host": {
+          ".validate": "newData.isString() && newData.val() === auth.uid"
+        },
+        "createdAt": {
+          ".validate": "newData.isNumber()"
+        },
+        "expiresAt": {
+          ".validate": "newData.isNumber()"
+        },
+        "players": {
+          "$index": {
+            ".validate": "$index.matches(/^[0-5]$/) && newData.hasChildren(['name','color'])",
+            "name": {
+              ".validate": "newData.isString() && newData.val().length <= 40"
+            },
+            "color": {
+              ".validate": "newData.isString() && newData.val().matches(/^#[0-9a-fA-F]{6}$/)"
             },
             "$other": {
               ".validate": false

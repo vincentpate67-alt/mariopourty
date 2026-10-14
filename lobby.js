@@ -9,11 +9,13 @@
   function read() {
     try {
       const saved = JSON.parse(localStorage.getItem(key) || '[]');
-      return Array.isArray(saved) ? saved.filter(p => p && typeof p.name === 'string' && p.name.trim() && /^#[0-9a-f]{6}$/i.test(p.color)).slice(0, 6) : [];
+      const valid = Array.isArray(saved) ? saved.filter(p => p && typeof p.name === 'string' && p.name.trim() && /^#[0-9a-f]{6}$/i.test(p.color)).slice(0, 6) : [];
+      if(home && valid.some(p=>!p.connectionId)){valid.forEach(p=>p.connectionId ||= crypto.randomUUID());localStorage.setItem(key,JSON.stringify(valid));}
+      return valid;
     } catch { return []; }
   }
   function commit(next) {
-    try { localStorage.setItem(key, JSON.stringify(next)); players = next; return true; }
+    try { localStorage.setItem(key, JSON.stringify(next)); players = next; window.dispatchEvent(new Event('pourty-roster-changed')); return true; }
     catch { byId('player-feedback').textContent = 'Le navigateur empêche la sauvegarde. Autorise le stockage pour continuer.'; return false; }
   }
   function resetForm() {
@@ -65,7 +67,7 @@
       if (!name) { byId('player-feedback').textContent = 'Choisis un nom pour ce joueur.'; byId('player-name').focus(); return; }
       if (editing === null && players.length >= 6) return;
       const next = players.slice();
-      const player = { ...(editing !== null ? players[editing] : {}), name, color: byId('player-color').value };
+      const player = { ...(editing !== null ? players[editing] : {}), connectionId: editing !== null ? (players[editing].connectionId || crypto.randomUUID()) : crypto.randomUUID(), name, color: byId('player-color').value };
       if (editing === null) next.push(player); else next[editing] = player;
       if (commit(next)) { resetForm(); render(); byId('player-feedback').textContent = `${name} est prêt à jouer.`; if (players.length < 6) byId('player-name').focus(); }
     });
