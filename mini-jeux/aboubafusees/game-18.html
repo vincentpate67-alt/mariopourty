@@ -462,7 +462,7 @@
     .info-box .stat-row span.value { font-weight: 900; color: #dce8ff; }
 
   </style>
-</head>
+<script src="../commun/game-phone.js?v=vote-counts-1"></script></head>
 <body>
   <main>
     <h1>Aboubafusées</h1>
@@ -503,6 +503,7 @@
   <script src="../commun/game-players.js"></script>
   <script>
     (function () {
+let phoneDeadline=0;
       const statusEl = document.getElementById('status');
       const turnOrderEl = document.getElementById('turnOrder');
       const rocketGalleryEl = document.getElementById('rocketGallery');
@@ -598,7 +599,7 @@
         timerFillEl.style.width = '100%';
       }
 
-      function startTimer() {
+      function startTimer() {phoneDeadline=Date.now()+TIMER_DURATION*1000;
         clearTimer();
         timerWrapperEl.style.display = 'flex';
         timerFillEl.style.transition = 'none';
@@ -1050,12 +1051,12 @@
         btn.className = 'finish-return-btn';
         btn.textContent = 'Retour';
         btn.addEventListener('click', () => {
-          window.location.href = '../../index.html';
+          window.location.href = '../../minigames.html';
         });
         document.body.appendChild(btn);
       }
 
-      function finishLaunch() {
+      function finishLaunch() {window.PourtyGamePhones?.finish();
       window.PourtyMiniGame?.finish();
         const sorted = order.slice().sort((a, b) => b.score - a.score);
         updatePlayerBarRanking(sorted);
@@ -1416,7 +1417,9 @@
       if (bMalus) bMalus.addEventListener('click', applyMalus);
 
       announceOrder(order);
-    })();
+    
+  window.PourtyGamePhones?.register({id:'game-18',roster:()=>players,panels:(i,h)=>rocketChoices.size<order.length&&h.visible(h.q('#statsInfoBox'))&&h.all('.rocket-card:not(.disabled)').length?[{kind:'info',text:h.text('#statsInfoBox')}]:[],view:(i,h)=>{return {owner:order[currentPlayerIndex]||-1,key:currentPlayerIndex+':'+actionUsed,deadline:autoTimer?phoneDeadline:0,duration:TIMER_DURATION,actions:[...h.styled('.rocket-card:not(.disabled)',{theme:'rocket'}),...h.buttons('#btnClue,#btnMalus')]};}});
+})();
   </script>
 </body>
 </html>

@@ -18,7 +18,7 @@
     .slot.selected{background:#fff;color:#000;cursor:default;}
     .rank{flex:1 1 120px;background:rgba(9,18,39,0.86);border:1px solid rgba(255,255,255,0.2);border-radius:10px;padding:8px;color:#fff;font-weight:600;}
   </style>
-</head>
+<script src="commun/game-phone.js?v=vote-counts-1"></script></head>
 <body>
   <main>
     <div id="plinkocoubeh">
@@ -478,7 +478,7 @@
     const exitButton = document.getElementById('exit-button');
     if (exitButton) {
       exitButton.addEventListener('click', () => {
-        window.location.href = '../index.html';
+        window.location.href = '../minigames.html';
       });
     }
 
@@ -522,7 +522,7 @@
       });
     }
 
-    function finalizeRankings(results) {
+    function finalizeRankings(results) {window.PourtyGamePhones?.finish();
       window.PourtyMiniGame?.finish();
       const safeResults = results
         .filter(r => r.status === 'safe' && r.bin !== null && binConfig[r.bin] === 'safe')
@@ -567,6 +567,8 @@
     renderSlots();
     drawBoard();
     showPlayerTurn();
+
+  window.PourtyGamePhones?.register({id:'game-1',roster:()=>playerList,view:(i,h)=>{return {owner:playersOrder[playerIndex]||-1,key:playerIndex,actions:h.buttons('#slot-selector .available',{kind:'circle'})};}});
 })();
   </script>
 </body>

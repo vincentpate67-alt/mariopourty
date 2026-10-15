@@ -366,7 +366,7 @@
     } catch(error){status(error.message);} finally {driving=false;}
   }
   window.addEventListener('keydown',event=>{if(event.code!=='Space')return;if(state.phase==='ranking'&&dismissStandings){event.preventDefault();if(!event.repeat)dismissStandings();return;}if(fairUI?.handleSpace(event)){event.preventDefault();return;}if(slotsUI?.handleSpace()){event.preventDefault();return;}if(fateUI?.handleSpace()){event.preventDefault();return;}if(finaleUI?.handleSpace()){event.preventDefault();return;}if(state.phase==='late-intro'){event.preventDefault();if(!event.repeat)dismissLateIntro?.();return;}if(itemsUI?.handleSpace()){event.preventDefault();return;}if(shopUI?.handleSpace()){event.preventDefault();return;}if(state.phase==='tropical-voyage')boatSpeed=3;if(eventUI?.handleSpace(event)){event.preventDefault();return;}if(miniAnimation){event.preventDefault();miniAnimation.skip=true;miniAnimation.wake?.();return;}if(dieAnimation){event.preventDefault();dieAnimation.skip=true;dieAnimation.wake?.();return;}if(state.phase==='tropical-voyage'){event.preventDefault();return;}if(!['moving','pass'].includes(state.phase)||busy||mapMode)return;event.preventDefault();speed=3;});
-  window.addEventListener('keyup',event=>{if(event.code==='Space'){speed=1;boatSpeed=1;}});
+  window.addEventListener('keyup',event=>{if(event.code==='Space'){speed=1;boatSpeed=1;eventUI?.releaseSpace?.();fairUI?.releaseSpace?.();}});
   window.addEventListener('blur',()=>{speed=1;});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)speed=1;});
   svg.addEventListener('wheel',event=>{
@@ -428,7 +428,7 @@
   svg.addEventListener('focusout',hideMapShop);
 
   function fitMap() {const b=model.bounds(board),rect=svg.getBoundingClientRect(),scale=Math.max(.02,Math.min(1.3,(rect.width-60)/b.width,(rect.height-215)/b.height));slideView({scale,x:rect.width/2-(b.x+b.width/2)*scale,y:rect.height/2-30-(b.y+b.height/2)*scale},850,true);}
-  function closeMap(){if(!mapMode)return;hideMapShop();mapMode=false;hovered=null;canvas.world.querySelector('.map-boat-routes')?.remove();canvas.zoomEnabled=false;document.body.classList.remove('map-mode');$('map-controls').hidden=true;$('map-distance').hidden=true;canvas.highlightRoute();focusPlayer();render();}
+  function closeMap(){canvas.world.querySelector('.phone-map-cursor')?.remove();if(!mapMode)return;hideMapShop();mapMode=false;hovered=null;canvas.world.querySelector('.map-boat-routes')?.remove();canvas.zoomEnabled=false;document.body.classList.remove('map-mode');$('map-controls').hidden=true;$('map-distance').hidden=true;canvas.highlightRoute();focusPlayer();render();}
   function openMap(){if(mapMode||!['turn','choice','tropical-port','shop-menu','shop-sale-menu','street-build'].includes(state.phase))return;$('close-map').textContent=state.phase==='street-build'?'Retour à Construire ↩':state.phase.startsWith('shop-')?'Retour au shop ↩':'Revenir au joueur ↩';mapMode=true;setItems(false);cancelAnimationFrame(cameraFrame);canvas.zoomEnabled=true;document.body.classList.add('map-mode');$('map-controls').hidden=false;$('map-distance').hidden=false;$('map-distance').textContent='Survole une case pour afficher le chemin.';fitMap();render();}
   $('open-map').addEventListener('click',openMap);$('open-market').addEventListener('click',()=>{if(state.phase!=='turn'||!state.street||busy||mapMode)return;setItems(false);streetUI.openBook();});
   $('close-map').addEventListener('click',closeMap);$('map-fit').addEventListener('click',fitMap);$('map-zoom-in').addEventListener('click',()=>{cancelAnimationFrame(cameraFrame);canvas.zoom(1.25);});$('map-zoom-out').addEventListener('click',()=>{cancelAnimationFrame(cameraFrame);canvas.zoom(.8);});
@@ -528,5 +528,43 @@
     state.phase=node.countsAsStep?'land':node.type==='star'?(state.starVisible&&state.starNode===id?'star-offer':'land-complete'):'pass';lastFocus=null;persist();render();
   }});
   if(testMode){test.buddyTools({root:$('developer-panel'),session,getState:()=>state,canEdit:()=>!busy&&!driving&&['turn','choice'].includes(state.phase),add:(player,nodeId)=>{const result=test.addBuddy(engine,state,session,player,nodeId);test.saveBuddy(result);testRestarting=true;alive=false;location.reload();},move:(id,nodeId)=>{if(id<1||!players[id]||!nodes.has(nodeId))return;state.positions[id]=nodeId;persist();render();}});document.body.classList.add('developer-mode');$('developer-enabled').checked=true;test.toolbar({openTools:()=>openTestTools?.(),canEdit:()=>true,restart:()=>{testRestarting=true;alive=false;localStorage.removeItem(key);location.reload();}});}
+
+  let phoneMapNode=null;
+  function phoneMapState(){
+    const trap=state.phase==='trap-select';
+    if(!mapMode&&!trap){phoneMapNode=null;canvas.world.querySelector('.phone-map-cursor')?.remove();return {open:false};}
+    const id=phoneMapNode||hovered||playerNode()?.id,node=nodes.get(id);
+    return {open:true,trap,canConfirm:trap&&!![...svg.querySelectorAll('.trap-candidate[data-node]')].find(e=>e.dataset.node===id),info:mapMode?$('map-distance').textContent:(node?.label||model.types[node?.type]?.name||'')};
+  }
+  function phoneMapCommand(command){
+    const trap=state.phase==='trap-select';if(!mapMode&&!trap)return;
+    if(command==='close'){if(mapMode)closeMap();return;}
+    if(command==='confirm'){const target=[...svg.querySelectorAll('.trap-candidate[data-node]')].find(e=>e.dataset.node===phoneMapNode);target?.dispatchEvent(new MouseEvent('click',{bubbles:true,button:0}));return;}
+    if(command==='plus'||command==='minus'){cancelAnimationFrame(cameraFrame);canvas.zoom(command==='plus'?1.25:.8);return;}
+    const directions={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]},axis=directions[command];if(!axis)return;
+    const from=nodes.get(phoneMapNode||hovered)||playerNode();if(!from)return;
+    const candidates=board.nodes.filter(n=>n.id!==from.id).map(n=>{const dx=n.x-from.x,dy=n.y-from.y;return {node:n,forward:dx*axis[0]+dy*axis[1],side:Math.abs(dx*axis[1]-dy*axis[0]),distance:Math.hypot(dx,dy)};}).filter(n=>n.forward>.01);
+    const cone=candidates.filter(n=>n.side<=n.forward),next=(cone.length?cone:candidates).sort((a,b)=>a.distance-b.distance)[0]?.node;if(!next)return;
+    phoneMapNode=next.id;
+    if(mapMode){highlight(next.id);showMapShop(next.id);}
+    canvas.world.querySelector('.phone-map-cursor')?.remove();
+    const cursor=document.createElementNS('http://www.w3.org/2000/svg','circle');for(const [k,v]of Object.entries({class:'phone-map-cursor',cx:next.x,cy:next.y,r:36,fill:'none',stroke:'#fff','stroke-width':3,'stroke-dasharray':'5 4','pointer-events':'none'}))cursor.setAttribute(k,v);canvas.world.append(cursor);
+    const rect=svg.getBoundingClientRect(),scale=canvas.view.scale;slideView({scale,x:rect.width*.5-next.x*scale,y:rect.height*.45-next.y*scale},350,mapMode);
+  }
+  const phoneReactions=new Map();
+  function showPhoneReaction(index,id){
+    phoneReactions.get(index)?.();
+    const card=hudCards.get(index);if(!card)return;
+    const wrapper=document.createElement('div'),image=document.createElement('img');wrapper.className='hud-phone-reaction';image.src='../assets/reactions/'+id+'.svg';image.alt='';wrapper.append(image);document.body.append(wrapper);
+    let frame=0,timer=0,removed=false;
+    const cleanup=()=>{if(removed)return;removed=true;cancelAnimationFrame(frame);clearTimeout(timer);wrapper.remove();phoneReactions.delete(index);};phoneReactions.set(index,cleanup);
+    const position=()=>{if(!alive){cleanup();return;}const current=hudCards.get(index),r=current?.getBoundingClientRect();if(r){wrapper.style.left=Math.max(110,Math.min(innerWidth-110,r.left+r.width/2))+'px';wrapper.style.top=Math.max(110,r.top-10)+'px';wrapper.style.visibility=r.width?'visible':'hidden';}frame=requestAnimationFrame(position);};position();
+    image.animate?.([{opacity:0,transform:'translateY(15px) scale(.35) rotate(-8deg)'},{opacity:1,transform:'translateY(-4px) scale(1.08) rotate(2deg)',offset:.14},{opacity:1,transform:'translateY(0) scale(1) rotate(0)',offset:.24},{opacity:1,transform:'translateY(-5px) scale(1.02)',offset:.72},{opacity:0,transform:'translateY(-20px) scale(.6) rotate(5deg)'}],{duration:2700,easing:'ease-in-out',fill:'both'});timer=setTimeout(cleanup,2750);
+  }
+  window.PourtyBoardPhones?.({engine,model,board,session,players,state:()=>state,react:showPhoneReaction,busy:()=>busy||!!dieAnimation,
+    closeItemPreview:()=>{document.querySelectorAll('.phone-item-preview').forEach(e=>{e.classList.remove('phone-item-preview');e.dispatchEvent(new Event('pointerleave'));});setItems(false);},
+    mapState:phoneMapState,mapCommand:phoneMapCommand,
+    canAccelerate:()=>!mapMode&&!!(dieAnimation||miniAnimation||state.phase==='ranking'&&dismissStandings||state.phase==='late-intro'&&dismissLateIntro||state.phase==='tropical-voyage'||['moving','pass'].includes(state.phase)&&!busy||[eventUI,shopUI,itemsUI,fairUI,slotsUI,finaleUI].some(ui=>ui?.canAccelerate?.())),
+    space:(down,repeat=false)=>window.dispatchEvent(new KeyboardEvent(down?'keydown':'keyup',{code:'Space',key:' ',repeat,bubbles:true,cancelable:true})),hiddenHit:()=>window.PourtyHiddenBlockHit,previewItem:index=>{if(state.phase!=='turn'||busy||engine.usedItem(state))return false;setItems(true);const card=$('inventory-slots').children[index];if(!card||card.tagName!=='BUTTON'||card.disabled)return false;document.querySelectorAll('.phone-item-preview').forEach(e=>e.classList.remove('phone-item-preview'));card.classList.add('phone-item-preview');card.focus({preventScroll:true});card.dispatchEvent(new Event('pointerenter'));return true;},dieValue:()=>chosenDieValue,setDie:n=>{if(busy||state.phase!=='turn'||!engine.diceSpec(state).rigged)return;chosenDieValue=n;$('turn-die').querySelectorAll('.die-face').forEach(face=>face.textContent=n);}});
   persist();render();
 })();

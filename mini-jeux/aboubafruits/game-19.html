@@ -93,7 +93,7 @@
     .player-score { margin-left:auto; min-width:36px; text-align:center; font-size:0.88rem; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.14); border-radius:999px; padding:5px 10px; color:#fff; }
     .player-bar-placeholder{height:84px}
   </style>
-</head>
+<script src="../commun/game-phone.js?v=vote-counts-1"></script></head>
 <body>
   <main>
     <h1>Aboubafruits</h1>
@@ -142,6 +142,7 @@
 
   <script>
   (function(){
+let phoneDeadline=0;
     const stored = JSON.parse(localStorage.getItem('mini-Jeux-host-players') || '[]');
     const statusEl = document.getElementById('status');
     const orderEl = document.getElementById('order');
@@ -372,7 +373,7 @@
       });
     }
 
-    function startTimer(){
+    function startTimer(){phoneDeadline=Date.now()+remainingTime*1000;
       clearInterval(timerInterval);
       timerInterval = setInterval(() => {
         remainingTime = Math.max(0, remainingTime - 0.05);
@@ -500,7 +501,7 @@
       pendingExtraHits = 1;
     }
 
-    function endGame(){
+    function endGame(){window.PourtyGamePhones?.finish();
       window.PourtyMiniGame?.finish();
       hitBtn.disabled = true;
       turnArea.classList.add('hidden');
@@ -541,7 +542,7 @@
       const ret = document.createElement('button');
       ret.className = 'return-btn';
       ret.textContent = 'Retour';
-      ret.addEventListener('click', () => window.location.href = '../../index.html');
+      ret.addEventListener('click', () => window.location.href = '../../minigames.html');
       board.appendChild(ret);
     }
 
@@ -873,7 +874,9 @@
 
     renderOrder([]);
     startOrderAnimation();
-  })();
+  
+  window.PourtyGamePhones?.register({id:'game-19',roster:()=>players,view:(i,h)=>{return {owner:order[activeIndex]||-1,key:activeIndex+':'+turnInProgress,deadline:timerInterval&&!rouletteMode?phoneDeadline:0,duration:TIMER_DURATION,actions:turnInProgress?h.styled('#hitBtn,#rouletteBtn,#launchRouletteBtn,#closeRouletteBtn',{theme:'fruit'}):[]};}});
+})();
   </script>
 </body>
 </html>

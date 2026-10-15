@@ -60,7 +60,7 @@
     #shoot-btn{padding:8px 12px;border-radius:8px;border:none;background:#ffb34d;color:#000;font-weight:700;cursor:pointer}
     #shoot-btn[disabled]{opacity:0.4;cursor:default}
   </style>
-</head>
+<script src="../commun/game-phone.js?v=vote-counts-1"></script></head>
 <body>
   <main>
     <h1>Aboubagolf</h1>
@@ -146,7 +146,7 @@
 
       function renderPlayerBar(){
         if (GAME && GAME.ended) return;
-        const bar = document.querySelector('.player-bar');
+        const bar = Array.from(document.querySelectorAll('.player-bar')).find(b=>b.style.display!=='none') || document.querySelector('.player-bar');
         if (!bar){
           // Defer to the injected bar from game-players.js if not yet present
           window.addEventListener('load', renderPlayerBar, { once: true });
@@ -214,7 +214,7 @@
       };
 
       // maps list (maintain this list when adding new maps)
-      let mapsList = [
+      let golfPhoneRound=0;let mapsList = [
         { name: 'Le cercle', file: 'Le cercle' },
         { name: 'Oeil', file: 'Oeil' },
         { name: 'Citron', file: 'Citron'},
@@ -827,7 +827,7 @@
         });
 
         const shoot = document.getElementById('shoot-btn'); if (shoot) shoot.addEventListener('click', ()=>{ if (!shoot.disabled) doShoot(); });
-        const back = document.getElementById('back-btn'); if (back) back.addEventListener('click', ()=>{ window.location.href = '../../index.html'; });
+        const back = document.getElementById('back-btn'); if (back) back.addEventListener('click', ()=>{ window.location.href = '../../minigames.html'; });
       }
 
       function setSelectedPower(level){ GAME.selectedPower = level; document.querySelectorAll('.power-level').forEach(el=>el.classList.toggle('selected', Number(el.dataset.level) === level)); updateShootEnabled(); }
@@ -1199,7 +1199,7 @@
             bars.forEach(b => { if (b !== mainBar) b.style.display = 'none'; });
           }
         }catch(e){}
-        const bar = document.querySelector('.player-bar');
+        const bar = Array.from(document.querySelectorAll('.player-bar')).find(b=>b.style.display!=='none') || document.querySelector('.player-bar');
         if (!bar){ window.addEventListener('load', updatePlayerBar, { once: true }); return; }
         bar.innerHTML = '';
         GAME.players.forEach((p, idx)=>{
@@ -1210,12 +1210,13 @@
         });
       }
 
-      function endGame(){
+      function endGame(){window.PourtyGamePhones?.finish();
         GAME.ended = true;
         // stop any running timers/animations
         try{ if (GAME.timerRaf) { cancelAnimationFrame(GAME.timerRaf); GAME.timerRaf = null; } if (GAME.rafId) { cancelAnimationFrame(GAME.rafId); GAME.rafId = null; } }catch(e){}
         // compute ranking: finished players first by strokes asc, then others by strokes asc
         const ranked = GAME.players.slice().sort((a,b)=>{ if (a.done && !b.done) return -1; if (!a.done && b.done) return 1; const as = a.done? a.strokes: Infinity; const bs = b.done? b.strokes: Infinity; return as - bs; });
+        GAME.phoneRanks = stored.map(p=>ranked.findIndex(r=>r.name===p.name&&r.color===(p.color||'#8ac6ff'))+1);
         // hide any selection overlay and controls - show results directly in player bar
         const overlay = document.getElementById('map-select-overlay'); if (overlay) overlay.classList.add('hidden');
         const dirPad = document.getElementById('direction-pad'); if (dirPad) dirPad.style.display = 'none';
@@ -1228,7 +1229,7 @@
           const mainBar = injectedBar || bars[0];
           bars.forEach(b => { if (b !== mainBar) b.style.display = 'none'; });
         }
-        const bar = document.querySelector('.player-bar');
+        const bar = Array.from(document.querySelectorAll('.player-bar')).find(b=>b.style.display!=='none') || document.querySelector('.player-bar');
         if (!bar){ window.addEventListener('load', endGame, { once: true }); return; }
         bar.innerHTML = '';
         ranked.forEach((r,i)=>{
@@ -1250,20 +1251,20 @@
         const controls = document.getElementById('controls-panel'); if (controls) controls.style.display = 'none';
         // add a final Retour button near the player bar
         try{
-          const barWrap = document.querySelector('.player-bar');
+          const barWrap = bar;
           if (barWrap){
             let endBtn = document.getElementById('final-back');
             if (!endBtn){
               endBtn = document.createElement('button'); endBtn.id = 'final-back'; endBtn.textContent = 'Retour';
               endBtn.style.marginLeft = '12px'; endBtn.style.padding = '8px 12px'; endBtn.style.borderRadius = '8px'; endBtn.style.border = 'none'; endBtn.style.background = '#ffb34d'; endBtn.style.color = '#000'; endBtn.style.fontWeight = '700';
-              endBtn.addEventListener('click', ()=>{ window.location.href = '../../index.html'; });
+              endBtn.addEventListener('click', ()=>{ window.location.href = '../../minigames.html'; });
               barWrap.appendChild(endBtn);
             }
           }
         }catch(e){}
       }
 
-      function showMapChoiceOverlay(){
+      function showMapChoiceOverlay(){golfPhoneRound++;
         const overlay = document.getElementById('map-select-overlay');
         const choicePanel = document.getElementById('map-select-choice');
         const listPanel = document.getElementById('map-select-list');
@@ -1337,7 +1338,7 @@
         loadMapFile(filename);
       }
 
-      function openMapList(){
+      function openMapList(){golfPhoneRound++;
         const choicePanel = document.getElementById('map-select-choice');
         const listPanel = document.getElementById('map-select-list');
         const selectViewport = document.getElementById('select-viewport');
@@ -1371,7 +1372,11 @@
         }; r.readAsText(f);
       });
 
-    })();
+    
+  window.PourtyGamePhones?.register({id:'game-13',roster:()=>stored,ranks:()=>GAME.phoneRanks,view:(i,h)=>{if(GAME.ended)return {key:'ended',actions:[]};const menu=h.q('#map-select-overlay');if(h.visible(menu)&&h.visible(h.q('#map-select-choice')))return h.vote('golf-mode:'+golfPhoneRound,i,[{id:'random',label:'Aléatoire'},{id:'list',label:'Liste'}],id=>h.q(id==='random'?'#map-random-btn':'#map-list-btn').click(),{title:'Choix de la map'});
+if(h.visible(menu)&&h.visible(h.q('#map-select-list')))return h.vote('golf-list:'+golfPhoneRound,i,mapsList.map((m,n)=>({id:'map'+n,label:m.name})),id=>selectMapFromList(mapsList[Number(id.slice(3))].file),{title:'Choix de la map'});
+return {owner:GAME.players[GAME.currentIdx]||-1,key:GAME.currentIdx+':'+GAME.timerStart,layout:'golf',deadline:!GAME.inShot?h.time(GAME.timerStart+GAME.timerDuration):0,actions:GAME.inShot?[]:[...h.all('.dir-btn').filter(h.visible).map((b,n)=>h.action('dir'+n,b.textContent,()=>b.click(),{kind:'golf-direction',dx:Number(b.dataset.dx),dy:Number(b.dataset.dy),selected:b.classList.contains('active')})),h.action('power','Puissance',v=>{const n=Number(v);if(Number.isInteger(n)&&n>=1&&n<=8)setSelectedPower(n);},{kind:'power',min:1,max:8,value:GAME.selectedPower||1}),...h.buttons('#shoot-btn,#rescue-btn')]};}});
+})();
   </script>
   <script src="../commun/game-players.js"></script>
 </body>

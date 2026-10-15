@@ -29,6 +29,6 @@
         await words(category(pending.id).label,'Revient à…',3500);await words(pending.winners.map(id=>players[id].name).join('  &  '),'★ +1',2400,pending.winners);if(!ctx.alive())return;save(engine.awardBonus(get()));
       }else if(f.stage==='ranking'){await ranking();if(!ctx.alive())return;save(engine.finaleStage(get(),'done'));break;}else{await ranking(true);break;}
     }}finally{running=false;}}
-    return {render(){if(get().phase!=='finished')return false;run();return true;},handleSpace(){if(selecting){ctx.skipRoulette();return true;}return false;}};
+    return {canAccelerate:()=>selecting,render(){if(get().phase!=='finished')return false;run();return true;},handleSpace(){if(selecting){ctx.skipRoulette();return true;}return false;}};
   };
 })();

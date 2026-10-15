@@ -69,7 +69,7 @@
     .player-card.burst-red{box-shadow:0 0 60px rgba(255,30,30,0.45);transform:scale(1.02);transition:box-shadow .28s,transform .18s}
     .player-card.burst-green{box-shadow:0 0 60px rgba(80,255,130,0.45);transform:scale(1.02);transition:box-shadow .28s,transform .18s}
   </style>
-</head>
+<script src="../commun/game-phone.js?v=vote-counts-1"></script></head>
 <body>
   <main>
     <h1>Aboublack-jack</h1>
@@ -469,7 +469,7 @@
       showResults(dealerScore);
     }
 
-    function showResults(dealerScore){
+    function showResults(dealerScore){window.PourtyGamePhones?.finish();
       // show dealer score in status and small results area for a few seconds
       statusEl.textContent = `Croupier: ${dealerScore}`;
       const res = document.getElementById('results'); res.innerHTML = `Croupier: ${dealerScore}`; res.classList.remove('hidden');
@@ -527,7 +527,7 @@
           if (typeof setACText === 'function') setACText(pill, rank, ranking.length);
         });
         wrap.appendChild(list);
-        const ret = document.createElement('button'); ret.className = 'return-btn'; ret.textContent = 'Retour'; ret.addEventListener('click', ()=>{ window.location.href = '../../index.html'; });
+        const ret = document.createElement('button'); ret.className = 'return-btn'; ret.textContent = 'Retour'; ret.addEventListener('click', ()=>{ window.location.href = '../../minigames.html'; });
         wrap.appendChild(ret);
         overlay.appendChild(wrap);
         document.body.appendChild(overlay);
@@ -547,7 +547,9 @@
     // render players container initially
     renderPlayers();
 
-  })();
+  
+  window.PourtyGamePhones?.register({id:'game-8',roster:()=>playerList,view:(i,h)=>{const betting=h.visible(betModal);const p=betting?order[betIndex]:currentActivePlayer;return {owner:p||-1,key:betIndex+':'+actionIndex+':'+betting, note:!betting&&p?('Cartes : '+p.hand.map(c=>c.label+c.suit).join(' · ')+' · '+(p.el?.scoreEl?.textContent||'')):'',actions:betting?h.field('#betSlider','#confirmBet',{label:'Miser',title:'Ta mise'}):h.buttons('#drawBtnGlobal,#standBtnGlobal')};}});
+})();
   </script>
 </body>
 </html>

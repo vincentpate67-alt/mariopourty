@@ -79,7 +79,7 @@
     input[type=range].prayer-range{width:220px}
     #chancePopup{position:fixed;top:12px;right:12px;padding:8px 12px;background:linear-gradient(90deg,#ffd54d,#ffb74d);color:#071224;font-weight:900;border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,0.35);z-index:100020}
   </style>
-</head>
+<script src="commun/game-phone.js?v=vote-counts-1"></script></head>
 <body>
   <main>
     <h1>Aboujackpot</h1>
@@ -645,7 +645,7 @@
       });
     }
 
-    function endGame(){
+    function endGame(){window.PourtyGamePhones?.finish();
       window.PourtyMiniGame?.finish();
       // hide gameplay and order
       hideChancePopup();
@@ -681,7 +681,7 @@
       // add Retour button
       const ret = document.createElement('button');
       ret.className = 'return-btn'; ret.textContent = 'Retour';
-      ret.addEventListener('click', ()=> { window.location.href = '../index.html'; });
+      ret.addEventListener('click', ()=> { window.location.href = '../minigames.html'; });
       board.appendChild(ret);
     }
 
@@ -689,7 +689,9 @@
     renderOrder(); announceOrder();
     // player-pill money will be updated when players play; ensure bar exists via game-players.js
 
-  })();
+  
+  window.PourtyGamePhones?.register({id:'game-9',roster:()=>stored,view:(i,h)=>{return {owner:order[currentIdx]||-1,key:currentIdx+':'+spinning,note:h.text('#money')+' · Mise '+h.text('#bet'),actions:spinning?[]:[...h.buttons('#betMinus,#betPlus,#stopBtn,#prayerToggle'),...(h.visible(lever)?[h.action('lever','Lancer',()=>lever.click())]:[]),...h.field('#prayerAmount','#prayBtn',{label:'Prier',title:'Montant de la prière'})]};}});
+})();
   </script>
 </body>
 </html>

@@ -78,7 +78,7 @@
     /* return button styling */
     .return-btn{margin-top:12px;padding:10px 14px;border-radius:10px;background:#ff776d;color:#fff;border:none;font-weight:700;cursor:pointer;border:1px solid rgba(0,0,0,0.08);box-shadow:0 8px 20px rgba(0,0,0,0.32)}
   </style>
-</head>
+<script src="commun/game-phone.js?v=vote-counts-1"></script></head>
 <body>
   <main>
     <h1>Mot amed</h1>
@@ -316,7 +316,7 @@
       });
     }
 
-    function endGame(){
+    function endGame(){window.PourtyGamePhones?.finish();
       window.PourtyMiniGame?.finish();
       stopTimer();
       letterInput.disabled = true; submitBtn.disabled = true;
@@ -352,7 +352,7 @@
       finalWord.textContent = 'Le mot était: ' + secret;
       board.appendChild(finalWord);
 
-      const ret = document.createElement('button'); ret.className='return-btn'; ret.textContent='Retour'; ret.addEventListener('click', ()=> window.location.href='../index.html'); board.appendChild(ret);
+      const ret = document.createElement('button'); ret.className='return-btn'; ret.textContent='Retour'; ret.addEventListener('click', ()=> window.location.href='../minigames.html'); board.appendChild(ret);
 
       // insert the preserved status then the leaderboard after the status element
       statusEl.parentNode.insertBefore(statusBelow, statusEl.nextSibling);
@@ -420,7 +420,9 @@
     letterInput.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') handleSubmit(); });
 
     announceOrder();
-  })();
+  
+  window.PourtyGamePhones?.register({id:'game-11',roster:()=>stored,view:(i,h)=>{return {owner:order[currentIdx]||-1,key:currentIdx+':'+timerStart,title:h.text('#wordDisplay'),note:'Lettres proposées : '+[...guessedLetters].join(' · '),deadline:timerInterval?timerStart+timerDuration*1000:0,keyboard:{letters:true,used:[...guessedLetters]},actions:h.field('#letterInput','#submitLetter',{label:'Proposer',maxLength:1,pattern:'^[A-Za-zÀ-ÿ]$'})};}});
+})();
   </script>
 </body>
 </html>

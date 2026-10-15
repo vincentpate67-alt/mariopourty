@@ -30,7 +30,7 @@ let currentAnimation = null;
 let originalGames = (typeof games !== 'undefined') ? games.slice() : [];
 let availableGames = [];
 let winnerTimeout = null;
-let rerollBtn = null;
+let rerollBtn = null;let phoneWheelRound=0;
 
 function resetRandomState() {
   if (winnerTimeout) { clearTimeout(winnerTimeout); winnerTimeout = null; }
@@ -170,8 +170,8 @@ function renderGameCards() {
   filtered.forEach((game,index)=>{
     const card=document.createElement('button');card.type='button';card.className='game-card';card.style.setProperty('--game-color',gameColors[activeGameCatalog.indexOf(game)%gameColors.length]);
     const head=document.createElement('div');head.className='game-card-top';const icon=document.createElement('img');icon.src=game.icon||(specialListOpen?'assets/index/speciaux.svg':'assets/minigames/'+game.id+'.svg');icon.alt='';const number=document.createElement('span');number.textContent=String(activeGameCatalog.indexOf(game)+1).padStart(2,'0');head.append(icon,number);
-    const title=document.createElement('h3');title.textContent=game.title;const desc=document.createElement('p');desc.textContent=game.description;const play=document.createElement('span');play.className='game-card-play';play.textContent='Jouer →';card.append(head,title,desc,play);
-    card.addEventListener('click',()=>{window.location.href=game.file;});gamesCardGrid.append(card);
+    const title=document.createElement('h3');title.textContent=game.title;if(game.id==='aboubaphoto'){const badge=document.createElement('span');badge.className='photo-qr-badge';badge.title='Tous les joueurs doivent être connectés';badge.innerHTML='<svg viewBox="0 0 24 24" aria-label="QR code"><path fill="currentColor" d="M2 2h8v8H2zm2 2v4h4V4zm10-2h8v8h-8zm2 2v4h4V4zM2 14h8v8H2zm2 2v4h4v-4zm10-2h4v4h-4zm6 0h2v6h-2zm-6 6h4v2h-4zm6 2v-2h2v2z"/></svg>';title.append(badge);card.dataset.photoOnly='true';card.disabled=!window.PourtyGamePhones?.active?.allOnline();}const desc=document.createElement('p');desc.textContent=game.description;const play=document.createElement('span');play.className='game-card-play';play.textContent='Jouer →';card.append(head,title,desc,play);
+    card.addEventListener('click',()=>{if(game.id==='aboubaphoto'&&!window.PourtyGamePhones?.active?.allOnline())return;window.location.href=game.file;});gamesCardGrid.append(card);
     card.animate([{opacity:0,translate:'0 10px'},{opacity:1,translate:'0 0'}],{duration:300,delay:Math.min(index*22,180),easing:'ease-out',fill:'backwards'});
   });
 }
@@ -291,7 +291,7 @@ function startParticleBurst() {
   requestAnimationFrame(animate);
 }
 
-function showWinnerOverlay(game) {
+function showWinnerOverlay(game) {phoneWheelRound++;
   const winner = document.getElementById('winner-overlay');
   const title = document.getElementById('winner-title');
   const desc = document.getElementById('winner-desc');
@@ -403,3 +403,14 @@ window.addEventListener('beforeunload', () => {
 });
 
 window.addEventListener('keydown', event => { if (event.key === 'Escape') closeOverlay(); });
+
+window.addEventListener('load',()=>{
+  const phoneRoster=JSON.parse(localStorage.getItem('mini-Jeux-host-players')||'[]');
+  window.PourtyGamePhones?.register({id:'menu',roster:()=>phoneRoster,view:(i,h)=>{
+    if(!isSpinning&&h.visible(rerollBtn)&&h.visible(document.getElementById('winner-overlay')))return h.vote('reroll:'+phoneWheelRound,i,[{id:'reroll',label:'J’en veux un autre'}],()=>rerollBtn.click(),{strict:true,title:document.getElementById('winner-title').textContent});
+    return {key:'menu:'+phoneWheelRound,title:isSpinning?'La roue tourne…':'',actions:[]};
+  }});
+  const watcher=setInterval(()=>{document.querySelectorAll('[data-photo-only]').forEach(card=>{card.disabled=!window.PourtyGamePhones?.active?.allOnline();card.title=card.disabled?'Connecte tous les joueurs dans le menu Téléphones.':'';});},400);
+  window.addEventListener('pagehide',()=>clearInterval(watcher),{once:true});
+  if(new URLSearchParams(location.search).has('phoneRandom')){document.getElementById('random-game').click();spinWheel(1);history.replaceState(null,'',location.pathname);}
+});

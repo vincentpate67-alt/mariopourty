@@ -80,7 +80,7 @@
     .news-tooltip{ position:absolute; top:calc(100% + 8px); right:0; background:linear-gradient(180deg,#0b1830,#071225); border:1px solid rgba(255,255,255,0.06); padding:8px 10px; border-radius:8px; font-size:0.85rem; color:rgba(230,230,240,0.95); box-shadow:0 8px 20px rgba(0,0,0,0.45); white-space:nowrap; display:none; z-index:10001; }
     .news-tooltip.visible{ display:block; opacity:1; transition:opacity .18s ease; }
   </style>
-</head>
+<script src="../commun/game-phone.js?v=vote-counts-1"></script></head>
 <body>
   <main>
     <h1>Aboubatrading</h1>
@@ -144,6 +144,7 @@
 
   <script>
   (function(){
+let phoneDeadline=0;
     const stored = JSON.parse(localStorage.getItem('mini-Jeux-host-players') || '[]');
     const statusEl = document.getElementById('status');
     const orderEl = document.getElementById('order');
@@ -402,7 +403,7 @@
         }catch(e){}
       });
     }
-    const btnReturnEl = document.getElementById('btnReturn'); if (btnReturnEl) btnReturnEl.addEventListener('click', ()=>{ window.location.href = '../../index.html'; });
+    const btnReturnEl = document.getElementById('btnReturn'); if (btnReturnEl) btnReturnEl.addEventListener('click', ()=>{ window.location.href = '../../minigames.html'; });
 
     // emoji confirm click handlers (click the ✅ to commit)
     if (buyEmojiEl) buyEmojiEl.addEventListener('click', ()=>{ try{ commitBuy(); }catch(e){}; activeAction = null; if (buyControl) buyControl.style.display = 'none'; if (buyAmountEl) buyAmountEl.value = ''; try{ updateBuySellMax(); }catch(e){} });
@@ -633,7 +634,7 @@
       timerLabel.textContent = Math.ceil(turnTimeLeft/1000) + 's';
     }
 
-    function startTurn(){
+    function startTurn(){phoneDeadline=Date.now()+TURN_TIME*1000;
       if (gameFinished) return;
       // ensure order exists
       if (!order || !order.length) return;
@@ -662,7 +663,7 @@
       }, 200);
     }
 
-    function finishGame(){
+    function finishGame(){window.PourtyGamePhones?.finish();
       window.PourtyMiniGame?.finish();
       gameFinished = true;
       stopTurnTimer();
@@ -1640,7 +1641,9 @@
       checkCount++; if (checkCount > 40) clearInterval(checkIntervalId);
     }, 150);
 
-  })();
+  
+  window.PourtyGamePhones?.register({id:'game-15',roster:()=>stored,view:(i,h)=>{return {owner:order[turnIndex]||-1,key:currentDayIndex+':'+turnIndex,deadline:turnTimerId?phoneDeadline:0,duration:TURN_TIME,note:order[turnIndex]?('Solde : '+order[turnIndex].wallet+' · Investissement : '+order[turnIndex].stockValue):'',actions:gameFinished||!turnTimerId?[]:[...h.buttons('#btnInvest,#btnSell,#btnPass,#btnNews'),...h.field('#buyAmount','#buyEmoji',{label:'Acheter',title:'Montant'}),...h.field('#sellAmount','#sellEmoji',{label:'Vendre',title:'Montant'})]};}});
+})();
   </script>
 </body>
 </html>

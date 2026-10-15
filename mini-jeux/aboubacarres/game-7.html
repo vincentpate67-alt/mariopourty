@@ -74,7 +74,7 @@
     @media(max-width: 980px){#settings-panel{position:static;transform:none;width:100%;max-width:920px;margin:18px auto 0;}#item-panel{position:static;transform:none;width:100%;max-width:920px;margin:0 auto 18px;}}
     @media(max-width: 6000px){main{padding:16px;}.settings-panel{width:170%;}}
   </style>
-</head>
+<script src="../commun/game-phone.js?v=vote-counts-1"></script></head>
 <body>
   <main>
     <h1>Aboubacarrés</h1>
@@ -853,7 +853,7 @@
     }
   }
 
-  function showFinalRanking() {
+  function showFinalRanking() {window.PourtyGamePhones?.finish();
       window.PourtyMiniGame?.finish();
     // stop timers
     if (animationId) cancelAnimationFrame(animationId);
@@ -902,7 +902,7 @@
       const ret = document.createElement('button');
       ret.className = 'return-btn';
       ret.textContent = 'Retour';
-      ret.addEventListener('click', () => { window.location.href = '../../index.html'; });
+      ret.addEventListener('click', () => { window.location.href = '../../minigames.html'; });
       listWrap.appendChild(ret);
       // remove the dark background: make overlay transparent so no black screen
       overlay.style.background = 'transparent';
@@ -1149,6 +1149,8 @@
 
   activePlayers = shuffle(playerList);
   announceOrder();
+
+  window.PourtyGamePhones?.register({id:'game-7',roster:()=>playerList,panels:(i,h)=>{const p=movingPlayers.find(p=>!p.isClone&&p.name===playerList[i].name&&p.color===playerList[i].color);return p?[{kind:'combat',value:Math.max(0,p.hp)+' PV',image:p.knifeEl?h.safeURL(p.knifeEl.src):'',title:p.hasKnife?(p.knifeType==='gold'?'Couteau d’or':'Couteau'):'',text:Object.keys(p.effects||{}).filter(k=>p.effects[k]).map(k=>({snow:'Lenteur',boost:'Vitesse'}[k]||k)).join(' · ')}]:[];},view:(i,h)=>{const r=arena.getBoundingClientRect();return {owner:activePlayers[currentIdx]||-1,key:currentIdx,scene:currentIdx<activePlayers.length?{aspect:r.width/r.height,shapes:placedRects.map((p,i)=>({x:p.x/r.width*100,y:p.y/r.height*100,w:p.size/r.width*100,h:p.size/r.height*100,color:activePlayers[i]?.color}))}:null,actions:currentIdx<activePlayers.length?[h.action('place','Placer mon carré',v=>{let p;try{p=JSON.parse(v);}catch{return;}if(Number.isFinite(p.x)&&Number.isFinite(p.y)&&p.x>=0&&p.x<=1&&p.y>=0&&p.y<=1)h.clickAt('#arena',p.x,p.y);},{kind:'surface'})]:[]};}});
 })();
   </script>
 </body>

@@ -28,7 +28,7 @@
     #return-btn{margin-top:16px;padding:10px 16px;font-size:1rem;font-weight:700;border:none;border-radius:10px;background:#ff776d;color:#fff;cursor:pointer;display:none;}
     .hidden{display:none;}
   </style>
-</head>
+<script src="../commun/game-phone.js?v=vote-counts-1"></script></head>
 <body>
   <main>
     <h1>Papazino</h1>
@@ -43,6 +43,7 @@
   <script src="../commun/game-players.js"></script>
   <script>
 (function(){
+let phoneDeadline=0;
   const savedPlayers = JSON.parse(localStorage.getItem('mini-Jeux-host-players') || '[]');
   const statusEl = document.getElementById('status');
   const timerEl = document.getElementById('timer');
@@ -171,7 +172,7 @@
     });
   }
 
-  function startTurnTimer() {
+  function startTurnTimer() {phoneDeadline=Date.now()+10000;
     clearCountdown();
     timeLeft = 10;
     setTimer(timeLeft);
@@ -364,7 +365,7 @@
     }, 4000);
   }
 
-  function endGame() {
+  function endGame() {window.PourtyGamePhones?.finish();
       window.PourtyMiniGame?.finish();
     clearCountdown();
     setTimer('');
@@ -433,10 +434,12 @@
     });
   }
 
-  returnBtn.addEventListener('click', () => { window.location.href = '../../index.html'; });
+  returnBtn.addEventListener('click', () => { window.location.href = '../../minigames.html'; });
 
   setStatus('Animation de sélection de l’ordre...', '#ddd');
   announceOrder(beginRound);
+
+  window.PourtyGamePhones?.register({id:'game-3',roster:()=>savedPlayers,score:i=>players[i].score+' pts',view:(i,h)=>{return {owner:awaitingSwap?swapActor:activePlayers[currentTurnIdx]||-1,layout:awaitingSwap?null:'cards',key:round+':'+currentTurnIdx+':'+awaitingSwap,deadline:countdownId?phoneDeadline:0,actions:awaitingSwap?activePlayers.filter(p=>p.id!==swapActor.id).map(p=>h.action('swap'+p.id,p.name,()=>pickSwapTarget(p),{color:p.color})):h.all('#card-grid button').flatMap((b,i)=>b.disabled||!h.visible(b)?[]:[h.action('card'+i,'Carte '+deck[i].cardId,()=>b.click(),{gridIndex:i})])};}});
 })();
   </script>
 </body>

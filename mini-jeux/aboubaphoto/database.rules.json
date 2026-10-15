@@ -20,7 +20,6 @@
           ".validate": "newData.hasChildren()",
           "$player": {
             ".read": "auth != null && root.child('photoRooms').child($room).child('expiresAt').val() > now && (!data.child('uid').exists() || data.child('uid').val() === auth.uid || root.child('photoRooms').child($room).child('host').val() === auth.uid)",
-            ".write": "auth != null && root.child('photoRooms').child($room).child('expiresAt').val() > now && data.exists() && (!data.child('uid').exists() || data.child('uid').val() === auth.uid) && newData.child('uid').val() === auth.uid && newData.child('name').val() === data.child('name').val() && newData.child('color').val() === data.child('color').val() && newData.child('index').val() === data.child('index').val() && newData.child('clientId').val() === data.child('clientId').val() && newData.child('activity').val() === data.child('activity').val()",
             ".validate": "newData.hasChildren(['name','color','index','online']) && $player.matches(/^[a-f0-9]{36}$/)",
             "name": {
               ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40"
@@ -32,13 +31,15 @@
               ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 5 && newData.val() % 1 === 0"
             },
             "uid": {
-              ".validate": "newData.isString() && (!data.exists() ? newData.val() === auth.uid : newData.val() === data.val())"
+              ".validate": "newData.isString() && (!data.exists() ? newData.val() === auth.uid : newData.val() === data.val())",
+              ".write": "auth != null && root.child('photoRooms').child($room).child('expiresAt').val() > now && root.child('photoRooms').child($room).child('players').child($player).exists() && (!data.exists() || data.val() === auth.uid) && newData.val() === auth.uid"
             },
             "online": {
-              ".validate": "newData.isBoolean()"
+              ".validate": "newData.isBoolean()",
+              ".write": "auth != null && root.child('photoRooms').child($room).child('expiresAt').val() > now && root.child('photoRooms').child($room).child('players').child($player).exists() && root.child('photoRooms').child($room).child('players').child($player).child('uid').val() === auth.uid"
             },
             "photo": {
-              ".validate": "newData.hasChildren(['url','publicId','sentAt']) && (!data.exists() || now >= data.child('sentAt').val() + 2000)",
+              ".validate": "newData.hasChildren(['url','publicId','sentAt','gameId']) && newData.child('gameId').val() === newData.parent().child('game').child('id').val()",
               "url": {
                 ".validate": "newData.isString() && newData.val().length < 1000 && newData.val().matches(/^https:\\/\\/res\\.cloudinary\\.com\\/ua1z1wb8\\/image\\/upload\\/.+/)"
               },
@@ -50,6 +51,10 @@
               },
               "$other": {
                 ".validate": false
+              },
+              ".write": "auth != null && root.child('photoRooms').child($room).child('expiresAt').val() > now && root.child('photoRooms').child($room).child('players').child($player).exists() && root.child('photoRooms').child($room).child('players').child($player).child('uid').val() === auth.uid && !data.exists() && newData.exists() && data.parent().child('game').child('phase').val() === 'capture' && now <= data.parent().child('game').child('deadline').val()",
+              "gameId": {
+                ".validate": "newData.isString() && newData.val().matches(/^[a-f0-9]{36}$/)"
               }
             },
             "$other": {
@@ -59,12 +64,114 @@
               ".validate": "newData.isString() && newData.val().length <= 64 && (root.child('photoRooms').child($room).child('host').val() === auth.uid || !data.exists() || newData.val() === data.val())"
             },
             "activity": {
-              ".validate": "newData.val() === 'lobby' || newData.val() === 'photo'"
+              ".validate": "newData.val() === 'lobby' || newData.val() === 'photo' || newData.val() === 'board' || newData.val() === 'mini'"
+            },
+            "vote": {
+              ".write": "auth != null && root.child('photoRooms').child($room).child('expiresAt').val() > now && root.child('photoRooms').child($room).child('players').child($player).exists() && root.child('photoRooms').child($room).child('players').child($player).child('uid').val() === auth.uid && !data.exists() && newData.exists() && data.parent().child('game').child('phase').val() === 'vote' && data.parent().child('game').child('canVote').val() === true && now <= data.parent().child('game').child('deadline').val()",
+              ".validate": "newData.hasChildren(['gameId','round','choice','at']) && newData.child('gameId').val() === newData.parent().child('game').child('id').val() && newData.child('round').val() === newData.parent().child('game').child('round').val()",
+              "gameId": {
+                ".validate": "newData.isString()"
+              },
+              "round": {
+                ".validate": "newData.isNumber()"
+              },
+              "choice": {
+                ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 3 && newData.val() % 1 === 0"
+              },
+              "at": {
+                ".validate": "newData.isNumber() && newData.val() <= now && newData.val() >= now - 10000"
+              },
+              "$other": {
+                ".validate": false
+              }
+            },
+            "game": {
+              ".validate": "newData.hasChildren(['id','phase','deadline','round']) && root.child('photoRooms').child($room).child('host').val() === auth.uid",
+              "id": {
+                ".validate": "newData.isString() && newData.val().matches(/^[a-f0-9]{36}$/)"
+              },
+              "phase": {
+                ".validate": "newData.val() === 'capture' || newData.val() === 'order' || newData.val() === 'vote' || newData.val() === 'reveal' || newData.val() === 'final'"
+              },
+              "deadline": {
+                ".validate": "newData.isNumber()"
+              },
+              "round": {
+                ".validate": "newData.isNumber()"
+              },
+              "prompt": {
+                ".validate": "newData.isString() && newData.val().length <= 300"
+              },
+              "subjectName": {
+                ".validate": "newData.isString() && newData.val().length <= 40"
+              },
+              "canVote": {
+                ".validate": "newData.isBoolean()"
+              },
+              "points": {
+                ".validate": "newData.isNumber()"
+              },
+              "correct": {
+                ".validate": "newData.isBoolean()"
+              },
+              "answer": {
+                ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 3"
+              },
+              "options": {
+                "$option": {
+                  ".validate": "$option.matches(/^[0-3]$/) && newData.isString() && newData.val().length <= 300"
+                }
+              },
+              "$other": {
+                ".validate": false
+              }
+            },
+            "controller": {
+              ".validate": "root.child('photoRooms').child($room).child('host').val() === auth.uid && newData.hasChildren(['version','sessionId','title','canAct','ac','stars'])"
+            },
+            "boardCommand": {
+              ".write": "auth != null && data.parent().child('uid').val() === auth.uid && root.child('photoRooms').child($room).child('expiresAt').val() > now && (data.parent().child('activity').val() === 'board' || data.parent().child('activity').val() === 'mini') && data.parent().child('controller').child('canAct').val() === true && newData.child('version').val() === data.parent().child('controller').child('version').val() && data.parent().child('controller').child('actions').child(newData.child('action').val()).exists() && data.parent().child('controller').child('actions').child(newData.child('action').val()).child('disabled').val() === false",
+              ".validate": "newData.hasChildren(['version','action','nonce'])",
+              "version": {
+                ".validate": "newData.isString() && newData.val().length <= 128"
+              },
+              "action": {
+                ".validate": "newData.isString() && newData.val().length <= 64"
+              },
+              "nonce": {
+                ".validate": "newData.isString() && newData.val().length <= 100"
+              },
+              "value": {
+                ".validate": "newData.isString() && newData.val().length <= 200"
+              },
+              "$other": {
+                ".validate": false
+              }
+            },
+            "reaction": {
+              ".write": "auth != null && data.parent().child('uid').val() === auth.uid && root.child('photoRooms').child($room).child('expiresAt').val() > now && (data.parent().child('activity').val() === 'board' || data.parent().child('activity').val() === 'mini') && (!data.exists() || data.child('sentAt').val() <= now - 2000)",
+              ".validate": "newData.hasChildren(['id','nonce','sentAt'])",
+              "id": {
+                ".validate": "newData.isString() && (newData.val() === 'guez' || newData.val() === 'noob' || newData.val() === 'ff' || newData.val() === 'chad' || newData.val() === 'goat' || newData.val() === 'porto' || newData.val() === 'aboubakar' || newData.val() === 'skibidi' || newData.val() === 'zzz' || newData.val() === 'pog' || newData.val() === 'plait-il' || newData.val() === 'yuki' || newData.val() === 'zebi' || newData.val() === 'mashallah' || newData.val() === 'mog' || newData.val() === '67' || newData.val() === 'tigre')"
+              },
+              "nonce": {
+                ".validate": "newData.isString() && newData.val().length <= 100"
+              },
+              "sentAt": {
+                ".validate": "newData.isNumber() && newData.val() <= now && newData.val() >= now - 10000"
+              },
+              "$other": {
+                ".validate": false
+              }
             }
           }
         },
         "$other": {
           ".validate": false
+        },
+        "boardMap": {
+          ".read": "auth != null && root.child('photoRooms').child($room).child('expiresAt').val() > now",
+          ".validate": "root.child('photoRooms').child($room).child('host').val() === auth.uid && newData.hasChildren(['id','name','nodes'])"
         }
       }
     },

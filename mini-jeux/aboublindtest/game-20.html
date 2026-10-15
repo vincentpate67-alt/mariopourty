@@ -603,7 +603,7 @@
       backdrop-filter: blur(60px);
     }
   </style>
-</head>
+<script src="../commun/game-phone.js?v=vote-counts-1"></script></head>
 <body>
   <button id="returnBtn" class="return-btn">Retour</button>
   <button id="skipBtn" class="skip-btn" title="Passer à une autre musique">Skip</button>
@@ -1204,7 +1204,7 @@
         return `${value >= 0 ? '+' : ''}${value}ac`;
       }
 
-      function setACText(pill, rank, total) {
+      function setACText(pill, rank, total) {pill.dataset.pourtyRank=String(rank);
         let acBadge = pill.querySelector('.ac-badge');
         if (!acBadge) {
           acBadge = document.createElement('span');
@@ -1292,7 +1292,7 @@
         showRandomVideo();
       }
 
-      function showFinalResults() {
+      function showFinalResults() {window.PourtyGamePhones?.finish();
       window.PourtyMiniGame?.finish();
         gameEnded = true;
         if (player && typeof player.pauseVideo === 'function') {
@@ -1409,7 +1409,7 @@
 
       if (returnBtn) {
         returnBtn.addEventListener('click', () => {
-          window.location.href = '../../index.html';
+          window.location.href = '../../minigames.html';
         });
       }
 
@@ -1424,7 +1424,9 @@
       startBtn.addEventListener('click', startGame);
       renderPlayers();
       loadYouTubeApi();
-    })();
+    
+  window.PourtyGamePhones?.register({id:'game-20',roster:()=>stored,pill:i=>[...playerBar.children][i],view:(i,h)=>{if(!gameStarted||gameEnded||players[i]?.status!=='active')return {};const answering=h.visible(guessPanel);return {owner:answering?selectedPlayerIndex:i,key:String(currentVideoId)+':'+answering+':'+selectedPlayerIndex,note:answering?guessMessage.textContent:'',deadline:answering&&buzzerTimer?buzzerStart+BUZZER_DURATION*1000:0,duration:BUZZER_DURATION,actions:answering?h.field('#guessInput','#guessSubmit',{maxLength:100,label:'Répondre'}):h.visible(buzzerBtn)?[h.action('buzz','BUZZ',()=>{if(h.visible(guessPanel)||!gameStarted||gameEnded||players[i].status!=='active')return;selectedPlayerIndex=i;renderPlayers();playVinylSound();stopVideoAndShowGuess();},{kind:'buzz'})]:[]};}});
+})();
   </script>
 </body>
 </html>

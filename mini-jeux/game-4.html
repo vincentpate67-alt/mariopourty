@@ -33,7 +33,7 @@
     #final-state{margin-top:14px;font-size:1.05rem;color:#dbe9ff;display:none;text-align:left;max-width:720px;margin-left:auto;margin-right:auto;}
     #return-btn{margin-top:16px;padding:10px 14px;font-size:1rem;font-weight:700;border:none;border-radius:10px;background:#ff776d;color:#fff;cursor:pointer;display:none;}
   </style>
-</head>
+<script src="commun/game-phone.js?v=vote-counts-1"></script></head>
 <body>
   <main>
     <h1>Aboubateau</h1>
@@ -48,6 +48,7 @@
   <script src="commun/game-players.js"></script>
   <script>
 (function(){
+let phoneDeadline=0;
   const savedPlayers = JSON.parse(localStorage.getItem('mini-Jeux-host-players') || '[]');
   const statusEl = document.getElementById('status');
   const timerEl = document.getElementById('timer');
@@ -219,7 +220,7 @@
     return activePlayers[currentIdx];
   }
 
-  function startTurnTimer() {
+  function startTurnTimer() {phoneDeadline=Date.now()+10000;
     clearTimer();
     timeLeft = 10;
     setTimer(timeLeft);
@@ -342,7 +343,7 @@
     }
   }
 
-  function endGame() {
+  function endGame() {window.PourtyGamePhones?.finish();
       window.PourtyMiniGame?.finish();
     clearTimer();
     selecting = false;
@@ -444,10 +445,12 @@
     startTurnTimer();
   }
 
-  returnBtn.addEventListener('click', () => { window.location.href='../index.html'; });
+  returnBtn.addEventListener('click', () => { window.location.href='../minigames.html'; });
 
   setStatus('Animation de sélection de l’ordre...');
   announceOrder(initGame);
+
+  window.PourtyGamePhones?.register({id:'game-4',roster:()=>savedPlayers,view:(i,h)=>{return {owner:currentPlayer()||-1,key:currentIdx+':'+boatWins.length,deadline:timerId?phoneDeadline:0,scene:selecting?{aspect:1,grid:10,shapes:board.flatMap((row,r)=>row.flatMap((c,x)=>c.hit||c.miss?[{x:x*10+5,y:r*10+5,w:9,h:9,color:c.hit?(players.find(p=>p.id===c.hitBy)?.color||'#ed566d'):'#42516a'}]:[]))}:null,actions:selecting?board.flatMap((row,r)=>row.flatMap((cell,c)=>cell.hit||cell.miss?[]:[h.action('shot'+r+'-'+c,String.fromCharCode(65+c)+(r+1),()=>handleCellClick(r,c),{kind:'point',x:(c+.5)*10,y:(r+.5)*10})])):[]};}});
 })();
   </script>
 </body>

@@ -81,7 +81,7 @@
     /* responsive */
     @media(max-width:720px){ .reel-grid{flex-direction:column;align-items:center} }
   </style>
-</head>
+<script src="../commun/game-phone.js?v=vote-counts-1"></script></head>
 <body>
   <main>
     <h1>Aboubowling</h1>
@@ -726,11 +726,11 @@
       const ol = document.createElement('div'); ol.className='overlay-score show'; ol.innerHTML = `<div class="score-card"><div id="overlayText">${knocked} quille${knocked>1?'s':''}</div></div>`; document.body.appendChild(ol); setTimeout(()=>{ ol.classList.remove('show'); ol.remove(); startBowlingTurn(currentBowlingIdx+1); }, 1200);
     }
 
-    function finishBowlingAndShowLeaderboard(){
+    function finishBowlingAndShowLeaderboard(){window.PourtyGamePhones?.finish();
       window.PourtyMiniGame?.finish(); document.getElementById('laneArea').style.display = 'none';
       // hide the order display and remove per-pill score badges
       const ord = document.getElementById('order'); if (ord) ord.style.display = 'none'; document.querySelectorAll('.pill-score').forEach(el=> el.style.display='none');
-      const board = document.createElement('div'); board.id='endLeaderboard'; board.style.maxWidth='720px'; board.style.margin='14px auto'; board.style.textAlign='left'; const title = document.createElement('h3'); title.textContent = 'CLASSEMENT'; board.appendChild(title); const sorted = order.slice().sort((a,b)=>{ if (b.score !== a.score) return b.score - a.score; const ta = a.lastPointTime || Infinity; const tb = b.lastPointTime || Infinity; return ta - tb; }); sorted.forEach((p,idx)=>{ const r = document.createElement('div'); r.style.display='flex'; r.style.justifyContent='space-between'; r.style.padding='8px'; r.style.borderBottom='1px solid rgba(255,255,255,0.04)'; r.innerHTML = `<div>#${idx+1} ${p.name}</div><div style="font-weight:900">${p.score} pts</div>`; board.appendChild(r); }); const ret = document.createElement('button'); ret.className='return-btn'; ret.textContent='Retour'; ret.addEventListener('click', ()=> window.location.href='../../index.html'); board.appendChild(ret); showStatus('Fin du bowling'); document.getElementById('status').parentNode.insertBefore(board, document.getElementById('status').nextSibling); updatePlayerBarRanking(sorted); }
+      const board = document.createElement('div'); board.id='endLeaderboard'; board.style.maxWidth='720px'; board.style.margin='14px auto'; board.style.textAlign='left'; const title = document.createElement('h3'); title.textContent = 'CLASSEMENT'; board.appendChild(title); const sorted = order.slice().sort((a,b)=>{ if (b.score !== a.score) return b.score - a.score; const ta = a.lastPointTime || Infinity; const tb = b.lastPointTime || Infinity; return ta - tb; }); sorted.forEach((p,idx)=>{ const r = document.createElement('div'); r.style.display='flex'; r.style.justifyContent='space-between'; r.style.padding='8px'; r.style.borderBottom='1px solid rgba(255,255,255,0.04)'; r.innerHTML = `<div>#${idx+1} ${p.name}</div><div style="font-weight:900">${p.score} pts</div>`; board.appendChild(r); }); const ret = document.createElement('button'); ret.className='return-btn'; ret.textContent='Retour'; ret.addEventListener('click', ()=> window.location.href='../../minigames.html'); board.appendChild(ret); showStatus('Fin du bowling'); document.getElementById('status').parentNode.insertBefore(board, document.getElementById('status').nextSibling); updatePlayerBarRanking(sorted); }
 
     // small helper copied from game-11 to show scores in player bar
     function updatePlayerScoreInPill(player){ const bar = document.querySelector('.player-bar'); if (!bar){ window.addEventListener('load', function onLoad(){ window.removeEventListener('load', onLoad); updatePlayerScoreInPill(player); }); return; } const pills = Array.from(bar.querySelectorAll('.player-pill')); pills.forEach(pill=>{ const name = pill.querySelector('span:nth-child(2)')?.textContent?.trim(); if (name === player.name){ if (!pill.style.position) pill.style.position='relative'; let el = pill.querySelector('.pill-score'); if (!el){ el = document.createElement('div'); el.className='pill-score'; Object.assign(el.style,{ position:'absolute', right:'8px', top:'50%', transform:'translateY(-50%)', fontWeight:'900', color:'#fff', background:'rgba(0,0,0,0.16)', padding:'2px 6px', borderRadius:'8px', fontSize:'0.85rem' }); pill.appendChild(el); } el.textContent = `${player.score} pts`; } }); }
@@ -778,7 +778,9 @@
 
     // initial flow
     renderOrder(); announceOrder();
-  })();
+  
+  window.PourtyGamePhones?.register({id:'game-12',roster:()=>stored,view:(i,h)=>{const lane=h.visible(h.q('#laneArea'));return {owner:order[lane?currentBowlingIdx:currentIdx]||-1,layout:lane?'bowling':null,key:(lane?'lane':'slots')+currentIdx+':'+currentBowlingIdx,deadline:lane&&laneTimerInterval?laneTimerStart+laneTimerDuration*1000:timerInterval?timerStart+timerDuration*1000:0,duration:lane?10:15,actions:lane?[...h.buttons('.pos-dot',{labels:[...h.all('.pos-dot')].map((_,i)=>String(i+1)),kind:'bowling-position',preview:false}),...h.buttons('#changeDirBtn,#shootBtn')]:h.buttons('#validateBtn,#rerollBtn')};}});
+})();
   </script>
   <div id="rerollOverlay" class="reroll-overlay"></div>
 </body>

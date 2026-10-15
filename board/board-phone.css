@@ -1,0 +1,2 @@
+.item-slots .phone-item-preview{transform:scale(1.08);border-color:#ffe3a0;box-shadow:0 0 22px #f1ce7040;transition:transform .25s,border-color .25s,box-shadow .25s}
+.hud-phone-reaction{position:fixed;z-index:150;pointer-events:none;width:220px;transform:translate(-50%,-100%);filter:drop-shadow(0 5px 10px #0005)}.hud-phone-reaction img{display:block;width:100%;height:auto}

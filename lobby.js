@@ -1,5 +1,7 @@
 (() => {
   'use strict';
+  // getRandomValues is also available on HTTP LAN addresses.
+  const playerId = () => Array.from(crypto.getRandomValues(new Uint8Array(18)), value => value.toString(16).padStart(2, '0')).join('');
   const key = 'mini-Jeux-host-players';
   const palette = ['#7c8cff', '#ff7b97', '#51cdb4', '#ffc478', '#ba91fa', '#66baff'];
   const home = document.body.dataset.page === 'home';
@@ -10,7 +12,7 @@
     try {
       const saved = JSON.parse(localStorage.getItem(key) || '[]');
       const valid = Array.isArray(saved) ? saved.filter(p => p && typeof p.name === 'string' && p.name.trim() && /^#[0-9a-f]{6}$/i.test(p.color)).slice(0, 6) : [];
-      if(home && valid.some(p=>!p.connectionId)){valid.forEach(p=>p.connectionId ||= crypto.randomUUID());localStorage.setItem(key,JSON.stringify(valid));}
+      if(home && valid.some(p=>!p.connectionId)){valid.forEach(p=>p.connectionId ||= playerId());localStorage.setItem(key,JSON.stringify(valid));}
       return valid;
     } catch { return []; }
   }
@@ -67,7 +69,7 @@
       if (!name) { byId('player-feedback').textContent = 'Choisis un nom pour ce joueur.'; byId('player-name').focus(); return; }
       if (editing === null && players.length >= 6) return;
       const next = players.slice();
-      const player = { ...(editing !== null ? players[editing] : {}), connectionId: editing !== null ? (players[editing].connectionId || crypto.randomUUID()) : crypto.randomUUID(), name, color: byId('player-color').value };
+      const player = { ...(editing !== null ? players[editing] : {}), connectionId: editing !== null ? (players[editing].connectionId || playerId()) : playerId(), name, color: byId('player-color').value };
       if (editing === null) next.push(player); else next[editing] = player;
       if (commit(next)) { resetForm(); render(); byId('player-feedback').textContent = `${name} est prêt à jouer.`; if (players.length < 6) byId('player-name').focus(); }
     });

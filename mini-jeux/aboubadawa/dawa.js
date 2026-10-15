@@ -40,7 +40,7 @@
     if(e.kind==='supply')pop('Renforts !','#f3d29d',950);
     if(e.kind==='finished'&&!finished){finished=true;phase='ending';setTimeout(()=>{if(alive)endGame();},1100);}
   }}
-  async function endGame(){
+  async function endGame(){window.PourtyGamePhones?.finish();
     setStatus('');await pop(players[state.ranking[0]].name+' gagne !',players[state.ranking[0]].color,1500);if(!alive)return;
     const bar=document.querySelector('.player-bar');for(let rank=0;rank<state.ranking.length;rank++){const id=state.ranking[rank],p=pill(id);if(!p)continue;p.classList.remove('eliminated');p.classList.add('final');p.style.setProperty('--rank',rankColors[rank]);const badge=document.createElement('span');badge.className='rank-badge';badge.textContent='#'+(rank+1);p.append(badge);p.dataset.pourtyRank=rank+1;window.setACText(p,rank+1,players.length);bar.append(p);p.animate([{opacity:.3,transform:'translateY(12px)'},{opacity:1,transform:'none'}],{duration:450,delay:rank*70,fill:'backwards'});}
     phase='finished';setStatus('Classement final');if(window.PourtyMiniGame){window.PourtyMiniGame.finish();}else{$('dawa-end').hidden=false;animate($('dawa-end'),[{opacity:0,transform:'translateY(12px)'},{opacity:1,transform:'none'}]);}
@@ -78,4 +78,6 @@
   window.addEventListener('pagehide',()=>{alive=false;});
   $('return-btn').addEventListener('click',()=>location.href='../../minigames.html');$('dawa-replay').addEventListener('click',()=>location.reload());
   window.addEventListener('load',()=>{if(!players.length){setStatus('Crée des joueurs dans le menu principal.');$('dawa-main').hidden=true;$('dawa-end').hidden=false;$('dawa-replay').hidden=true;return;}state=E.create(players.length);requestAnimationFrame(frame);orderIntro();});
+
+  window.PourtyGamePhones?.register({id:'game-21',roster:()=>players,view:(i,h)=>{return {owner:state?.order[turn]??-1,key:phase+':'+deadline,deadline:phase==='choose'?h.time(deadline):0,actions:phase==='choose'?h.buttons('#dawa-spots button',{kind:'circle',labels:h.all('#dawa-spots button').map(e=>e.firstChild.textContent)}):[]};}});
 })();

@@ -75,7 +75,7 @@
     .explosion-hit{animation:explosionHit .6s ease;box-shadow:0 0 18px 6px rgba(255,255,255,0.06) !important}
     @keyframes explosionHit{0%{transform:scale(1.08);filter:brightness(1.8)}100%{transform:scale(1);filter:none}}
   </style>
-</head>
+<script src="commun/game-phone.js?v=vote-counts-1"></script></head>
 <body>
   <main>
     <h1>Aboubacapture</h1>
@@ -1204,11 +1204,11 @@
       return null;
     }
 
-    function showEndScreen(){
+    function showEndScreen(){window.PourtyGamePhones?.finish();
       window.PourtyMiniGame?.finish(); const overlay = document.createElement('div'); Object.assign(overlay.style,{ position:'fixed',left:0,top:0,right:0,bottom:0,display:'flex',alignItems:'center',justifyContent:'center',zIndex:100030,background:'rgba(0,0,0,0.7)' }); const box = document.createElement('div'); Object.assign(box.style,{ background:'#071225', color:'#fff', padding:'18px', borderRadius:'12px', width:'420px', maxHeight:'80%', overflow:'auto', boxShadow:'0 12px 40px rgba(0,0,0,0.6)' }); const title = document.createElement('h2'); title.textContent='Classement final'; title.style.margin='0 0 10px 0'; box.appendChild(title);
       const list = document.createElement('div'); const ranks = getRankingIndices(); for (let r=0;r<ranks.length;r++){ const pi = ranks[r]; const p = order[pi]; const row = document.createElement('div'); Object.assign(row.style,{ display:'flex',justifyContent:'space-between',padding:'8px 6px',borderBottom:'1px solid rgba(255,255,255,0.03)'}); const left = document.createElement('div'); left.innerHTML = `<strong>${r+1}. ${p.name}</strong> <span style="opacity:0.8">(${p.chosenCard ? p.chosenCard.title : '—'})</span>`; const right = document.createElement('div'); const pct = Math.round((simTerritory[pi]/GRID_TOTAL)*100); right.textContent = `${pct}%`; row.appendChild(left); row.appendChild(right); list.appendChild(row); }
       box.appendChild(list);
-      const btnClose = document.createElement('button'); btnClose.textContent = 'Fermer'; Object.assign(btnClose.style,{ marginTop:'12px', padding:'8px 10px', borderRadius:'8px', background:'#ff6b6b', color:'#fff', border:'none', fontWeight:'800', marginRight:'8px' }); btnClose.addEventListener('click', ()=>{ window.location.href = '../index.html'; }); box.appendChild(btnClose);
+      const btnClose = document.createElement('button'); btnClose.textContent = 'Fermer'; Object.assign(btnClose.style,{ marginTop:'12px', padding:'8px 10px', borderRadius:'8px', background:'#ff6b6b', color:'#fff', border:'none', fontWeight:'800', marginRight:'8px' }); btnClose.addEventListener('click', ()=>{ window.location.href = '../minigames.html'; }); box.appendChild(btnClose);
       overlay.appendChild(box); document.body.appendChild(overlay); }
 
 
@@ -1389,7 +1389,9 @@
         const next = getNextUnchosenIndex(currentIdx+1); if (next === -1) finishRound(); else startTurn(next);
       }
 
-  })();
+  
+  window.PourtyGamePhones?.register({id:'game-14',roster:()=>stored,view:(i,h)=>{return {owner:order[currentIdx]||-1,key:currentIdx+':'+timerStart,deadline:timerInterval?timerStart+DECISION_TIME*1000:0,duration:DECISION_TIME,actions:!timerInterval?[]:h.styled('#centerCards .card:not(.picked)',{theme:'capture'})};}});
+})();
   </script>
 </body>
 </html>

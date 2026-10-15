@@ -44,7 +44,7 @@
 
     .return-btn{margin-top:12px;padding:10px 14px;border-radius:10px;background:#ff776d;color:#fff;border:none;font-weight:700;cursor:pointer}
   </style>
-</head>
+<script src="../commun/game-phone.js?v=vote-counts-1"></script></head>
 <body>
   <main>
     <h1>Aboubakar Burger</h1>
@@ -353,7 +353,7 @@
       });
     }
 
-    function endGame(){
+    function endGame(){window.PourtyGamePhones?.finish();
       window.PourtyMiniGame?.finish();
       document.querySelectorAll('main > .game-area, #gameContainer').forEach(el=>{ if (el) el.style.display='none'; });
       orderEl.style.display = 'none';
@@ -391,7 +391,7 @@
       // annotate player-bar ranks and hide temporary pill-scores
       setTimeout(()=>{ updatePlayerBarRanking(ranking); document.querySelectorAll('.player-pill .pill-score').forEach(el=> el.style.display='none'); }, 120);
 
-      const ret = document.createElement('button'); ret.className='return-btn'; ret.textContent='Retour'; ret.addEventListener('click', ()=> window.location.href='../../index.html'); board.appendChild(ret);
+      const ret = document.createElement('button'); ret.className='return-btn'; ret.textContent='Retour'; ret.addEventListener('click', ()=> window.location.href='../../minigames.html'); board.appendChild(ret);
     }
 
     // wire buttons
@@ -401,7 +401,9 @@
     // init
     renderOrder(); announceOrder();
 
-  })();
+  
+  window.PourtyGamePhones?.register({id:'game-10',roster:()=>stored,view:(i,h)=>{return {owner:order[currentIdx]||-1,key:currentIdx+':'+timerStart,deadline:timerInterval?timerStart+10000:0,actions:h.buttons('#eat1,#eat2')};}});
+})();
   </script>
 </body>
 </html>

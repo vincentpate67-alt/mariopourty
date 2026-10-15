@@ -123,7 +123,7 @@
       .tinyEventActions button.confirm{background:linear-gradient(135deg,#36c56d,#2aa85a);color:#07221a}
       .tinyEventActions button.cancel{background:transparent;border:1px solid rgba(255,255,255,0.04)}
   </style>
-</head>
+<script src="../commun/game-phone.js?v=vote-counts-1"></script></head>
 <body>
   <!-- petit bouton discret pour choisir le prochain événement -->
   <button id="tinyEventBtn" aria-label="Choisir le prochain événement" title="Choisir le prochain événement" type="button"></button>
@@ -194,6 +194,7 @@
 
     if (!stored.length){ statusEl.textContent = 'Aucun joueur enregistré.'; return; }
 
+    const phoneCase={round:0,actions:()=>[]};
     const players = stored.map((p, idx) => ({ name: p.name, color: p.color || '#8ac6ff', totalValue: 0, bestItemPrice: 0, bestItemName: '', bestItemSrc: '', bestItemRarityColor: p.color || '#8ac6ff', index: idx }));
 
     // AC display control: do not show AC badges until finalization (after 10/10 and animations finished)
@@ -618,7 +619,7 @@
       const backBtn = document.createElement('button'); backBtn.className = 'back-btn'; backBtn.id = 'backBtn'; backBtn.textContent = 'Retour';
       backBtn.style.display = 'none';
       document.body.appendChild(backBtn);
-      function showSmallBackBtn(){
+      function showSmallBackBtn(){window.PourtyGamePhones?.finish();
       window.PourtyMiniGame?.finish();
         try{
           backBtn.classList.add('small');
@@ -631,7 +632,7 @@
           backBtn.style.zIndex = '10008';
         }catch(e){}
       }
-      backBtn.addEventListener('click', ()=>{ window.location.href = '../../index.html'; });
+      backBtn.addEventListener('click', ()=>{ window.location.href = '../../minigames.html'; });
 
       // helper: parse current translateX of an element
       function getTranslateX(el){
@@ -1393,7 +1394,7 @@
           try{
             const pIdxNum = parseInt(playerIdx, 10) || 0;
             if (players && players[pIdxNum]){
-              players[pIdxNum].totalValue = (players[pIdxNum].totalValue || 0) + est;
+              players[pIdxNum].totalValue = (players[pIdxNum].totalValue || 0) + est;players[pIdxNum].phoneItem={title:fileName,image:new URL(src,location.href).pathname,color:rarityColor,value:Number(est).toFixed(2)+' $',stat:useStat};
               // update pill display
               updatePlayerValueInPill(players[pIdxNum]);
 
@@ -1826,8 +1827,11 @@
         requestAnimationFrame(step);
       }
 
+      const phoneReady=new Set();
+      phoneCase.actions=(i,h)=>{if(openCount>=10||pendingAnimations>0||!h.visible(openGlobal)||openGlobal.disabled)return [];phoneCase.round=openCount;return phoneReady.has(i)?[]:[h.action('ready','Prêt à ouvrir',()=>{if(pendingAnimations>0||openCount>=10)return;phoneReady.add(i);if(players.every((_,id)=>phoneReady.has(id)))openGlobal.click();})];};
       // global opener: increments counter and triggers animations for each rect
       openGlobal.addEventListener('click', ()=>{
+        phoneReady.clear();
         // simulate Numpad + on each open
         increaseChanceProgrammatic();
         ensurePendingChanceEventFromPopup();
@@ -1889,7 +1893,9 @@
     // second button simple feedback
     btn2.addEventListener('click', ()=>{ statusEl.textContent = 'Choix: Prochainement...'; });
 
-  })();
+  
+  window.PourtyGamePhones?.register({id:'game-16',roster:()=>stored,score:i=>(players[i]?.totalValue??0).toFixed(2)+' $',panels:(i,h)=>{const p=players[i],out=[];if(p.phoneItem)out.push({...p.phoneItem,kind:'skin'});if(p.bestItemSrc)out.push({kind:'skin',bottom:true,heading:'Meilleur item',title:p.bestItemName,image:h.safeURL(p.bestItemSrc),color:p.bestItemRarityColor,value:Number(p.bestItemPrice).toFixed(2)+' $',stat:p.bestItemIsStatTrak});return out;},view:(i,h)=>{return {key:phoneCase.round,actions:phoneCase.actions(i,h)};}});
+})();
   </script>
   <script>
   (function(){

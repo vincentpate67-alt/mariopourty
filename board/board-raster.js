@@ -15,10 +15,47 @@
     dispose(){this.disposed=true;this.baseSurface.replaceChildren();this.surface.replaceChildren();}
     update(board){this.revision++;this.cache=null;this.entries=this.kind==='paint'?(board.terrain||[]).map(stroke=>{let x=Infinity,y=Infinity,right=-Infinity,bottom=-Infinity;const r=stroke.size/2+3;for(const p of stroke.points){x=Math.min(x,p[0]-r);y=Math.min(y,p[1]-r);right=Math.max(right,p[0]+r);bottom=Math.max(bottom,p[1]+r);}return {stroke,x,y,right,bottom};}):(board.decorations||[]).map(d=>{const r=d.size*.71+2;return {d,x:d.x-r,y:d.y-r,right:d.x+r,bottom:d.y+r};});this.index=new SpatialIndex(this.entries);this.schedule();}
     spec(full=false){if(!this.view||!this.rect?.width||!this.rect?.height)return null;let x,y,right,bottom,density;const v=this.view,r=this.rect,dpr=Math.min(2,window.devicePixelRatio||1);if(full){x=Math.floor(Math.min(...this.entries.map(e=>e.x)));y=Math.floor(Math.min(...this.entries.map(e=>e.y)));right=Math.ceil(Math.max(...this.entries.map(e=>e.right)));bottom=Math.ceil(Math.max(...this.entries.map(e=>e.bottom)));density=Math.min(1,1536/(right-x),1536/(bottom-y));}else{const margin=384/v.scale;x=Math.floor(-v.x/v.scale-margin);y=Math.floor(-v.y/v.scale-margin);right=Math.ceil((r.width-v.x)/v.scale+margin);bottom=Math.ceil((r.height-v.y)/v.scale+margin);density=Math.min(v.scale*dpr,4096/(right-x),4096/(bottom-y),Math.sqrt(8000000/((right-x)*(bottom-y))));}if(!full){density=2**(Math.floor(Math.log2(density)*4)/4);const step=64/density;x=Math.floor(x/step)*step;y=Math.floor(y/step)*step;right=Math.ceil(right/step)*step;bottom=Math.ceil(bottom/step)*step;}return {x,y,right,bottom,w:Math.max(1,(full?Math.ceil:Math.round)((right-x)*density)),h:Math.max(1,(full?Math.ceil:Math.round)((bottom-y)*density)),density,zoom:v.scale};}
-    setView(view,rect){this.view={...view};this.rect={width:rect.width,height:rect.height};if(!rect.width||!rect.height)return;const c=this.cache,s=view.scale,guard=96/s;if(!c||s>c.zoom*1.3||s<c.zoom*.7||-view.x/s-guard<c.x||-view.y/s-guard<c.y||(rect.width-view.x)/s+guard>c.right||(rect.height-view.y)/s+guard>c.bottom)this.schedule();}
+    setView(view,rect){this.view={...view};this.rect={width:rect.width,height:rect.height};if(!rect.width||!rect.height)return;const c=this.cache,s=view.scale,guard=96/s;if(!c||s>c.zoom*1.3||-view.x/s-guard<c.x||-view.y/s-guard<c.y||(rect.width-view.x)/s+guard>c.right||(rect.height-view.y)/s+guard>c.bottom)this.schedule();}
     schedule(){if(this.pending||this.disposed)return;this.pending=true;requestAnimationFrame(()=>this.paint().catch(e=>{this.pending=false;console.error('Plateau : rendu continu',e);}));}
-    async draw(n,revision){const entries=this.index.query(n.x,n.y,n.right,n.bottom),paths=[...new Set(entries.map(e=>this.kind==='paint'?(e.stroke.texture==='erase'?null:'../assets/terrain/'+e.stroke.texture+'.png'):'../assets/decors/'+e.d.type+'.svg').filter(Boolean))],loaded=await Promise.all(paths.map(image));if(this.disposed||this.revision!==revision)return null;const imgs=new Map(paths.map((p,i)=>[p,loaded[i]])),result=document.createElement('canvas');result.width=n.w;result.height=n.h;result.style.cssText='display:block;width:100%;height:100%;pointer-events:none';const ctx=result.getContext('2d'),sx=n.w/(n.right-n.x),sy=n.h/(n.bottom-n.y);ctx.setTransform(sx,0,0,sy,-n.x*sx,-n.y*sy);ctx.lineCap=ctx.lineJoin='round';const patterns=new Map();
-      for(const e of entries){await budget();if(this.disposed||revision!==this.revision)return null;if(this.kind==='paint'){const s=e.stroke;ctx.globalCompositeOperation=s.texture==='erase'?'destination-out':'source-over';if(!patterns.has(s.texture)){const im=imgs.get('../assets/terrain/'+s.texture+'.png');patterns.set(s.texture,im?ctx.createPattern(im,'repeat'):M.terrainTextures[s.texture]?.color||'#000');}ctx.fillStyle=ctx.strokeStyle=patterns.get(s.texture);ctx.lineWidth=s.size;ctx.beginPath();if(s.points.length===1){ctx.arc(...s.points[0],s.size/2,0,Math.PI*2);ctx.fill();}else{ctx.moveTo(...s.points[0]);for(let i=1;i<s.points.length;i++)ctx.lineTo(...s.points[i]);ctx.stroke();}}else{const d=e.d,im=imgs.get('../assets/decors/'+d.type+'.svg');if(im){ctx.save();ctx.translate(d.x,d.y);ctx.rotate(d.rotation*Math.PI/180);ctx.drawImage(im,-d.size/2,-d.size/2,d.size,d.size);ctx.restore();}}}return result;
+    async draw(n,revision){
+      // Reuse only pixels at exactly the same sampling density. The visible
+      // surface remains one continuous canvas, never a collection of tiles.
+      // Painted strokes keep a complete render: changing their clipping region
+      // can alter edge antialiasing, especially with the eraser.
+      const previous=this.cache,old=this.canvas,sx=n.w/(n.right-n.x),sy=n.h/(n.bottom-n.y);
+      let overlap=null;
+      if(this.kind==='decor'&&previous&&old?.width&&old?.height&&Math.abs(previous.w/(previous.right-previous.x)-sx)<1e-8&&Math.abs(previous.h/(previous.bottom-previous.y)-sy)<1e-8){
+        const x=Math.max(n.x,previous.x),y=Math.max(n.y,previous.y),right=Math.min(n.right,previous.right),bottom=Math.min(n.bottom,previous.bottom);
+        const pixels=[(x-n.x)*sx,(y-n.y)*sy,(x-previous.x)*sx,(y-previous.y)*sy,(right-x)*sx,(bottom-y)*sy];
+        if(right>x&&bottom>y&&pixels.every(v=>Math.abs(v-Math.round(v))<1e-6))overlap={x,y,right,bottom,pixels:pixels.map(Math.round)};
+      }
+      const dirty=overlap?[
+        {x:n.x,y:n.y,right:overlap.x,bottom:n.bottom},
+        {x:overlap.right,y:n.y,right:n.right,bottom:n.bottom},
+        {x:overlap.x,y:n.y,right:overlap.right,bottom:overlap.y},
+        {x:overlap.x,y:overlap.bottom,right:overlap.right,bottom:n.bottom}
+      ].filter(r=>r.right>r.x&&r.bottom>r.y):[n];
+      const entries=this.index.query(n.x,n.y,n.right,n.bottom).filter(e=>dirty.some(r=>e.right>=r.x&&e.bottom>=r.y&&e.x<=r.right&&e.y<=r.bottom));
+      const paths=[...new Set(entries.map(e=>this.kind==='paint'?(e.stroke.texture==='erase'?null:'../assets/terrain/'+e.stroke.texture+'.png'):'../assets/decors/'+e.d.type+'.svg').filter(Boolean))],loaded=await Promise.all(paths.map(image));
+      if(this.disposed||this.revision!==revision)return null;
+      const imgs=new Map(paths.map((p,i)=>[p,loaded[i]])),result=document.createElement('canvas');result.width=n.w;result.height=n.h;result.style.cssText='display:block;width:100%;height:100%;pointer-events:none';
+      const ctx=result.getContext('2d');
+      if(overlap){const [dx,dy,ox,oy,w,h]=overlap.pixels;ctx.imageSmoothingEnabled=false;ctx.drawImage(old,ox,oy,w,h,dx,dy,w,h);ctx.imageSmoothingEnabled=true;ctx.beginPath();for(const r of dirty)ctx.rect(Math.round((r.x-n.x)*sx),Math.round((r.y-n.y)*sy),Math.round((r.right-r.x)*sx),Math.round((r.bottom-r.y)*sy));ctx.clip();}
+      ctx.setTransform(sx,0,0,sy,-n.x*sx,-n.y*sy);ctx.lineCap=ctx.lineJoin='round';
+      const patterns=new Map();
+      for(const e of entries){
+        await budget();if(this.disposed||revision!==this.revision)return null;
+        if(this.kind==='paint'){
+          const s=e.stroke;ctx.globalCompositeOperation=s.texture==='erase'?'destination-out':'source-over';
+          if(!patterns.has(s.texture)){const im=imgs.get('../assets/terrain/'+s.texture+'.png');patterns.set(s.texture,im?ctx.createPattern(im,'repeat'):M.terrainTextures[s.texture]?.color||'#000');}
+          ctx.fillStyle=ctx.strokeStyle=patterns.get(s.texture);ctx.lineWidth=s.size;ctx.beginPath();
+          if(s.points.length===1){ctx.arc(...s.points[0],s.size/2,0,Math.PI*2);ctx.fill();}
+          else{ctx.moveTo(...s.points[0]);for(let i=1;i<s.points.length;i++)ctx.lineTo(...s.points[i]);ctx.stroke();}
+        }else{
+          const d=e.d,im=imgs.get('../assets/decors/'+d.type+'.svg');if(im){ctx.save();ctx.translate(d.x,d.y);ctx.rotate(d.rotation*Math.PI/180);ctx.drawImage(im,-d.size/2,-d.size/2,d.size,d.size);ctx.restore();}
+        }
+      }
+      return result;
     }
     commit(surface,canvas,n){surface.replaceChildren(canvas);for(const[k,v]of Object.entries({x:n.x,y:n.y,width:n.right-n.x,height:n.bottom-n.y,visibility:'visible'}))surface.setAttribute(k,v);}
     cutout(n){const b=this.baseBounds;if(!b)return;const rectangle=(x,y,r,d)=>'M '+x+' '+y+' H '+r+' V '+d+' H '+x+' Z ';this.cut.setAttribute('d',rectangle(b.x-1,b.y-1,b.right+1,b.bottom+1)+(n?rectangle(n.x,n.y,n.right,n.bottom):''));}

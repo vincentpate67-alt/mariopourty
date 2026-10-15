@@ -18,6 +18,6 @@
       label.textContent=f.stars?'1 étoile !':'+'+f.ac+' AC';await pause(900);await fade(false);if(ctx.alive()){busy=false;update(engine.settleSlots(get()));}
     }
     async function payout(){busy=true;await fade(false);const f=get().slots;if(f.ac)await ctx.animateChanges([{id:f.owner,resource:'ac',delta:f.ac}],f.before);if(f.stars){await ctx.dropItem('star',f.owner);if(ctx.alive())await ctx.animateChanges([{id:f.owner,resource:'stars',delta:f.stars}],f.before);}if(ctx.alive()){busy=false;update(engine.finishSlots(get(),ctx.session.gameMode));}}
-    return {handleSpace(){if(get().phase!=='slots-spin')return false;skip=true;animations.forEach(a=>a?.updatePlaybackRate?.(3));return true;},render(){const p=get().phase;if(!p.startsWith('slots-')){if(!busy)panel.hidden=true;return false;}if(busy)return true;if(p==='slots-menu')menu();else if(p==='slots-spin')spin();else if(p==='slots-result')result();else payout();return true;}};
+    return {canAccelerate:()=>get().phase==='slots-spin',handleSpace(){if(get().phase!=='slots-spin')return false;skip=true;animations.forEach(a=>a?.updatePlaybackRate?.(3));return true;},render(){const p=get().phase;if(!p.startsWith('slots-')){if(!busy)panel.hidden=true;return false;}if(busy)return true;if(p==='slots-menu')menu();else if(p==='slots-spin')spin();else if(p==='slots-result')result();else payout();return true;}};
   };
 })();

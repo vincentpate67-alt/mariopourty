@@ -21,10 +21,10 @@
     #countdown{font-size:2rem;margin-bottom:6px;color:#fff;}
     #status-text{min-height:1.2rem;color:#a8cdf2;margin-bottom:10px;}
   </style>
-</head>
+<script src="../commun/game-phone.js?v=vote-counts-1"></script></head>
 <body>
   <main>
-    <button id="exit-button" data-target="../../index.html" style="position:absolute;top:12px;left:12px;padding:8px 12px;border:none;border-radius:8px;background:#ff7676;color:#fff;font-weight:700;cursor:pointer;display:none;z-index:10;">Retour</button>
+    <button id="exit-button" data-target="../../minigames.html" style="position:absolute;top:12px;left:12px;padding:8px 12px;border:none;border-radius:8px;background:#ff7676;color:#fff;font-weight:700;cursor:pointer;display:none;z-index:10;">Retour</button>
     <div id="player-turn"></div>
     <div id="countdown"></div>
     <div id="status-text"></div>
@@ -523,7 +523,7 @@
     updateEliminations();
   }
 
-  function finishGame() {
+  function finishGame() {window.PourtyGamePhones?.finish();
       window.PourtyMiniGame?.finish();
     phase='finished';
     if (animationId) cancelAnimationFrame(animationId);
@@ -620,7 +620,7 @@
 
   function init() {
     if (exitButton) {
-      const target = exitButton.getAttribute('data-target') || '../../index.html';
+      const target = exitButton.getAttribute('data-target') || '../../minigames.html';
       exitButton.addEventListener('click', () => {
         window.location.href = target;
       });
@@ -631,6 +631,8 @@
   }
 
   init();
+
+  window.PourtyGamePhones?.register({id:'game-6',roster:()=>playerList,view:(i,h)=>{return {owner:playersOrder[currentPicker]||-1,key:phase+currentPicker,scene:phase==='choose'?{aspect:canvas.width/canvas.height,circle:true}:null,actions:phase==='choose'?placeholders.flatMap((p,i)=>p.chosen?[]:[h.action('ball'+i,String(i+1),()=>{const r=canvas.getBoundingClientRect();canvas.dispatchEvent(new MouseEvent('click',{clientX:r.left+p.x,clientY:r.top+p.y,bubbles:true}));},{kind:'point',x:p.x/canvas.width*100,y:p.y/canvas.height*100})]):[]};}});
 })();
   </script>
 </body>

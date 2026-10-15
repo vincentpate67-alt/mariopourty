@@ -67,7 +67,7 @@
     @keyframes blink { from { opacity: 1; } to { opacity: 0.18; } }
     @keyframes fadeOut { to { opacity: 0; transform: translateY(-10px); } }
   </style>
-</head>
+<script src="../commun/game-phone.js?v=vote-counts-1"></script></head>
 <body>
   <main>
     <h1>Aboubapizza</h1>
@@ -410,7 +410,7 @@
         return `${value >= 0 ? '+' : ''}${value}ac`;
       }
 
-      function setACText(pill, rank, total) {
+      function setACText(pill, rank, total) {pill.dataset.pourtyRank=String(rank);
         let acBadge = pill.querySelector('.ac-badge');
         if (!acBadge) {
           acBadge = document.createElement('span');
@@ -464,7 +464,7 @@
         });
       }
 
-      function endGame() {
+      function endGame() {window.PourtyGamePhones?.finish();
       window.PourtyMiniGame?.finish();
         const ranking = computeRanking();
         gameContainer.style.display = 'none';
@@ -489,7 +489,7 @@
         const ret = document.createElement('button');
         ret.className = 'return-btn';
         ret.textContent = 'Retour';
-        ret.addEventListener('click', () => window.location.href = '../../index.html');
+        ret.addEventListener('click', () => window.location.href = '../../minigames.html');
         board.appendChild(ret);
 
         statusEl.parentNode.insertBefore(board, statusEl.nextSibling);
@@ -761,7 +761,9 @@
       }
 
       announceOrder();
-    })();
+    
+  window.PourtyGamePhones?.register({id:'game-17',roster:()=>stored,view:(i,h)=>{return {owner:order[currentPlayerTurn]||-1,key:currentPlayerTurn+':'+timerStart,scene:currentPlayerTurn<order.length?{aspect:1,pizza:slices.map(s=>({type:s.type,count:s.count}))}:null,deadline:timerInterval?timerStart+10000:0,actions:currentPlayerTurn<order.length?slices.flatMap((s,i)=>selections[i]!==null?[]:[h.action('slice'+i,String(i+1),()=>chooseSlice(i),{kind:'point',x:50+32*Math.cos((i+.5)*2*Math.PI/slices.length-Math.PI/2),y:50+32*Math.sin((i+.5)*2*Math.PI/slices.length-Math.PI/2)})]):[]};}});
+})();
   </script>
 </body>
 </html>

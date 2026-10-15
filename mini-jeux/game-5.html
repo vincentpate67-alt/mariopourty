@@ -31,7 +31,7 @@
     #final-state{display:none;margin-top:20px;font-size:1.1rem;color:#dbe9ff;}
     #return-btn{display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);padding:12px 20px;font-size:1.2rem;font-weight:900;border:none;border-radius:10px;background:#ff776d;color:#fff;cursor:pointer;z-index:1000;}
   </style>
-</head>
+<script src="commun/game-phone.js?v=vote-counts-1"></script></head>
 <body>
   <main>
     <h1>Calcul FF mental</h1>
@@ -49,6 +49,7 @@
   <script src="commun/game-players.js"></script>
   <script>
 (function(){
+let phoneDeadline=0;
   const savedPlayers = JSON.parse(localStorage.getItem('mini-Jeux-host-players') || '[]');
   const statusEl = document.getElementById('status');
   const playerNameEl = document.getElementById('player-name');
@@ -183,12 +184,12 @@
       const btn = document.createElement('button');
       btn.className = 'answer-btn';
       btn.textContent = `${labels[idx]} : ${val}`;
-      btn.addEventListener('click', () => chooseAnswer(val));
+      btn.dataset.phoneAnswer='ABCD'[idx];btn.style.background=['#c64759','#376fce','#328654','#bc982c'][idx];btn.style.color='#fff';btn.prepend(document.createTextNode('ABCD'[idx]+' · '));btn.addEventListener('click', () => chooseAnswer(val));
       answersEl.appendChild(btn);
     });
   }
 
-  function startTimer() {
+  function startTimer() {phoneDeadline=Date.now()+10000;
     clearTimer();
     timeLeft = timeLimit;
     setTimerDisplay(timeLeft);
@@ -284,7 +285,7 @@
     startTimer();
   }
 
-  function endGame() {
+  function endGame() {window.PourtyGamePhones?.finish();
       window.PourtyMiniGame?.finish();
     clearTimer();
     hideEliminateOverlay();
@@ -370,10 +371,12 @@
     }, 80);
   }
 
-  returnBtn.addEventListener('click', () => { window.location.href = '../index.html'; });
+  returnBtn.addEventListener('click', () => { window.location.href = '../minigames.html'; });
 
   setStatus('Animation de l’ordre des joueurs...');
   announceOrder(renderQuestionCycle);
+
+  window.PourtyGamePhones?.register({id:'game-5',roster:()=>savedPlayers,view:(i,h)=>{return {owner:currentPlayer()||-1,key:round+':'+turnoverCount+':'+questionEl.textContent,deadline:timerId?phoneDeadline:0,actions:h.buttons('#answers button',{labels:['A','B','C','D'],colors:['#df5364','#4d87ec','#4bb478','#e4bd47'],kind:'answer'})};}});
 })();
   </script>
 </body>
