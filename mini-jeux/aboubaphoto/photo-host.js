@@ -7,6 +7,7 @@
     document.body.classList.add('shared-host','photo-game-host');
     const stage=el('section',undefined,'game-stage'),hud=document.getElementById('players');hud.before(stage);document.getElementById('connection').hidden=true;notice('');
     let room=null,active=true,phase='',deadline=0,round=-1,subject=null,players=[],scores={},answers={},order=[],photos={},gameId=C.token(),frameId,started=false;
+    const showReaction=window.createPourtyHUDReactions?.();
     const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     const timer=()=>{const left=Math.max(0,deadline-now()),n=stage.querySelector('.game-timer');if(n){n.textContent=Math.ceil(left/1000)>=60?Math.floor(Math.ceil(left/1000)/60)+':'+String(Math.ceil(left/1000)%60).padStart(2,'0'):String(Math.ceil(left/1000));n.style.setProperty('--remaining',String(left/(phase==='capture'?90000:30000)));n.classList.toggle('urgent',left<6000);}if(active)frameId=requestAnimationFrame(timer);};timer();
     async function screen(...nodes){if(!active)return;if(stage.children.length){await stage.animate([{opacity:1,transform:'scale(1)'},{opacity:0,transform:'scale(.97) translateY(-8px)'}],{duration:230,easing:'ease-in'}).finished;}if(!active)return;stage.replaceChildren(...nodes);await stage.animate([{opacity:0,transform:'scale(.96) translateY(12px)'},{opacity:1,transform:'scale(1)'}],{duration:420,easing:'cubic-bezier(.2,.8,.2,1)'}).finished;}
@@ -16,7 +17,7 @@
         n.querySelector('.hud-state').textContent=phase==='capture'?(ready?'✓':'…'):phase==='vote'?(p.key===subject?'📷':ready?'✓':'…'):(scores[p.key]||0)+' pt';n.classList.toggle('is-subject',p.key===subject);}
     }
     const update=(state,extra={})=>session.photoUpdate(Object.fromEntries(players.map(p=>[p.key,{...(state==='final'?{photo:null}:{}),game:{id:gameId,phase:state,round,deadline,points:scores[p.key]||0,...(extra[p.key]||{})}}])));
-    const stop=session.subscribe(data=>{room=data;if(!data&&started){active=false;cancelAnimationFrame(frameId);stage.replaceChildren(el('h2','Salle fermée'));notice('Reviens au menu principal pour reconnecter les joueurs.');}drawHUD();});
+    const stop=session.subscribe(data=>{room=data;if(!data&&started){active=false;cancelAnimationFrame(frameId);stage.replaceChildren(el('h2','Salle fermée'));notice('Reviens au menu principal pour reconnecter les joueurs.');}drawHUD();for(const p of players)showReaction?.(p.key,data?.players?.[p.key]?.reaction,hud.querySelector('[data-key="'+p.key+'"]'),now());});
     window.addEventListener('pagehide',()=>{active=false;cancelAnimationFrame(frameId);stop();},{once:true});
     const waitFor=async predicate=>{while(active&&now()<deadline&&!predicate())await sleep(100);return active;};
     async function finale(){
@@ -27,7 +28,7 @@
     }
     async function run(){
       for(let i=0;i<100&&!room&&active;i++)await sleep(100);if(!room||!active){notice('La salle n’est pas disponible.');return;}
-      players=Object.entries(room.players||{}).sort((a,b)=>a[1].index-b[1].index).map(([key,p])=>({key,name:p.name,color:p.color,index:p.index}));if(!players.length)return;
+      players=Object.entries(room.players||{}).sort((a,b)=>a[1].index-b[1].index).map(([key,p])=>({key,name:p.name,color:p.color,index:p.index}));if(players.length<2){notice('Il faut au moins 2 joueurs pour jouer à Aboubaphoto.');stage.append(action('Gérer les joueurs',()=>location.href='../../index.html#players'));return;}
       started=true;answers=G.assignments(players.map(p=>p.key));scores=Object.fromEntries(players.map(p=>[p.key,0]));phase='capture';deadline=now()+90000;
       await session.photoUpdate(Object.fromEntries(players.map(p=>[p.key,{photo:null,vote:null,game:{id:gameId,phase,round,deadline,prompt:answers[p.key].prompt,points:0}}])));
       drawHUD();await screen(el('h2','Regardez vos téléphones','stage-title'),el('div','1:30','game-timer'),el('p','Prenez la pose !','stage-caption'));

@@ -25,6 +25,7 @@
     const local=URL.createObjectURL(file);try{const img=new Image();img.src=local;await img.decode();let ratio=Math.min(1,1280/Math.max(img.naturalWidth,img.naturalHeight));const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(img.naturalWidth*ratio));canvas.height=Math.max(1,Math.round(img.naturalHeight*ratio));const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height);let result;for(const quality of [.82,.65,.48]){result=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',quality));if(result&&result.size<700000)break;}if(!result||result.size>1000000)throw Error('Cette image reste trop lourde. Choisis une photo plus petite.');return result;}catch(e){if(e.message?.startsWith('Cette'))throw e;throw Error('Image illisible. Essaie une photo JPEG ou PNG.');}finally{URL.revokeObjectURL(local);}
   }
   function upload(blob,progress){return new Promise((resolve,reject)=>{const x=new XMLHttpRequest(),body=new FormData();body.append('file',blob,'photo.jpg');body.append('upload_preset',cfg.cloudinary.uploadPreset);x.open('POST','https://api.cloudinary.com/v1_1/'+encodeURIComponent(cfg.cloudinary.cloudName)+'/image/upload');x.timeout=60000;x.upload.onprogress=e=>{if(e.lengthComputable)progress(e.loaded/e.total);};x.onerror=()=>reject(Error('Envoi interrompu. Vérifie ta connexion.'));x.ontimeout=()=>reject(Error('L’envoi a pris trop de temps. Réessaie.'));x.onload=()=>{try{const value=JSON.parse(x.responseText);const url=C.imageURL(value.secure_url,cfg.cloudinary.cloudName);if(x.status<200||x.status>=300||!url)throw Error();resolve({url,publicId:value.public_id,deleteToken:typeof value.delete_token==='string'?value.delete_token:null});}catch{reject(Error('L’hébergeur a refusé la photo. Vérifie sa configuration ou son quota.'));}};x.send(body);});}
+  window.PourtyPhotoMedia={compress,upload};
   async function player(){
     document.body.classList.add('player-controller','photo-game-player');$('connection').hidden=true;$('players').hidden=true;
     const token=params.get('player');roomId=params.get('room');
@@ -46,7 +47,7 @@
     const releasePreview=()=>{blob=null;if(previewURL)URL.revokeObjectURL(previewURL);previewURL=null;preview.hidden=true;input.value='';pickText.textContent='Prendre une photo';};
     function draw(){
       if(!alive||!seat)return;name.textContent=seat.name;document.title=seat.name+' · Mario Pourty';face.textContent=seat.name[0].toUpperCase();identity.style.setProperty('--color',seat.color);face.style.setProperty('--color',seat.color);panel.style.setProperty('--color',seat.color);
-      if(['board','mini'].includes(seat.activity)){discard();releasePreview();time.hidden=true;notice('');boardUI?.update(seat.controller);signature='board';return;}boardUI?.hide();
+      if(['board','mini'].includes(seat.activity)){discard();releasePreview();time.hidden=true;notice('');boardUI?.update(seat.controller);signature='board';return;}if(seat.activity==='photo')boardUI?.photoReactions();else boardUI?.hide();
       const g=seat.activity==='photo'?seat.game:null,locked=!!g&&seat.photo?.gameId===g.id,voted=!!g&&seat.vote?.gameId===g.id&&seat.vote?.round===g.round;
       if(currentUpload&&(!g||g.id!==currentUpload.gameId||g.phase==='final'))discard();
       const next=JSON.stringify([g?.id,g?.phase,g?.round,locked,voted,seat.vote?.choice,g?.points,g?.correct]);if(next===signature)return;
@@ -91,7 +92,7 @@
       const claim=await sdk.runTransaction(sdk.ref(db,path+'/uid'),old=>old&&old!==uid?undefined:uid,{applyLocally:false});if(!claim.committed)throw Error('Cette place est déjà utilisée sur un autre téléphone.');
       const online=sdk.ref(db,path+'/online'),stopClock=sdk.onValue(sdk.ref(db,'.info/serverTimeOffset'),s=>offset=Number(s.val())||0);
       stopPresence=sdk.onValue(sdk.ref(db,'.info/connected'),async s=>{if(s.val()===true&&alive){try{await sdk.onDisconnect(online).set(false);await sdk.set(online,true);}catch(e){notice('Connexion interrompue.',true);}}});
-      boardUI=window.PourtyBoardController({root:content,identity,sendReaction:r=>sdk.set(sdk.ref(db,path+'/reaction'),{...r,sentAt:sdk.serverTimestamp()}),send:cmd=>sdk.set(sdk.ref(db,path+'/boardCommand'),cmd),readMap:async()=>(await sdk.get(sdk.ref(db,'photoRooms/'+roomId+'/boardMap'))).val()});
+      boardUI=window.PourtyBoardController({root:content,identity,clock:now,sendDrawing:photo=>sdk.set(sdk.ref(db,path+'/drawingPhoto'),{...photo,sentAt:sdk.serverTimestamp()}),sendMemePhoto:photo=>sdk.set(sdk.ref(db,path+'/memePhoto'),{...photo,sentAt:sdk.serverTimestamp()}),sendReaction:r=>sdk.set(sdk.ref(db,path+'/reaction'),{...r,sentAt:sdk.serverTimestamp()}),send:cmd=>sdk.set(sdk.ref(db,path+'/boardCommand'),cmd),readMap:async()=>(await sdk.get(sdk.ref(db,'photoRooms/'+roomId+'/boardMap'))).val()});
       const stopSeat=sdk.onValue(r,s=>{seat=s.val();if(!seat){end();return;}draw();},end);unsubscribe=()=>{stopSeat();stopClock();};
     }catch(e){alive=false;cancelAnimationFrame(raf);notice(e.message||'Connexion impossible.',true);}
   }

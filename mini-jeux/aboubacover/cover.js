@@ -3,7 +3,7 @@
   const E=window.AboubaCover,$=id=>document.getElementById(id),stage=$('stage'),footer=$('players');
   const make=(tag,text,cls)=>{const el=document.createElement(tag);if(text!==undefined)el.textContent=text;if(cls)el.className=cls;return el;};
   const button=(text,fn,cls='')=>{const b=make('button',text,cls);b.type='button';b.addEventListener('click',event=>{if(!transitioning)fn(event);});return b;};
-  let players=[];try{const raw=JSON.parse(localStorage.getItem('mini-Jeux-host-players')||'[]');if(Array.isArray(raw))players=raw.filter(p=>p&&typeof p.name==='string'&&p.name.trim()&&/^#[0-9a-f]{6}$/i.test(p.color)).slice(0,6).map(p=>({name:p.name.trim(),color:p.color}));}catch{}
+  let players=[];try{const raw=JSON.parse(localStorage.getItem('mini-Jeux-host-players')||'[]');if(Array.isArray(raw))players=raw.filter(p=>p&&typeof p.name==='string'&&p.name.trim()&&/^#[0-9a-f]{6}$/i.test(p.color)).slice(0,20).map(p=>({name:p.name.trim(),color:p.color}));}catch{}
   let game=null,phase='setup',roleIndex=0,order=[],round=1,cursor=0,deadline=0,frame=0,epoch=0,speechTicket=0,voiceEnabled=true,pendingSpeech=null;
   let phoneRead=new Set(),phoneRoles=false;
   let choices=new Set(),options={undercovers:1,rounds:1,hints:true},usedWords=new Set();

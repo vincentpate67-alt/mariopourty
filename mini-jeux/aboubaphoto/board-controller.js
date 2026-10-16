@@ -17,7 +17,7 @@
     if(['up','down','gold','flat'].includes(part.tone))node.classList.add('price-'+part.tone);
     node.append(formatted(part.children));fragment.append(node);
   }return fragment;}
-  window.PourtyBoardController=({root,identity,send,readMap,sendReaction})=>{
+  window.PourtyBoardController=({root,identity,send,readMap,sendReaction,sendMemePhoto,sendDrawing,clock=Date.now})=>{
     let view=null,pending='',pendingVersion='',active=false,last='',pendingTimer,serial=0;
     const widgets=window.PourtyPhoneWidgets({act:(id,value,version)=>execute(id,value,version)});
     const miniDrafts=new Map();let miniPreview='',miniScope='',clockView=null,clockFrame=0;
@@ -55,7 +55,7 @@
     function toggleReactions(open){reactionOpen=open;reactionToggle.setAttribute('aria-expanded',String(open));clearTimeout(reactionTimer);reactionMenu.getAnimations?.().forEach(a=>a.cancel());if(open)reactionMenu.hidden=false;reactionMenu.animate?.(open?[{opacity:0,transform:'translateY(12px) scale(.85)'},{opacity:1,transform:'translateY(0) scale(1)'}]:[{opacity:1,transform:'translateY(0) scale(1)'},{opacity:0,transform:'translateY(12px) scale(.85)'}],{duration:220,easing:'ease-out',fill:'both'});if(!open)reactionTimer=setTimeout(()=>{if(!reactionOpen)reactionMenu.hidden=true;},220);}
     reactionToggle.onclick=()=>toggleReactions(!reactionOpen);
     for(const [id,label]of reactions){const button=el('button');button.type='button';button.setAttribute('aria-label',label);button.append(art('../../assets/reactions/'+id+'.svg'));button.onclick=async()=>{
-      if(!active||Date.now()<reactionUntil||!sendReaction)return;reactionUntil=Date.now()+2100;reactionStatus.textContent='';toggleReactions(false);
+      if(!active||view?.garou||view?.meme?.phase==='vote'||Date.now()<reactionUntil||!sendReaction)return;reactionUntil=Date.now()+2100;reactionStatus.textContent='';toggleReactions(false);
       try{await sendReaction({id,nonce:crypto.getRandomValues(new Uint32Array(3)).join('-')});}catch{reactionUntil=0;reactionStatus.textContent='Réaction non envoyée. Réessaie.';}
     };reactionMenu.append(button);}
     const outsideReaction=e=>{if(reactionOpen&&!reactionDock.contains(e.target))toggleReactions(false);};document.addEventListener('pointerdown',outsideReaction);
@@ -78,13 +78,21 @@
     async function execute(id,value,version=view?.version){
       if(!active||pending||!view?.canAct||view.version!==version||!view.actions?.[id]||view.actions[id].disabled)return false;
       const nonce=crypto.getRandomValues(new Uint32Array(3)).join('-')+'-'+(++serial);pending=nonce;pendingVersion=view.version;render(true);clearTimeout(pendingTimer);
-      pendingTimer=setTimeout(()=>{if(pending===nonce){pending='';widgets.clear();render(true);const n=el('p','Pas de réponse de l’hôte. Réessaie.','controller-error');root.append(n);}},5000);
+      pendingTimer=setTimeout(()=>{if(pending===nonce){pending='';widgets.clear();render(true);if(!view?.garou){const n=el('p','Pas de réponse de l’hôte. Réessaie.','controller-error');root.append(n);}}},5000);
       try{await send({version:view.version,action:id,nonce,...(value===undefined?{}:{value:String(value)})});return true;}catch(e){pending='';widgets.clear();clearTimeout(pendingTimer);render(true);root.append(el('p','Cette action n’est plus disponible.','controller-error'));return false;}
     }
+    const memeUI=window.PourtyMemePhone?.({root,identity,send:(id,value)=>execute(id,value),sendPhoto:sendMemePhoto,now:clock});
+    const responsesUI=window.PourtyResponsesPhone?.({root,identity,send:(id,value)=>execute(id,value),now:clock});
+    const garouUI=window.PourtyGarouPhone?.({root,send:(id,value)=>execute(id,value),now:clock});
+    const drawingUI=window.PourtyDrawingPhone?.({root,identity,send:(id,value)=>execute(id,value),sendDrawing,now:clock});
     function render(force=false){
       if(!active||!view)return;const fingerprint=JSON.stringify(view)+pending;if(!force&&fingerprint===last)return;last=fingerprint;
       const focused=document.activeElement?.dataset.field,value=focused?document.activeElement.value:null;
       document.body.style.setProperty('--controller-color',view.color||'#6482b3');document.body.classList.toggle('controller-ready',!!view.ready);
+      if(view.garou&&garouUI){drawingUI?.hide();responsesUI?.hide();memeUI?.hide();clockView=null;wallet.hidden=true;bag.hidden=true;release();accelerate.hidden=true;garouUI.update(view);return;}garouUI?.hide();
+      if(view.drawing&&drawingUI){memeUI?.hide();responsesUI?.hide();clockView=null;wallet.hidden=true;bag.hidden=true;release();accelerate.hidden=true;drawingUI.update(view);return;}drawingUI?.hide();
+      if(view.responses&&responsesUI){memeUI?.hide();clockView=null;wallet.hidden=true;bag.hidden=true;release();accelerate.hidden=true;responsesUI.update(view);return;}responsesUI?.hide();
+      if(view.meme&&memeUI){clockView=null;wallet.hidden=true;bag.hidden=true;release();accelerate.hidden=true;memeUI.update(view);return;}memeUI?.hide();wallet.hidden=false;
       wallet.replaceChildren(...(view.mini?[...(view.wins===null||view.wins===undefined?[]:[el('span','🏆 '+view.wins,'mini-session-wins')]),el('span',view.score||'','mini-phone-score')]:[el('span','★ '+view.stars),el('span',view.ac+' AC')]));bag.hidden=!!view.mini;bag.replaceChildren();if(view.mini){const scope=view.game+':'+view.key;if(scope!==miniScope){miniScope=scope;miniDrafts.clear();miniPreview='';}clockView=view.deadline?view:null;}else clockView=null;
       for(let i=0;i<(view.mini?0:view.capacity||3);i++){
         const p=array(view.inventory)[i],inspect=Object.entries(view.actions||{}).find(([,a])=>a.kind==='inspect'&&a.index===i),slot=el(p?'button':'div',undefined,'controller-slot');
@@ -142,6 +150,6 @@
       if(focused&&!pending){const field=[...root.querySelectorAll('[data-field]')].find(f=>f.dataset.field===focused);field?.focus();}
       widgets.prune();
     }
-    return {update(next){active=true;reactionDock.hidden=!sendReaction;wallet.hidden=false;bag.hidden=false;document.body.classList.add('board-controller');view=next;if(!view){root.replaceChildren(el('h2','Le plateau arrive…'));return;}if(pending&&(view.ack===pending||view.version!==pendingVersion)){pending='';clearTimeout(pendingTimer);}render();},hide(){clockView=null;reactionDock.hidden=true;toggleReactions(false);release();accelerate.hidden=true;active=false;clearTimeout(pendingTimer);pending='';wallet.hidden=true;bag.hidden=true;document.body.classList.remove('board-controller','controller-ready');widgets.clear();last='';},destroy(){cancelAnimationFrame(clockFrame);clearTimeout(reactionTimer);document.removeEventListener('pointerdown',outsideReaction);reactionDock.remove();release();clearInterval(holdTimer);document.removeEventListener('visibilitychange',onHidden);window.removeEventListener('blur',release);window.removeEventListener('pagehide',release);clearTimeout(pendingTimer);accelerate.remove();wallet.remove();bag.remove();}};
+    return {photoReactions(){if(view){this.hide();view=null;}active=true;reactionDock.hidden=!sendReaction;},update(next){active=true;reactionDock.hidden=!sendReaction||!!next?.garou||next?.meme?.phase==='vote';if((next?.garou||next?.meme?.phase==='vote')&&reactionOpen)toggleReactions(false);wallet.hidden=false;bag.hidden=false;document.body.classList.add('board-controller');view=next;if(!view){root.replaceChildren(el('h2','Le plateau arrive…'));return;}if(pending&&(view.ack===pending||view.version!==pendingVersion)){pending='';clearTimeout(pendingTimer);}render();},hide(){garouUI?.hide();drawingUI?.hide();responsesUI?.hide();memeUI?.hide();clockView=null;reactionDock.hidden=true;toggleReactions(false);release();accelerate.hidden=true;active=false;clearTimeout(pendingTimer);pending='';wallet.hidden=true;bag.hidden=true;document.body.classList.remove('board-controller','controller-ready');widgets.clear();last='';},destroy(){garouUI?.destroy();drawingUI?.destroy();responsesUI?.destroy();memeUI?.destroy();cancelAnimationFrame(clockFrame);clearTimeout(reactionTimer);document.removeEventListener('pointerdown',outsideReaction);reactionDock.remove();release();clearInterval(holdTimer);document.removeEventListener('visibilitychange',onHidden);window.removeEventListener('blur',release);window.removeEventListener('pagehide',release);clearTimeout(pendingTimer);accelerate.remove();wallet.remove();bag.remove();}};
   };
 })();

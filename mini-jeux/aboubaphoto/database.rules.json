@@ -28,7 +28,7 @@
               ".validate": "newData.isString() && newData.val().matches(/^#[0-9a-fA-F]{6}$/)"
             },
             "index": {
-              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 5 && newData.val() % 1 === 0"
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 19 && newData.val() % 1 === 0"
             },
             "uid": {
               ".validate": "newData.isString() && (!data.exists() ? newData.val() === auth.uid : newData.val() === data.val())",
@@ -142,19 +142,63 @@
                 ".validate": "newData.isString() && newData.val().length <= 100"
               },
               "value": {
-                ".validate": "newData.isString() && newData.val().length <= 200"
+                ".validate": "newData.isString() && newData.val().length <= 1500"
               },
               "$other": {
                 ".validate": false
               }
             },
             "reaction": {
-              ".write": "auth != null && data.parent().child('uid').val() === auth.uid && root.child('photoRooms').child($room).child('expiresAt').val() > now && (data.parent().child('activity').val() === 'board' || data.parent().child('activity').val() === 'mini') && (!data.exists() || data.child('sentAt').val() <= now - 2000)",
+              ".write": "auth != null && data.parent().child('uid').val() === auth.uid && root.child('photoRooms').child($room).child('expiresAt').val() > now && (data.parent().child('activity').val() === 'board' || data.parent().child('activity').val() === 'mini' || data.parent().child('activity').val() === 'photo') && (!data.exists() || data.child('sentAt').val() <= now - 2000) && !data.parent().child(\"controller\").child(\"garou\").exists()",
               ".validate": "newData.hasChildren(['id','nonce','sentAt'])",
               "id": {
                 ".validate": "newData.isString() && (newData.val() === 'guez' || newData.val() === 'noob' || newData.val() === 'ff' || newData.val() === 'chad' || newData.val() === 'goat' || newData.val() === 'porto' || newData.val() === 'aboubakar' || newData.val() === 'skibidi' || newData.val() === 'zzz' || newData.val() === 'pog' || newData.val() === 'plait-il' || newData.val() === 'yuki' || newData.val() === 'zebi' || newData.val() === 'mashallah' || newData.val() === 'mog' || newData.val() === '67' || newData.val() === 'tigre')"
               },
               "nonce": {
+                ".validate": "newData.isString() && newData.val().length <= 100"
+              },
+              "sentAt": {
+                ".validate": "newData.isNumber() && newData.val() <= now && newData.val() >= now - 10000"
+              },
+              "$other": {
+                ".validate": false
+              }
+            },
+            "memePhoto": {
+              ".write": "auth != null && data.parent().child('uid').val() === auth.uid && root.child('photoRooms').child($room).child('expiresAt').val() > now && data.parent().child('activity').val() === 'mini' && data.parent().child('controller').child('game').val() === 'aboubameme' && data.parent().child('controller').child('actions').child('photo').child('disabled').val() === false && data.parent().child('controller').child('canAct').val() === true && now <= data.parent().child('controller').child('deadline').val() && (!data.exists() || data.child('phaseId').val() !== newData.child('phaseId').val())",
+              ".validate": "newData.hasChildren(['url','publicId','gameId','phaseId','sentAt']) && newData.child('gameId').val() === newData.parent().child('controller').child('sessionId').val() && newData.child('phaseId').val() === newData.parent().child('controller').child('meme').child('phaseId').val()",
+              "url": {
+                ".validate": "newData.isString() && newData.val().length < 1000 && newData.val().matches(/^https:\\/\\/res\\.cloudinary\\.com\\/ua1z1wb8\\/image\\/upload\\/.+/)"
+              },
+              "publicId": {
+                ".validate": "newData.isString() && newData.val().length < 300"
+              },
+              "gameId": {
+                ".validate": "newData.isString() && newData.val().matches(/^[a-f0-9]{36}$/)"
+              },
+              "phaseId": {
+                ".validate": "newData.isString() && newData.val().length <= 100"
+              },
+              "sentAt": {
+                ".validate": "newData.isNumber() && newData.val() <= now && newData.val() >= now - 10000"
+              },
+              "$other": {
+                ".validate": false
+              }
+            },
+            "drawingPhoto": {
+              ".write": "auth != null && data.parent().child('uid').val() === auth.uid && root.child('photoRooms').child($room).child('expiresAt').val() > now && data.parent().child('activity').val() === 'mini' && data.parent().child('controller').child('game').val() === 'aboubadessin' && data.parent().child('controller').child('actions').child('upload').child('disabled').val() === false && data.parent().child('controller').child('canAct').val() === true && now <= data.parent().child('controller').child('drawing').child('uploadUntil').val() && (!data.exists() || data.child('phaseId').val() !== newData.child('phaseId').val())",
+              ".validate": "newData.hasChildren(['url','publicId','gameId','phaseId','sentAt']) && newData.child('gameId').val() === newData.parent().child('controller').child('sessionId').val() && newData.child('phaseId').val() === newData.parent().child('controller').child('drawing').child('phaseId').val()",
+              "url": {
+                ".validate": "newData.isString() && newData.val().length < 1000 && newData.val().matches(/^https:\\/\\/res\\.cloudinary\\.com\\/ua1z1wb8\\/image\\/upload\\/.+/)"
+              },
+              "publicId": {
+                ".validate": "newData.isString() && newData.val().length < 300"
+              },
+              "gameId": {
+                ".validate": "newData.isString() && newData.val().matches(/^[a-f0-9]{36}$/)"
+              },
+              "phaseId": {
                 ".validate": "newData.isString() && newData.val().length <= 100"
               },
               "sentAt": {
@@ -191,7 +235,7 @@
         },
         "players": {
           "$index": {
-            ".validate": "$index.matches(/^[0-5]$/) && newData.hasChildren(['name','color'])",
+            ".validate": "$index.matches(/^([0-9]|1[0-9])$/) && newData.hasChildren(['name','color'])",
             "name": {
               ".validate": "newData.isString() && newData.val().length <= 40"
             },

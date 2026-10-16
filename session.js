@@ -9,7 +9,7 @@
   const emit=()=>listeners.forEach(fn=>fn(data));
   function roster(){
     let raw;try{raw=JSON.parse(localStorage.getItem('mini-Jeux-host-players')||'[]');}catch{raw=[];}
-    const valid=Array.isArray(raw)?raw.filter(p=>p&&typeof p.name==='string'&&p.name.trim()&&/^#[0-9a-f]{6}$/i.test(p.color)).slice(0,6):[];
+    const valid=Array.isArray(raw)?raw.filter(p=>p&&typeof p.name==='string'&&p.name.trim()&&/^#[0-9a-f]{6}$/i.test(p.color)).slice(0,20):[];
     let changed=false;const ids=new Set();for(const p of valid){if(!p.connectionId||ids.has(p.connectionId)){p.connectionId=C.token();changed=true;}ids.add(p.connectionId);}
     if(changed)localStorage.setItem('mini-Jeux-host-players',JSON.stringify(valid));return valid;
   }
@@ -63,7 +63,7 @@
     updates['roomDirectory/'+id]=directory({...data,players:next});await sdk.update(sdk.ref(db),updates);if(added)await show();
   }
   async function setActivity(next){
-    activity=next;if(!data||closing)return;const updates={};for(const [key,p] of Object.entries(data.players||{})){if(p.activity!==next)updates['photoRooms/'+id+'/players/'+key+'/activity']=next;if(!['board','mini'].includes(next)){for(const field of ['controller','boardCommand','reaction'])if(p[field])updates['photoRooms/'+id+'/players/'+key+'/'+field]=null;}if(next!=='photo'){for(const field of ['photo','vote','game'])if(p[field])updates['photoRooms/'+id+'/players/'+key+'/'+field]=null;}}
+    activity=next;if(!data||closing)return;const updates={};for(const [key,p] of Object.entries(data.players||{})){if(p.activity!==next)updates['photoRooms/'+id+'/players/'+key+'/activity']=next;if(!['board','mini'].includes(next)){for(const field of ['controller','boardCommand','reaction'])if(p[field])updates['photoRooms/'+id+'/players/'+key+'/'+field]=null;}if(next!=='mini'&&p.memePhoto)updates['photoRooms/'+id+'/players/'+key+'/memePhoto']=null;if(next!=='mini'&&p.drawingPhoto)updates['photoRooms/'+id+'/players/'+key+'/drawingPhoto']=null;if(next!=='photo'){for(const field of ['photo','vote','game'])if(p[field])updates['photoRooms/'+id+'/players/'+key+'/'+field]=null;}}
     if(Object.keys(updates).length)await sdk.update(sdk.ref(db),updates);
   }
   function insideSite(source){try{for(let w=source;w&&w!==window;w=w.parent)if(w===frame.contentWindow)return true;}catch{}return false;}
@@ -78,7 +78,7 @@
     if(miniLease||closing||!ready)return;await ready;if(miniLease||closing||!data||!frame.contentWindow.location.pathname.endsWith('/board-play.html'))return;const updates={},sent=[];for(const [key,view]of Object.entries(views))if(data.players[key]&&(boardSent.get(key)!==JSON.stringify(view)||data.players[key].activity!=='board')){sent.push([key,JSON.stringify(view)]);updates['photoRooms/'+id+'/players/'+key+'/controller']=view;if(data.players[key].activity!=='board')updates['photoRooms/'+id+'/players/'+key+'/activity']='board';}if(Object.keys(updates).length){await sdk.update(sdk.ref(db),updates);sent.forEach(([key,value])=>boardSent.set(key,value));}
   },async boardMap(map){if(closing||!ready)return;await ready;if(closing||!data||!frame.contentWindow.location.pathname.endsWith('/board-play.html'))return;await sdk.set(sdk.ref(db,'photoRooms/'+id+'/boardMap'),map);},now:()=>Date.now()+serverOffset,async photoUpdate(changes){
     await ensure();if(!data)throw Error('Salle fermée.');const updates={};
-    for(const [key,patch] of Object.entries(changes)){if(!data.players[key])continue;for(const [field,value] of Object.entries(patch)){if(!['game','photo','vote'].includes(field))throw Error('Champ de jeu invalide');updates['photoRooms/'+id+'/players/'+key+'/'+field]=value;}}
+    for(const [key,patch] of Object.entries(changes)){if(!data.players[key])continue;for(const [field,value] of Object.entries(patch)){if(!['game','photo','vote','memePhoto','drawingPhoto'].includes(field))throw Error('Champ de jeu invalide');updates['photoRooms/'+id+'/players/'+key+'/'+field]=value;}}
     await sdk.update(sdk.ref(db),updates);
   },subscribe(fn){listeners.add(fn);fn(data);return()=>listeners.delete(fn);},showConnection:show,rosterChanged(){syncQueue=syncQueue.then(syncRoster).catch(fail);}};
   frame.addEventListener('load',()=>{try{const path=frame.contentWindow.location.pathname;document.title=frame.contentDocument.title||'Mario Pourty';if(miniLease&&!insideSite(miniLease.source))miniLease=null;setActivity(miniLease?'mini':pageActivity()).catch(fail);}catch{}});

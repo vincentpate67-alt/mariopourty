@@ -1,0 +1,1 @@
+(()=>{try{const players=JSON.parse(localStorage.getItem('mini-Jeux-host-players')||'[]');if(players.length>6){const root=new URL('../../minigames.html',document.currentScript.src);location.replace(root.href);}}catch{}})();

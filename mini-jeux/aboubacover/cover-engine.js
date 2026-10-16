@@ -3,7 +3,7 @@
   const shuffle=(list,random=Math.random)=>{const out=[...list];for(let i=out.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[out[i],out[j]]=[out[j],out[i]];}return out;};
   function create(players,options,entry,random=Math.random){
     const n=players.length,k=options.undercovers;
-    if(n<3||n>6||!Number.isInteger(k)||k<1||k>=n||!Number.isInteger(options.rounds)||options.rounds<1||options.rounds>10)throw Error('Paramètres invalides.');
+    if(n<3||n>20||!Number.isInteger(k)||k<1||k>=n||!Number.isInteger(options.rounds)||options.rounds<1||options.rounds>10)throw Error('Paramètres invalides.');
     const ids=players.map((_,i)=>i),roles=shuffle(ids,random);
     return {players:players.map(p=>({...p})),options:{...options},entry:{...entry},undercoverIds:roles.slice(0,k),roleOrder:shuffle(ids,random),words:[],votes:Array(n).fill(null)};
   }
